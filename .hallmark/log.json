@@ -1,0 +1,38 @@
+[
+  {
+    "date": "2026-08-21",
+    "macrostructure": "none",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "none",
+    "brief": "Employee salary history panel as a full-width payslip ledger",
+    "scope": "component"
+  },
+  {
+    "date": "2026-08-21",
+    "macrostructure": "none",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "none",
+    "brief": "Salary structure step restack to match employee wizard fields",
+    "scope": "component"
+  },
+  {
+    "date": "2026-08-20",
+    "macrostructure": "Split Studio",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "none",
+    "brief": "Login page redesign",
+    "scope": "page"
+  },
+  {
+    "date": "2026-08-20",
+    "macrostructure": "Index-First",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Superadmin companies page redesign",
+    "scope": "page"
+  }
+]

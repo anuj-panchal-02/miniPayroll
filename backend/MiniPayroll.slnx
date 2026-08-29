@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MiniPayroll.Api/MiniPayroll.Api.csproj" />
+    <Project Path="src/MiniPayroll.Domain/MiniPayroll.Domain.csproj" />
+    <Project Path="src/MiniPayroll.Infrastructure/MiniPayroll.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MiniPayroll.Tests/MiniPayroll.Tests.csproj" />
+  </Folder>
+</Solution>

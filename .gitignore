@@ -1,0 +1,39 @@
+# Build
+[Bb]in/
+[Oo]bj/
+artifacts/
+.vs/
+*.user
+*.suo
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Secrets / env
+.env
+.env.local
+.env.*.local
+appsettings.*.local.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Test / coverage
+TestResults/
+coverage/
+
+# Runtime uploads
+backend/src/MiniPayroll.Api/uploads/
+backend/src/MiniPayroll.Api/dataprotection-keys/
+
+# EF
+*.db
+*.db-shm
+*.db-wal

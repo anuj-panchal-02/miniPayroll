@@ -1,0 +1,323 @@
+/* Hallmark · component: button · genre: modern-minimal · theme: Coral
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (46–50)
+ */
+
+.sign-out {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-button);
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    border-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
+}
+
+.sign-out::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+
+.sign-out.is-hover {
+  background: var(--color-paper);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+@media (hover: hover) {
+  .sign-out:hover {
+    background: var(--color-paper);
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+}
+
+.sign-out:focus-visible,
+.sign-out.is-focus {
+  outline-color: var(--color-focus);
+}
+
+.sign-out:active,
+.sign-out.is-active {
+  background: var(--color-paper);
+  border-color: var(--color-error);
+  color: var(--color-error);
+  transform: translateY(1px);
+}
+
+.sign-out:disabled,
+.sign-out[aria-disabled="true"],
+.sign-out.is-disabled {
+  background: var(--color-paper);
+  border-color: var(--color-rule);
+  color: var(--color-neutral);
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sign-out[data-state="loading"],
+.sign-out.is-loading {
+  background: var(--color-paper-2);
+  border-color: var(--color-rule-2);
+  color: var(--color-ink);
+  cursor: progress;
+}
+
+.sign-out[data-state="error"],
+.sign-out.is-error {
+  background: var(--color-paper);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.sign-out[data-state="success"],
+.sign-out.is-success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-success-ink);
+}
+
+.sign-out__mark {
+  width: 0.7em;
+  height: 0.7em;
+  flex-shrink: 0;
+}
+
+.sign-out__spinner {
+  width: 0.85em;
+  height: 0.85em;
+  flex-shrink: 0;
+  border: 2px solid var(--color-rule);
+  border-top-color: var(--color-ink);
+  border-radius: 50%;
+  animation: sign-out-spin 700ms linear infinite;
+}
+
+@keyframes sign-out-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-out {
+    transition: none;
+  }
+
+  .sign-out:active,
+  .sign-out.is-active {
+    transform: none;
+  }
+
+  .sign-out__spinner {
+    animation: none;
+    border-top-color: var(--color-ink);
+  }
+}
+
+.sign-out-dialog {
+  width: min(22rem, calc(100% - 2 * var(--page-gutter)));
+  margin: auto;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-input);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+.sign-out-dialog::backdrop {
+  background: color-mix(in oklch, var(--color-ink) 40%, transparent);
+}
+
+.sign-out-dialog__body {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.sign-out-dialog__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.sign-out-dialog__copy {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.sign-out-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.sign-out-dialog__cancel,
+.sign-out-dialog__confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: var(--text-button);
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition:
+    background-color var(--dur-hover) var(--ease-out),
+    border-color var(--dur-hover) var(--ease-out),
+    color var(--dur-hover) var(--ease-out),
+    transform var(--dur-press) var(--ease-out);
+}
+
+.sign-out-dialog__cancel {
+  border: 1px solid var(--color-rule-2);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.sign-out-dialog__cancel.is-hover {
+  background: var(--color-paper-2);
+  border-color: var(--color-ink-2);
+}
+
+@media (hover: hover) {
+  .sign-out-dialog__cancel:hover {
+    background: var(--color-paper-2);
+    border-color: var(--color-ink-2);
+  }
+}
+
+.sign-out-dialog__cancel:focus-visible,
+.sign-out-dialog__cancel.is-focus {
+  outline-color: var(--color-focus);
+}
+
+.sign-out-dialog__cancel:active,
+.sign-out-dialog__cancel.is-active {
+  background: var(--color-paper-3);
+  border-color: var(--color-ink);
+  transform: translateY(1px);
+}
+
+.sign-out-dialog__cancel:disabled,
+.sign-out-dialog__cancel.is-disabled,
+.sign-out-dialog__cancel.is-loading {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sign-out-dialog__cancel.is-error {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.sign-out-dialog__cancel.is-success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-success-ink);
+}
+
+.sign-out-dialog__confirm {
+  border: 1px solid var(--color-error);
+  background: var(--color-error);
+  color: var(--color-error-ink);
+}
+
+.sign-out-dialog__confirm.is-hover {
+  background: color-mix(in oklch, var(--color-error) 80%, var(--color-ink));
+  border-color: color-mix(in oklch, var(--color-error) 80%, var(--color-ink));
+  color: var(--color-error-ink);
+}
+
+@media (hover: hover) {
+  .sign-out-dialog__confirm:hover {
+    background: color-mix(in oklch, var(--color-error) 80%, var(--color-ink));
+    border-color: color-mix(in oklch, var(--color-error) 80%, var(--color-ink));
+    color: var(--color-error-ink);
+  }
+}
+
+.sign-out-dialog__confirm:focus-visible,
+.sign-out-dialog__confirm.is-focus {
+  outline-color: var(--color-focus);
+}
+
+.sign-out-dialog__confirm:active,
+.sign-out-dialog__confirm.is-active {
+  transform: translateY(1px);
+}
+
+.sign-out-dialog__confirm:disabled,
+.sign-out-dialog__confirm.is-disabled,
+.sign-out-dialog__confirm.is-loading {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sign-out-dialog__confirm.is-error {
+  background: var(--color-paper);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.sign-out-dialog__confirm.is-success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-success-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-out-dialog__cancel,
+  .sign-out-dialog__confirm {
+    transition: none;
+  }
+
+  .sign-out-dialog__cancel:active,
+  .sign-out-dialog__cancel.is-active,
+  .sign-out-dialog__confirm:active,
+  .sign-out-dialog__confirm.is-active {
+    transform: none;
+  }
+}

@@ -1,0 +1,395 @@
+"use client";
+
+import { useRef, useState } from "react";
+import type { EmployeeDetail, EmployeeInput, EmployeeStatus } from "@/lib/api";
+import { EmployeeStatus as Status } from "@/lib/api";
+import {
+  SalaryStructureEditor,
+  newSalaryStructureFields,
+  salaryStructureError,
+  toSalaryStructureInput,
+  type SalaryStructureFields,
+} from "@/components/SalaryStructureEditor";
+import {
+  BANK_FIELDS,
+  employeeBankErrors,
+  employeeDraftErrors,
+  employeeErrors,
+  employeePayrollErrors,
+  employeePersonalErrors,
+  PAYROLL_FIELDS,
+  PERSONAL_FIELDS,
+  type EmployeeErrors,
+  type EmployeeField,
+  type EmployeeFields,
+} from "@/lib/validation";
+
+const STEPS = ["Personal details", "Bank details", "Payroll details", "Salary structure"] as const;
+const STEP_FIELDS = [PERSONAL_FIELDS, BANK_FIELDS, PAYROLL_FIELDS] as const;
+const STEP_VALIDATORS = [
+  employeePersonalErrors,
+  employeeBankErrors,
+  employeePayrollErrors,
+] as const;
+
+const PLACEHOLDERS: Partial<Record<EmployeeField, string>> = {
+  employeeCode: "EMP-01",
+  fullName: "Priya Sharma",
+  email: "priya@company.example",
+  phone: "9876543210",
+  addressLine1: "12 MG Road",
+  addressLine2: "Suite 4",
+  city: "Pune",
+  state: "Maharashtra",
+  postalCode: "411001",
+  designation: "Engineer",
+  department: "Engineering",
+  bankName: "HDFC Bank",
+  bankAccountNumber: "123456789012",
+  ifsc: "HDFC0001234",
+  upiId: "priya@upi",
+  overtimeRate: "200",
+};
+
+type EmployeeFormProps = {
+  employee?: EmployeeDetail;
+  submitLabel: string;
+  onSave: (input: EmployeeInput) => Promise<void>;
+};
+
+export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProps) {
+  const allowDraft = !employee || employee.status === Status.Draft;
+  const collectSalary = !employee || employee.status === Status.Draft;
+  const steps = collectSalary ? STEPS : STEPS.slice(0, 3);
+  const [step, setStep] = useState(() =>
+    allowDraft && employee?.draftStep ? clampStep(employee.draftStep) : 1,
+  );
+  const [values, setValues] = useState<EmployeeFields>(() => fromEmployee(employee));
+  const [status, setStatus] = useState<EmployeeStatus>(
+    employee?.status === Status.Inactive ? Status.Inactive : Status.Active,
+  );
+  const [errors, setErrors] = useState<EmployeeErrors>({});
+  const [salary, setSalary] = useState<SalaryStructureFields>(() =>
+    newSalaryStructureFields(employee?.joiningDate ?? today()),
+  );
+  const [salaryError, setSalaryError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [formStatus, setFormStatus] = useState("");
+  const refs = useRef<Partial<Record<EmployeeField, HTMLInputElement | null>>>({});
+
+  async function save(kind: "draft" | "complete") {
+    const nextErrors =
+      kind === "draft" ? employeeDraftErrors(values) : employeeErrors(values);
+    setErrors(nextErrors);
+    const invalid = [...PERSONAL_FIELDS, ...BANK_FIELDS, ...PAYROLL_FIELDS].find(
+      (field) => nextErrors[field],
+    );
+    if (invalid) {
+      const errorStep = STEP_FIELDS.findIndex((fields) => fields.includes(invalid)) + 1;
+      if (errorStep) setStep(clampStep(errorStep));
+      refs.current[invalid]?.focus();
+      return;
+    }
+
+    if (kind === "complete" && collectSalary) {
+      const message = salaryStructureError(salary, values.joiningDate);
+      setSalaryError(message ?? "");
+      if (message) {
+        setStep(4);
+        return;
+      }
+    }
+
+    setPending(true);
+    setFormError("");
+    setFormStatus("");
+    try {
+      await onSave(
+        toInput(
+          values,
+          status,
+          kind === "draft",
+          kind === "draft" ? step : null,
+          kind === "complete" && collectSalary ? toSalaryStructureInput(salary) : null,
+        ),
+      );
+      if (kind === "draft") {
+        setFormStatus("Draft saved.");
+      }
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : "Could not save the employee.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function goNext() {
+    if (step === 4) return;
+    const nextErrors = STEP_VALIDATORS[step - 1](values);
+    setErrors(nextErrors);
+    const invalid = STEP_FIELDS[step - 1].find((field) => nextErrors[field]);
+    if (invalid) {
+      refs.current[invalid]?.focus();
+      return;
+    }
+    setFormStatus("");
+    setStep((current) => clampStep(current + 1));
+  }
+
+  function updateField(name: EmployeeField, value: string) {
+    setValues((current) => ({ ...current, [name]: value }));
+    setFormStatus("");
+    setErrors((current) => {
+      if (!current[name]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
+  }
+
+  function field(name: EmployeeField, label: string, type = "text") {
+    const message = errors[name];
+    return (
+      <label className="sa-field">
+        {label}
+        <input
+          ref={(node) => {
+            refs.current[name] = node;
+          }}
+          name={name}
+          type={type}
+          value={values[name]}
+          placeholder={PLACEHOLDERS[name]}
+          onChange={(event) => updateField(name, event.target.value)}
+          aria-invalid={message ? true : undefined}
+          aria-describedby={message ? `${name}-error` : undefined}
+        />
+        <span
+          id={`${name}-error`}
+          className="sa-field__error"
+          role={message ? "alert" : undefined}
+        >
+          {message}
+        </span>
+      </label>
+    );
+  }
+
+  return (
+    <form
+      className="sa-compose"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+      }}
+    >
+      <nav className="sa-progress" aria-label="Employee details">
+        <ol>
+          {steps.map((label, index) => {
+            const stepNumber = index + 1;
+            const state =
+              stepNumber < step ? "complete" : stepNumber === step ? "current" : "upcoming";
+            return (
+              <li key={label} data-state={state}>
+                <span className="sa-progress__number" aria-hidden="true">
+                  {stepNumber}
+                </span>
+                <span>
+                  <span
+                    className="sa-progress__count"
+                    aria-current={stepNumber === step ? "step" : undefined}
+                  >
+                    Step {stepNumber} of {steps.length}
+                  </span>
+                  <span className="sa-progress__label">{label}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+      {formError ? (
+        <p className="sa-alert" role="alert">
+          {formError}
+        </p>
+      ) : null}
+      {formStatus ? (
+        <p className="sa-alert" role="status">
+          {formStatus}
+        </p>
+      ) : null}
+      {step === 1 ? (
+        <>
+          {field("employeeCode", "Employee ID")}
+          {field("fullName", "Full name")}
+          {field("email", "Email", "email")}
+          {field("phone", "Phone")}
+          {field("dateOfBirth", "Date of birth (optional)", "date")}
+          {field("addressLine1", "Address line 1")}
+          {field("addressLine2", "Address line 2 (optional)")}
+          {field("city", "City")}
+          {field("state", "State")}
+          {field("postalCode", "Postal code")}
+          {field("designation", "Designation")}
+          {field("department", "Department (optional)")}
+          <p className="sa-field">
+            Employment type
+            <input value="Full-time monthly salaried" readOnly />
+            <span className="sa-field__error" aria-hidden="true" />
+          </p>
+          {field("joiningDate", "Joining date", "date")}
+          {field("exitDate", "Exit date (optional)", "date")}
+          {employee && employee.status !== Status.Draft ? (
+            <label className="sa-field">
+              Status
+              <select
+                value={status}
+                onChange={(event) => setStatus(Number(event.target.value) as EmployeeStatus)}
+              >
+                <option value={Status.Active}>Active</option>
+                <option value={Status.Inactive}>Inactive</option>
+              </select>
+              <span className="sa-field__error" aria-hidden="true" />
+            </label>
+          ) : null}
+        </>
+      ) : null}
+      {step === 2 ? (
+        <>
+          {field("bankName", "Bank name")}
+          {field("bankAccountNumber", "Bank account number")}
+          {field("ifsc", "IFSC")}
+          {field("upiId", "UPI ID (optional)")}
+        </>
+      ) : null}
+      {step === 3 ? (
+        <>{field("overtimeRate", "Overtime rate (optional)", "number")}</>
+      ) : null}
+      {step === 4 ? (
+        <SalaryStructureEditor
+          value={salary}
+          joiningDate={values.joiningDate}
+          error={salaryError}
+          onChange={(next) => {
+            setSalary(next);
+            setSalaryError("");
+            setFormStatus("");
+          }}
+        />
+      ) : null}
+      <div className="sa-compose__actions">
+        {step > 1 ? (
+          <button
+            type="button"
+            className="sa-compose__secondary"
+            disabled={pending}
+            onClick={() => {
+              setFormStatus("");
+              setStep((current) => clampStep(current - 1));
+            }}
+          >
+            Back
+          </button>
+        ) : null}
+        {step < steps.length ? (
+          <button type="button" className="sa-compose__submit" disabled={pending} onClick={goNext}>
+            Next
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="sa-compose__submit"
+            disabled={pending}
+            onClick={() => void save("complete")}
+          >
+            {pending ? "Saving…" : submitLabel}
+          </button>
+        )}
+        {allowDraft ? (
+          <button
+            type="button"
+            className="sa-compose__secondary"
+            disabled={pending}
+            onClick={() => void save("draft")}
+          >
+            Save as draft
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+function clampStep(step: number): 1 | 2 | 3 | 4 {
+  if (step <= 1) return 1;
+  if (step === 2) return 2;
+  if (step === 3) return 3;
+  return 4;
+}
+
+function fromEmployee(employee?: EmployeeDetail): EmployeeFields {
+  return {
+    employeeCode: employee?.employeeCode ?? "",
+    fullName: employee?.fullName ?? "",
+    dateOfBirth: employee?.dateOfBirth ?? "",
+    phone: employee?.phone ?? "",
+    email: employee?.email ?? "",
+    addressLine1: employee?.addressLine1 ?? "",
+    addressLine2: employee?.addressLine2 ?? "",
+    city: employee?.city ?? "",
+    state: employee?.state ?? "",
+    postalCode: employee?.postalCode ?? "",
+    designation: employee?.designation ?? "",
+    department: employee?.department ?? "",
+    joiningDate: employee?.joiningDate ?? "",
+    exitDate: employee?.exitDate ?? "",
+    bankName: employee?.bankName ?? "",
+    bankAccountNumber: employee?.bankAccountNumber ?? "",
+    ifsc: employee?.ifsc ?? "",
+    upiId: employee?.upiId ?? "",
+    overtimeRate:
+      employee?.overtimeRate == null ? "" : String(employee.overtimeRate),
+  };
+}
+
+function toInput(
+  values: EmployeeFields,
+  status: EmployeeStatus,
+  saveAsDraft: boolean,
+  draftStep: number | null,
+  salaryStructure: EmployeeInput["salaryStructure"],
+): EmployeeInput {
+  const overtime = values.overtimeRate.trim();
+  return {
+    employeeCode: values.employeeCode.trim(),
+    fullName: values.fullName.trim(),
+    dateOfBirth: values.dateOfBirth || null,
+    phone: values.phone.trim(),
+    email: values.email.trim(),
+    addressLine1: values.addressLine1.trim(),
+    addressLine2: values.addressLine2.trim() || null,
+    city: values.city.trim(),
+    state: values.state.trim(),
+    postalCode: values.postalCode.trim(),
+    designation: values.designation.trim(),
+    department: values.department.trim() || null,
+    joiningDate: values.joiningDate || null,
+    exitDate: values.exitDate || null,
+    status,
+    bankName: values.bankName.trim(),
+    bankAccountNumber: values.bankAccountNumber.replace(/\D/g, ""),
+    ifsc: values.ifsc.trim().toUpperCase(),
+    upiId: values.upiId.trim() || null,
+    overtimeRate: overtime ? Number(overtime) : null,
+    saveAsDraft,
+    draftStep,
+    salaryStructure,
+  };
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}

@@ -1,0 +1,34 @@
+@http://localhost:5238
+
+GET {{host}}/health
+
+### Superadmin login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "superadmin@minipayroll.local",
+  "password": "ChangeMe_Superadmin1!"
+}
+
+###
+@token = paste-jwt-here
+
+GET {{host}}/api/auth/me
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/companies
+Authorization: Bearer {{token}}
+
+###
+POST {{host}}/api/companies
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "ABC Traders",
+  "contactEmail": "owner@abctraders.example",
+  "contactPhone": "9876543210",
+  "employeeLimit": 9
+}

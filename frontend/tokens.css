@@ -1,0 +1,56 @@
+/* Hallmark · component: button · genre: modern-minimal · theme: Coral
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (ink 22% on paper 97% · focus coral on paper)
+ * Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4
+ */
+
+:root {
+  --color-paper: oklch(97.2% 0.01 72);
+  --color-paper-2: oklch(94.6% 0.012 72);
+  --color-paper-3: oklch(91.2% 0.014 70);
+  --color-rule: oklch(86% 0.012 70);
+  --color-rule-2: oklch(78% 0.014 68);
+  --color-neutral: oklch(52% 0.012 60);
+  --color-muted: oklch(42% 0.014 55);
+  --color-ink-2: oklch(32% 0.016 50);
+  --color-ink: oklch(20% 0.016 48);
+  --color-accent: oklch(58% 0.155 32);
+  --color-accent-ink: oklch(98.5% 0.01 80);
+  --color-focus: oklch(50% 0.17 32);
+  --color-error: oklch(52% 0.18 25);
+  --color-error-ink: oklch(98.5% 0.01 80);
+  --color-success: oklch(46% 0.11 150);
+  --color-success-ink: oklch(98.5% 0.01 150);
+
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-button: 0.875rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+
+  --radius-pill: 999px;
+  --radius-input: 8px;
+
+  --page-gutter: clamp(1rem, 4vw, 2.5rem);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-press: 100ms;
+  --dur-hover: 180ms;
+}

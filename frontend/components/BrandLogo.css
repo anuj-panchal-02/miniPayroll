@@ -1,0 +1,14 @@
+.brand-logo {
+  display: block;
+  flex-shrink: 0;
+  align-self: start;
+  width: auto;
+  max-width: 100%;
+  height: 2.25rem;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.brand-logo--auth {
+  height: 4.5rem;
+}
