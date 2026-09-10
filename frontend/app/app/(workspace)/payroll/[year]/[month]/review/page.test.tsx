@@ -7,6 +7,10 @@ import PayrollReviewPage from "./page";
 const mocks = vi.hoisted(() => ({
   getPayrollPeriod: vi.fn(),
   calculatePayroll: vi.fn(),
+  finalizePayroll: vi.fn(),
+  downloadPayrollPayslip: vi.fn(),
+  downloadAllPayrollPayslips: vi.fn(),
+  updatePayrollPayment: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -17,8 +21,14 @@ vi.mock("@/lib/api", () => ({
   PayrollRunStatus: { Draft: 0, Calculated: 1, Finalized: 2, Reversed: 3 },
   BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
   OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
+  SalaryPaymentStatus: { Unpaid: 0, Paid: 1 },
+  SalaryPaymentMode: { Bank: 0, Upi: 1, Cash: 2 },
   getPayrollPeriod: mocks.getPayrollPeriod,
   calculatePayroll: mocks.calculatePayroll,
+  finalizePayroll: mocks.finalizePayroll,
+  downloadPayrollPayslip: mocks.downloadPayrollPayslip,
+  downloadAllPayrollPayslips: mocks.downloadAllPayrollPayslips,
+  updatePayrollPayment: mocks.updatePayrollPayment,
 }));
 
 vi.mock("@/components/CompanyAdminShell", () => ({
@@ -35,6 +45,7 @@ const calculated = {
     dailyRateMethod: 0,
     createdAt: "2026-08-01T00:00:00Z",
     calculatedAt: "2026-08-31T00:00:00Z",
+    finalizedAt: null,
   },
   employees: [],
   results: [
@@ -42,6 +53,7 @@ const calculated = {
       employeeId: "emp-1",
       employeeCode: "EMP-01",
       fullName: "Ada Lovelace",
+      designation: "Engineer",
       daysEmployed: 31,
       dailyRate: 903.225806,
       grossEarnings: 28000,
@@ -54,6 +66,10 @@ const calculated = {
       deductions: [],
       warnings: [],
       errors: [],
+      paymentStatus: 0,
+      paymentMode: null,
+      paidOn: null,
+      paymentReference: null,
     },
   ],
   totals: {
@@ -72,6 +88,10 @@ describe("PayrollReviewPage", () => {
   beforeEach(() => {
     mocks.getPayrollPeriod.mockReset();
     mocks.calculatePayroll.mockReset();
+    mocks.finalizePayroll.mockReset();
+    mocks.downloadPayrollPayslip.mockReset();
+    mocks.downloadAllPayrollPayslips.mockReset();
+    mocks.updatePayrollPayment.mockReset();
   });
 
   it("renders totals and recalculates", async () => {
@@ -132,7 +152,7 @@ describe("PayrollReviewPage", () => {
   it("disables calculate on a finalized run", async () => {
     mocks.getPayrollPeriod.mockResolvedValue({
       ...calculated,
-      run: { ...calculated.run, status: 2 },
+      run: { ...calculated.run, status: 2, finalizedAt: "2026-09-01T00:00:00Z" },
     });
 
     render(<PayrollReviewPage />);
@@ -141,6 +161,51 @@ describe("PayrollReviewPage", () => {
       "disabled",
       true,
     );
-    expect(screen.getByText(/cannot be recalculated/i)).toBeTruthy();
+    expect(screen.getByText(/figures are locked/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^finalize$/i })).toBeNull();
+  });
+
+  it("confirms finalize before calling the API", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue(calculated);
+    mocks.finalizePayroll.mockResolvedValue({ runStatus: 2 });
+
+    render(<PayrollReviewPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^finalize$/i }));
+    expect(screen.getByRole("alertdialog").textContent).toMatch(/amounts cannot be changed/i);
+    const confirm = screen.getAllByRole("button", { name: /^finalize$/i }).at(-1);
+    fireEvent.click(confirm!);
+    await waitFor(() => expect(mocks.finalizePayroll).toHaveBeenCalledWith("run-1"));
+  });
+
+  it("downloads payslips and marks paid on a finalized run", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue({
+      ...calculated,
+      run: { ...calculated.run, status: 2, finalizedAt: "2026-09-01T00:00:00Z" },
+    });
+    mocks.updatePayrollPayment.mockResolvedValue({
+      ...calculated,
+      run: { ...calculated.run, status: 2, finalizedAt: "2026-09-01T00:00:00Z" },
+      results: [
+        {
+          ...calculated.results[0],
+          paymentStatus: 1,
+          paymentMode: 0,
+          paidOn: "2026-09-01",
+          paymentReference: "TXN-1",
+        },
+      ],
+    });
+
+    render(<PayrollReviewPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /download all/i }));
+    await waitFor(() => expect(mocks.downloadAllPayrollPayslips).toHaveBeenCalledWith("run-1"));
+    fireEvent.click(screen.getByRole("button", { name: /download payslip/i }));
+    await waitFor(() =>
+      expect(mocks.downloadPayrollPayslip).toHaveBeenCalledWith("run-1", "emp-1"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /mark paid/i }));
+    await waitFor(() => expect(mocks.updatePayrollPayment).toHaveBeenCalled());
   });
 });

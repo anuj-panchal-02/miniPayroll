@@ -14,6 +14,7 @@ public sealed record PayrollEmployeeDetail(
     Guid EmployeeId,
     string EmployeeCode,
     string FullName,
+    string Designation,
     int DaysEmployed,
     decimal DailyRate,
     decimal GrossEarnings,
@@ -22,7 +23,11 @@ public sealed record PayrollEmployeeDetail(
     IReadOnlyList<PayrollLineDetail> Earnings,
     IReadOnlyList<PayrollLineDetail> Deductions,
     IReadOnlyList<string> Warnings,
-    IReadOnlyList<string> Errors);
+    IReadOnlyList<string> Errors,
+    SalaryPaymentStatus PaymentStatus,
+    SalaryPaymentMode? PaymentMode,
+    DateOnly? PaidOn,
+    string? PaymentReference);
 
 public sealed record PayrollRunDetail(
     Guid Id,
@@ -32,6 +37,7 @@ public sealed record PayrollRunDetail(
     DailyRateMethod DailyRateMethod,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CalculatedAt,
+    DateTimeOffset? FinalizedAt,
     IReadOnlyList<PayrollEmployeeDetail> Employees);
 
 public enum PayrollRunStatusCode
@@ -45,7 +51,9 @@ public enum PayrollRunStatusCode
     NotFound,
     RunLocked,
     InvalidInput,
-    ConcurrencyConflict
+    ConcurrencyConflict,
+    NotCalculated,
+    Forbidden
 }
 
 public sealed record PayrollRunResult(PayrollRunStatusCode Status, PayrollRunDetail? Run = null);
@@ -90,6 +98,8 @@ public sealed class PayrollCalculationService(
             Month = month,
             Status = PayrollRunStatus.Draft,
             DailyRateMethod = context.Company.DailyRateMethod,
+            CompanyName = context.Company.Name,
+            CompanyLogoPath = context.Company.LogoPath,
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.PayrollRuns.Add(newRun);
@@ -271,6 +281,171 @@ public sealed class PayrollCalculationService(
         return new PayrollRunResult(PayrollRunStatusCode.Success, ToDetail(run, rows));
     }
 
+    public async Task<PayrollRunResult> FinalizeAsync(
+        Guid runId,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await GetContextAsync(true, cancellationToken);
+        if (context.Status != PayrollRunStatusCode.Success || context.Company is null)
+        {
+            return new PayrollRunResult(context.Status);
+        }
+
+        var run = await db.PayrollRuns.SingleOrDefaultAsync(
+            item => item.Id == runId && item.CompanyId == context.Company.Id,
+            cancellationToken);
+        if (run is null)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.NotFound);
+        }
+        if (run.Status is PayrollRunStatus.Finalized or PayrollRunStatus.Reversed)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.RunLocked);
+        }
+        if (run.Status != PayrollRunStatus.Calculated)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.NotCalculated);
+        }
+
+        var rows = await db.PayrollEmployees
+            .Include(result => result.Earnings)
+            .Include(result => result.Deductions)
+            .Where(result => result.PayrollRunId == run.Id)
+            .ToListAsync(cancellationToken);
+        if (rows.Count == 0 || rows.Any(row => row.Errors is not null))
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.NotCalculated);
+        }
+
+        var employees = await db.Employees
+            .Where(employee => employee.CompanyId == context.Company.Id)
+            .ToDictionaryAsync(employee => employee.Id, cancellationToken);
+
+        run.Status = PayrollRunStatus.Finalized;
+        run.FinalizedAt = DateTimeOffset.UtcNow;
+        run.FinalizedByUserId = tenant.UserId;
+        run.CompanyName = context.Company.Name;
+        run.CompanyLogoPath = context.Company.LogoPath;
+        foreach (var row in rows)
+        {
+            if (employees.TryGetValue(row.EmployeeId, out var employee))
+            {
+                row.Designation = employee.Designation;
+            }
+        }
+
+        AddAudit(AuditActions.PayrollRunFinalize, $"{run.Year}-{run.Month:D2}");
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.ConcurrencyConflict);
+        }
+
+        return new PayrollRunResult(PayrollRunStatusCode.Success, ToDetail(run, rows));
+    }
+
+    public async Task<PayrollRunResult> ReverseAsync(
+        Guid companyId,
+        Guid runId,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (!tenant.IsSuperadmin)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.Forbidden);
+        }
+
+        var trimmed = reason?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.InvalidInput);
+        }
+
+        var run = await db.PayrollRuns.SingleOrDefaultAsync(
+            item => item.Id == runId && item.CompanyId == companyId,
+            cancellationToken);
+        if (run is null)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.NotFound);
+        }
+        if (run.Status != PayrollRunStatus.Finalized)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.RunLocked);
+        }
+
+        var rows = await db.PayrollEmployees
+            .Include(result => result.Earnings)
+            .Include(result => result.Deductions)
+            .Where(result => result.PayrollRunId == run.Id)
+            .ToListAsync(cancellationToken);
+
+        run.Status = PayrollRunStatus.Reversed;
+        run.ReversedAt = DateTimeOffset.UtcNow;
+        run.ReversedByUserId = tenant.UserId;
+        run.ReversalReason = trimmed.Length > 500 ? trimmed[..500] : trimmed;
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = run.CompanyId,
+            ActorUserId = tenant.UserId,
+            Action = AuditActions.PayrollRunReverse,
+            Details = $"{run.Year}-{run.Month:D2} {run.ReversalReason}",
+            OccurredAt = DateTimeOffset.UtcNow
+        });
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.ConcurrencyConflict);
+        }
+
+        return new PayrollRunResult(PayrollRunStatusCode.Success, ToDetail(run, rows));
+    }
+
+    public async Task<PayrollHistoryResult> ListCompanyRunsAsync(
+        Guid companyId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!tenant.IsSuperadmin)
+        {
+            return new PayrollHistoryResult(PayrollRunStatusCode.Forbidden);
+        }
+
+        var exists = await db.Companies.AnyAsync(item => item.Id == companyId, cancellationToken);
+        if (!exists)
+        {
+            return new PayrollHistoryResult(PayrollRunStatusCode.CompanyNotFound);
+        }
+
+        var runs = await db.PayrollRuns
+            .AsNoTracking()
+            .Where(run => run.CompanyId == companyId)
+            .OrderByDescending(run => run.Year)
+            .ThenByDescending(run => run.Month)
+            .ThenByDescending(run => run.CreatedAt)
+            .Select(run => new PayrollHistoryItem(
+                run.Id,
+                run.Year,
+                run.Month,
+                run.Status,
+                run.Results.Count,
+                run.Results.Sum(result => result.GrossEarnings),
+                run.Results.Sum(result => result.TotalDeductions),
+                run.Results.Sum(result => result.NetSalary),
+                run.CreatedAt,
+                run.CalculatedAt,
+                run.FinalizedAt))
+            .ToListAsync(cancellationToken);
+
+        return new PayrollHistoryResult(PayrollRunStatusCode.Success, runs);
+    }
+
     private static PayrollEmployee ToRow(PayrollRun run, Employee employee, PayrollEmployeeResult result)
     {
         var row = new PayrollEmployee
@@ -281,6 +456,7 @@ public sealed class PayrollCalculationService(
             EmployeeId = employee.Id,
             EmployeeCode = employee.EmployeeCode,
             FullName = employee.FullName,
+            Designation = employee.Designation,
             DaysEmployed = result.DaysEmployed,
             DailyRate = decimal.Round(result.DailyRate, 6, MidpointRounding.AwayFromZero),
             GrossEarnings = result.GrossEarnings,
@@ -332,11 +508,13 @@ public sealed class PayrollCalculationService(
         run.DailyRateMethod,
         run.CreatedAt,
         run.CalculatedAt,
+        run.FinalizedAt,
         rows.OrderBy(row => row.EmployeeCode)
             .Select(row => new PayrollEmployeeDetail(
                 row.EmployeeId,
                 row.EmployeeCode,
                 row.FullName,
+                row.Designation,
                 row.DaysEmployed,
                 row.DailyRate,
                 row.GrossEarnings,
@@ -349,7 +527,11 @@ public sealed class PayrollCalculationService(
                     .Select(line => new PayrollLineDetail(line.Name, line.Kind, line.Amount, line.SortOrder))
                     .ToList(),
                 Split(row.Warnings),
-                Split(row.Errors)))
+                Split(row.Errors),
+                row.PaymentStatus,
+                row.PaymentMode,
+                row.PaidOn,
+                row.PaymentReference))
             .ToList());
 
     private static IReadOnlyList<string> Split(string? joined) =>

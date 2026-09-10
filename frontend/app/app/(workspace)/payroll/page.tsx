@@ -78,7 +78,10 @@ export default function PayrollPage() {
     <main className="sa-shell">
       <header className="sa-head">
         <h1>Payroll</h1>
-        <p>Prepare monthly inputs, calculate, and review a draft run.</p>
+        <p>Prepare monthly inputs, calculate, review, and look up closed months.</p>
+        <Link href="/app/payroll/history" className="sa-compose__secondary">
+          History
+        </Link>
       </header>
       <FieldGroup title="Payroll month">
         <Field id="payroll-month" label="Month">

@@ -18,6 +18,8 @@ public sealed class PayrollEndpointMappingTests
         builder.Services.AddAuthorization();
         builder.Services.AddScoped<PayrollCalculationService>();
         builder.Services.AddScoped<PayrollInputService>();
+        builder.Services.AddScoped<PayslipPdfService>();
+        builder.Services.AddScoped<PayrollPayslipService>();
         builder.Services.AddSingleton<ITenantContext>(NullTenantContext.Instance);
         var app = builder.Build();
         app.MapPayrollEndpoints();
@@ -31,8 +33,12 @@ public sealed class PayrollEndpointMappingTests
         Assert.Contains("/api/payroll/{year:int}/{month:int}", patterns);
         Assert.Contains("/api/payroll/{year:int}/{month:int}/run", patterns);
         Assert.Contains("/api/payroll/{year:int}/{month:int}/calculate", patterns);
+        Assert.Contains("/api/payroll/runs", patterns);
         Assert.Contains("/api/payroll/runs/{runId:guid}/inputs", patterns);
-        Assert.Equal(4, endpoints.Length);
+        Assert.Contains("/api/payroll/runs/{runId:guid}/finalize", patterns);
+        Assert.Contains("/api/payroll/runs/{runId:guid}/employees/{employeeId:guid}/payment", patterns);
+        Assert.Contains("/api/payroll/runs/{runId:guid}/payslips", patterns);
+        Assert.Contains("/api/payroll/runs/{runId:guid}/payslips/{employeeId:guid}", patterns);
         Assert.All(
             endpoints,
             endpoint => Assert.NotEmpty(endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>()));
@@ -49,5 +55,9 @@ public sealed class PayrollEndpointMappingTests
             PayrollHttpStatus.For(PayrollRunStatusCode.RunLocked));
         Assert.Equal(StatusCodes.Status409Conflict,
             PayrollHttpStatus.For(PayrollRunStatusCode.ConcurrencyConflict));
+        Assert.Equal(StatusCodes.Status409Conflict,
+            PayrollHttpStatus.For(PayrollRunStatusCode.NotCalculated));
+        Assert.Equal(StatusCodes.Status403Forbidden,
+            PayrollHttpStatus.For(PayrollRunStatusCode.Forbidden));
     }
 }

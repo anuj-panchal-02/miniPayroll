@@ -250,6 +250,9 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
         builder.Entity<PayrollRun>(entity =>
         {
             entity.ToTable(TableNames.PayrollRun);
+            entity.Property(run => run.CompanyName).HasMaxLength(200);
+            entity.Property(run => run.CompanyLogoPath).HasMaxLength(500);
+            entity.Property(run => run.ReversalReason).HasMaxLength(500);
             entity.Property(run => run.RowVersion).IsRowVersion();
             // Only one non-reversed run per company per period (PRD §20).
             entity.HasIndex(run => new { run.CompanyId, run.Year, run.Month })
@@ -344,12 +347,14 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.ToTable(TableNames.PayrollEmployee);
             entity.Property(result => result.EmployeeCode).HasMaxLength(32).IsRequired();
             entity.Property(result => result.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(result => result.Designation).HasMaxLength(100).IsRequired();
             entity.Property(result => result.DailyRate).HasColumnType("decimal(18,6)");
             entity.Property(result => result.GrossEarnings).HasColumnType("decimal(18,2)");
             entity.Property(result => result.TotalDeductions).HasColumnType("decimal(18,2)");
             entity.Property(result => result.NetSalary).HasColumnType("decimal(18,2)");
             entity.Property(result => result.Warnings).HasMaxLength(2000);
             entity.Property(result => result.Errors).HasMaxLength(2000);
+            entity.Property(result => result.PaymentReference).HasMaxLength(100);
             entity.HasIndex(result => new { result.PayrollRunId, result.EmployeeId })
                 .IsUnique();
             entity.HasOne(result => result.PayrollRun)

@@ -613,6 +613,20 @@ export const PayrollLineKind = {
 } as const;
 export type PayrollLineKind = (typeof PayrollLineKind)[keyof typeof PayrollLineKind];
 
+export const SalaryPaymentStatus = {
+  Unpaid: 0,
+  Paid: 1,
+} as const;
+export type SalaryPaymentStatus =
+  (typeof SalaryPaymentStatus)[keyof typeof SalaryPaymentStatus];
+
+export const SalaryPaymentMode = {
+  Bank: 0,
+  Upi: 1,
+  Cash: 2,
+} as const;
+export type SalaryPaymentMode = (typeof SalaryPaymentMode)[keyof typeof SalaryPaymentMode];
+
 export type PayrollAttendanceDetail = {
   employeeId: string;
   workingDays: number;
@@ -666,6 +680,7 @@ export type PayrollPeriodRunSummary = {
   dailyRateMethod: DailyRateMethod;
   createdAt: string;
   calculatedAt: string | null;
+  finalizedAt: string | null;
 };
 
 export type PayrollLineDetail = {
@@ -679,6 +694,7 @@ export type PayrollEmployeeDetail = {
   employeeId: string;
   employeeCode: string;
   fullName: string;
+  designation: string;
   daysEmployed: number;
   dailyRate: number;
   grossEarnings: number;
@@ -688,6 +704,10 @@ export type PayrollEmployeeDetail = {
   deductions: PayrollLineDetail[];
   warnings: string[];
   errors: string[];
+  paymentStatus: SalaryPaymentStatus;
+  paymentMode: SalaryPaymentMode | null;
+  paidOn: string | null;
+  paymentReference: string | null;
 };
 
 export type PayrollTotals = {
@@ -717,6 +737,7 @@ export type PayrollRunDetail = {
   dailyRateMethod: DailyRateMethod;
   createdAt: string;
   calculatedAt: string | null;
+  finalizedAt: string | null;
   employees: PayrollEmployeeDetail[];
 };
 
@@ -762,4 +783,101 @@ export function savePayrollInputs(
 
 export function calculatePayroll(year: number, month: number): Promise<PayrollRunDetail> {
   return api<PayrollRunDetail>(`/api/payroll/${year}/${month}/calculate`, { method: "POST" });
+}
+
+export function finalizePayroll(runId: string): Promise<PayrollRunDetail> {
+  return api<PayrollRunDetail>(`/api/payroll/runs/${runId}/finalize`, { method: "POST" });
+}
+
+export type PayrollHistoryItem = {
+  id: string;
+  year: number;
+  month: number;
+  status: PayrollRunStatus;
+  employeeCount: number;
+  grossEarnings: number;
+  totalDeductions: number;
+  netSalary: number;
+  createdAt: string;
+  calculatedAt: string | null;
+  finalizedAt: string | null;
+};
+
+export type PayrollPaymentPayload = {
+  paymentStatus: SalaryPaymentStatus;
+  paymentMode: SalaryPaymentMode | null;
+  paidOn: string | null;
+  paymentReference: string | null;
+};
+
+export function listPayrollRuns(): Promise<PayrollHistoryItem[]> {
+  return api<PayrollHistoryItem[]>("/api/payroll/runs", { method: "GET" });
+}
+
+export function updatePayrollPayment(
+  runId: string,
+  employeeId: string,
+  input: PayrollPaymentPayload,
+): Promise<PayrollPeriodDetail> {
+  return api<PayrollPeriodDetail>(
+    `/api/payroll/runs/${runId}/employees/${employeeId}/payment`,
+    { method: "PUT", body: JSON.stringify(input) },
+  );
+}
+
+export function listCompanyPayrollRuns(companyId: string): Promise<PayrollHistoryItem[]> {
+  return api<PayrollHistoryItem[]>(`/api/companies/${companyId}/payroll-runs`, {
+    method: "GET",
+  });
+}
+
+export function reversePayrollRun(
+  companyId: string,
+  runId: string,
+  reason: string,
+): Promise<PayrollRunDetail> {
+  return api<PayrollRunDetail>(`/api/companies/${companyId}/payroll-runs/${runId}/reverse`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function downloadPayrollPayslip(
+  runId: string,
+  employeeId: string,
+): Promise<void> {
+  await saveDownload(`/api/payroll/runs/${runId}/payslips/${employeeId}`);
+}
+
+export async function downloadAllPayrollPayslips(runId: string): Promise<void> {
+  await saveDownload(`/api/payroll/runs/${runId}/payslips`);
+}
+
+async function saveDownload(path: string): Promise<void> {
+  const token = getToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  const response = await fetch(`${API_URL}${path}`, { headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const message =
+      payload?.error ??
+      payload?.title ??
+      `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
+  const fileName = match?.[1]?.replaceAll('"', "") ?? "payslip.pdf";
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = decodeURIComponent(fileName);
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

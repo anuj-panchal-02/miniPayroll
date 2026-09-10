@@ -1,6 +1,21 @@
 # miniPayroll
 
-Multi-tenant payroll SaaS for small businesses in India (1–50 salaried employees; the cap is a single constant so it can be raised later). This repository is scaffolded from the MVP PRD: Next.js frontend, .NET Web API, SQL Server, EF Core.
+Payroll for small companies in India.
+
+miniPayroll runs the month — people, attendance, calculation, locked figures, and payslips — without an HR, leave, or tax suite. It is built for companies with **1–50 salaried employees**. Superadmin provisions the account; the company admin signs in and does the period.
+
+## Product
+
+Company admins work a single monthly loop:
+
+1. **People and pay** — salaried employees, encrypted bank details, and dated salary structures (one Basic Salary line, plus earnings and deductions including PF, ESI, Professional Tax, and LWF).
+2. **Monthly inputs** — working days, present days, leave, and one-time overtime, bonus, or deductions for the period.
+3. **Calculate, review, lock** — draft the run, check gross and net, then finalize so the figures cannot drift.
+4. **Payslips and payment** — download payslip PDFs from the locked run and record payment against those figures.
+
+Closed months stay on a payroll history ledger. Superadmin can reverse a finalized run when a company needs the period opened again.
+
+There is no self-serve signup. Existing users sign in at `/login`. The public site at `/` is the product introduction.
 
 ## Stack
 
@@ -12,19 +27,18 @@ Multi-tenant payroll SaaS for small businesses in India (1–50 salaried employe
 | ORM | EF Core (code-first, `mp_` table prefix) |
 | Auth | ASP.NET Core Identity + JWT |
 
-The machine this was scaffolded on has **.NET 10 SDK** (PRD mentions .NET 8). Target framework is `net10.0` so it builds with the installed SDK.
+Target framework is `net10.0`.
 
 ## Solution layout
 
 ```text
 backend/
   MiniPayroll.slnx
-  src/MiniPayroll.Domain          SaaS entities, enums, setup rules, tenant interface
-  src/MiniPayroll.Infrastructure  EF Core + Identity, company setup service
-  src/MiniPayroll.Api             Auth, companies, company setup, logo storage, seed
+  src/MiniPayroll.Domain
+  src/MiniPayroll.Infrastructure
+  src/MiniPayroll.Api
   tests/MiniPayroll.Tests
-frontend/                         Next.js Superadmin onboarding + company setup wizard
-small_business_payroll_saas_prd.md
+frontend/                         Next.js app, Superadmin, company workspace, landing
 ```
 
 ## Prerequisites
@@ -78,7 +92,7 @@ cd frontend
 npm run dev
 ```
 
-App: `http://localhost:3000` (redirects to login).
+App: `http://localhost:3000` — product landing; **Log in** goes to `/login`.
 
 ## File storage
 
@@ -94,19 +108,15 @@ Only PNG, JPEG, and WebP content is accepted (detected from the file signature, 
 Stored logos are served publicly so the frontend `<img>` can render them without a bearer token, and
 responses carry `X-Content-Type-Options: nosniff`. The upload directory is gitignored.
 
-## Included so far
+## Platform
 
-- Superadmin login
-- Create company (name + contact), list companies
-- Create Company Admin and activate company (API)
-- Company Admin company setup wizard (details → payroll settings → review → complete), resumable
-  from the persisted step, with logo upload
+- Superadmin creates companies, Company Admin users, and plan limits
+- Company Admin completes a setup wizard (details → payroll settings → review), then manages employees and payroll
 - Tenant query filters keyed by `CompanyId`
-- All Identity and SaaS tables named `mp_Tbl…`
-- Company Admin employee list, add, and edit (encrypted bank details, Active headcount limit)
-- Effective-dated employee salary structures with recurring earnings and deductions
+- Identity and SaaS tables named `mp_Tbl…`
+- Active headcount cannot exceed the company `EmployeeLimit` (platform cap 50)
 
-Payroll calculation is still a later step.
+To support more than 50 employees later, raise `HardEmployeeCap` in `backend/src/MiniPayroll.Domain/Constants/PlatformLimits.cs`. Keep the fallback in `frontend/lib/platform.ts` in sync; Superadmin screens also load live values from `GET /api/platform`.
 
 ### Employee routes
 
@@ -119,9 +129,7 @@ Same Company Admin + completed-password gate as setup.
 | `POST` | `/api/employees` | Create employee |
 | `PATCH` | `/api/employees/{id}` | Update employee |
 
-Bank account numbers and IFSC codes are encrypted at rest with ASP.NET Data Protection (`dataprotection-keys/` is gitignored). List responses mask the account as `****1234`. The Active headcount cannot exceed the company `EmployeeLimit` (platform cap 50). Incomplete employees can be stored as `Draft` (`saveAsDraft: true`); drafts do not consume an Active seat.
-
-To support more than 50 employees later, raise `HardEmployeeCap` in `backend/src/MiniPayroll.Domain/Constants/PlatformLimits.cs` (the default company limit follows it unless you set `DefaultEmployeeLimit` separately). Keep the fallback in `frontend/lib/platform.ts` in sync; Superadmin screens also load live values from `GET /api/platform`.
+Bank account numbers and IFSC codes are encrypted at rest with ASP.NET Data Protection (`dataprotection-keys/` is gitignored). List responses mask the account as `****1234`. Incomplete employees can be stored as `Draft` (`saveAsDraft: true`); drafts do not consume an Active seat.
 
 ### Salary structure routes
 
@@ -132,8 +140,23 @@ To support more than 50 employees later, raise `HardEmployeeCap` in `backend/src
 | `POST` | `/api/employees/{id}/salary-structures` | Add an immutable salary revision |
 
 Each active employee requires a dated structure with exactly one fixed `Basic Salary` earning.
-Components can be fixed amounts or a percentage of Basic Salary; PF, ESI, Professional Tax,
-LWF and custom manual lines are supported. Salary changes create new versions rather than altering history.
+Components can be fixed amounts or a percentage of Basic Salary. Salary changes create new versions rather than altering history.
+
+### Payroll routes
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/payroll/runs` | List payroll runs for the company |
+| `GET` | `/api/payroll/{year}/{month}` | Period detail and current run |
+| `POST` | `/api/payroll/{year}/{month}/run` | Create a run for the period |
+| `POST` | `/api/payroll/{year}/{month}/calculate` | Draft or recalculate |
+| `PUT` | `/api/payroll/runs/{runId}/inputs` | Save monthly inputs |
+| `POST` | `/api/payroll/runs/{runId}/finalize` | Lock the run |
+| `PUT` | `/api/payroll/runs/{runId}/employees/{employeeId}/payment` | Record or clear payment |
+| `GET` | `/api/payroll/runs/{runId}/payslips` | Combined payslip PDF |
+| `GET` | `/api/payroll/runs/{runId}/payslips/{employeeId}` | Employee payslip PDF |
+| `GET` | `/api/companies/{id}/payroll-runs` | Superadmin: runs for a company |
+| `POST` | `/api/companies/{id}/payroll-runs/{runId}/reverse` | Superadmin: reverse a run |
 
 ### Company setup routes
 
@@ -166,7 +189,3 @@ cd frontend
 npm test
 npm run lint
 ```
-
-Backend tests cover the `mp_` table prefix, tenant isolation, setup rules and service behaviour,
-setup authorization, and logo storage. Frontend tests cover the wizard pages, the shell, and the API
-client.

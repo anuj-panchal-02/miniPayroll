@@ -45,6 +45,8 @@
   --text-md: 1.0625rem;
   --text-lg: 1.375rem;
   --text-xl: 1.75rem;
+  --text-display: clamp(2.5rem, 5vw + 1rem, 4.25rem);
+  --tracking-display: -0.03em;
 
   --radius-pill: 999px;
   --radius-input: 8px;

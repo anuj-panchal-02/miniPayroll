@@ -14,7 +14,7 @@ modern-minimal
 ## Macrostructure family
 Pages within a family share the family's shape; they vary only in component archetypes.
 
-- Marketing pages: none (this is an operations product, not a marketing site)
+- Marketing pages: Manifesto — public `/` landing
 - App pages: Workbench — operational forms, ledgers, and workspace tools
 - List pages: Index-First — companies and employees as scannable indexes
 - Auth pages: Split Studio — sign-in and password change
@@ -34,8 +34,9 @@ Pages within a family share the family's shape; they vary only in component arch
 - Display: Geist, weight 600, style normal
 - Body:    Geist, weight 400
 - Mono:    Geist Mono, weight 500 (labels, chips, amounts)
-- Display tracking: -0.03em
+- Display tracking: `--tracking-display` = -0.03em
 - Type scale anchor: `--text-xl` = 1.75rem
+- Marketing display: `--text-display` = clamp from 2.5rem (landing hero only)
 
 ## Spacing
 4-point named scale. The values are in `frontend/tokens.css`. Pages must use named
@@ -72,7 +73,7 @@ tokens (`var(--space-md)`), never raw values.
 - Secondary CTA: outlined pill (`Back`, `Save as draft`, `Cancel`)
 
 ## Per-page allowances
-- Marketing pages MAY use enrichment (not applicable).
+- Marketing pages MAY use enrichment (the `/` landing uses real product screenshots in `<figure>`).
 - App pages MUST NOT use enrichment — function carries the page.
 - Content pages: typography only.
 

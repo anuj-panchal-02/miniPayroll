@@ -86,7 +86,8 @@ public sealed record PayrollPeriodRunSummary(
     PayrollRunStatus Status,
     DailyRateMethod DailyRateMethod,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CalculatedAt);
+    DateTimeOffset? CalculatedAt,
+    DateTimeOffset? FinalizedAt);
 
 public sealed record PayrollTotals(
     decimal GrossEarnings,
@@ -108,6 +109,29 @@ public sealed record PayrollPeriodDetail(
 public sealed record PayrollPeriodResult(
     PayrollRunStatusCode Status,
     PayrollPeriodDetail? Period = null);
+
+public sealed record PayrollHistoryItem(
+    Guid Id,
+    int Year,
+    int Month,
+    PayrollRunStatus Status,
+    int EmployeeCount,
+    decimal GrossEarnings,
+    decimal TotalDeductions,
+    decimal NetSalary,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CalculatedAt,
+    DateTimeOffset? FinalizedAt);
+
+public sealed record PayrollHistoryResult(
+    PayrollRunStatusCode Status,
+    IReadOnlyList<PayrollHistoryItem>? Runs = null);
+
+public sealed record PayrollPaymentPayload(
+    SalaryPaymentStatus PaymentStatus,
+    SalaryPaymentMode? PaymentMode,
+    DateOnly? PaidOn,
+    string? PaymentReference);
 
 public sealed class PayrollInputService(
     MiniPayrollDbContext db,
@@ -136,6 +160,110 @@ public sealed class PayrollInputService(
                 && item.Status != PayrollRunStatus.Reversed,
             cancellationToken);
 
+        return new PayrollPeriodResult(
+            PayrollRunStatusCode.Success,
+            await BuildPeriodAsync(context.Company, period, run, cancellationToken));
+    }
+
+    public async Task<PayrollHistoryResult> ListRunsAsync(CancellationToken cancellationToken = default)
+    {
+        var context = await GetContextAsync(false, cancellationToken);
+        if (context.Status != PayrollRunStatusCode.Success || context.Company is null)
+        {
+            return new PayrollHistoryResult(context.Status);
+        }
+
+        var runs = await db.PayrollRuns
+            .AsNoTracking()
+            .Where(run => run.CompanyId == context.Company.Id)
+            .OrderByDescending(run => run.Year)
+            .ThenByDescending(run => run.Month)
+            .ThenByDescending(run => run.CreatedAt)
+            .Select(run => new PayrollHistoryItem(
+                run.Id,
+                run.Year,
+                run.Month,
+                run.Status,
+                run.Results.Count,
+                run.Results.Sum(result => result.GrossEarnings),
+                run.Results.Sum(result => result.TotalDeductions),
+                run.Results.Sum(result => result.NetSalary),
+                run.CreatedAt,
+                run.CalculatedAt,
+                run.FinalizedAt))
+            .ToListAsync(cancellationToken);
+
+        return new PayrollHistoryResult(PayrollRunStatusCode.Success, runs);
+    }
+
+    public async Task<PayrollPeriodResult> SetPaymentAsync(
+        Guid runId,
+        Guid employeeId,
+        PayrollPaymentPayload? input,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await GetContextAsync(true, cancellationToken);
+        if (context.Status != PayrollRunStatusCode.Success || context.Company is null)
+        {
+            return new PayrollPeriodResult(context.Status);
+        }
+
+        var run = await db.PayrollRuns.SingleOrDefaultAsync(
+            item => item.Id == runId && item.CompanyId == context.Company.Id,
+            cancellationToken);
+        if (run is null)
+        {
+            return new PayrollPeriodResult(PayrollRunStatusCode.NotFound);
+        }
+        if (run.Status != PayrollRunStatus.Finalized)
+        {
+            return new PayrollPeriodResult(PayrollRunStatusCode.RunLocked);
+        }
+
+        var payload = input ?? new PayrollPaymentPayload(
+            SalaryPaymentStatus.Unpaid, null, null, null);
+        if (payload.PaymentStatus == SalaryPaymentStatus.Paid
+            && (payload.PaymentMode is null || payload.PaidOn is null))
+        {
+            return new PayrollPeriodResult(PayrollRunStatusCode.InvalidInput);
+        }
+
+        var row = await db.PayrollEmployees.SingleOrDefaultAsync(
+            item => item.PayrollRunId == run.Id && item.EmployeeId == employeeId,
+            cancellationToken);
+        if (row is null)
+        {
+            return new PayrollPeriodResult(PayrollRunStatusCode.NotFound);
+        }
+
+        if (payload.PaymentStatus == SalaryPaymentStatus.Paid)
+        {
+            row.PaymentStatus = SalaryPaymentStatus.Paid;
+            row.PaymentMode = payload.PaymentMode;
+            row.PaidOn = payload.PaidOn;
+            row.PaymentReference = Trim(payload.PaymentReference);
+        }
+        else
+        {
+            row.PaymentStatus = SalaryPaymentStatus.Unpaid;
+            row.PaymentMode = null;
+            row.PaidOn = null;
+            row.PaymentReference = null;
+        }
+
+        AddAudit(
+            AuditActions.PayrollPaymentUpdate,
+            $"{run.Year}-{run.Month:D2} {row.EmployeeCode} {row.PaymentStatus}");
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new PayrollPeriodResult(PayrollRunStatusCode.ConcurrencyConflict);
+        }
+
+        var period = new PayrollPeriod(run.Year, run.Month);
         return new PayrollPeriodResult(
             PayrollRunStatusCode.Success,
             await BuildPeriodAsync(context.Company, period, run, cancellationToken));
@@ -420,7 +548,8 @@ public sealed class PayrollInputService(
             run is null
                 ? null
                 : new PayrollPeriodRunSummary(
-                    run.Id, run.Status, run.DailyRateMethod, run.CreatedAt, run.CalculatedAt),
+                    run.Id, run.Status, run.DailyRateMethod, run.CreatedAt, run.CalculatedAt,
+                    run.FinalizedAt),
             roster,
             resultDetails,
             totals);
@@ -443,6 +572,7 @@ public sealed class PayrollInputService(
         row.EmployeeId,
         row.EmployeeCode,
         row.FullName,
+        row.Designation,
         row.DaysEmployed,
         row.DailyRate,
         row.GrossEarnings,
@@ -455,7 +585,11 @@ public sealed class PayrollInputService(
             .Select(line => new PayrollLineDetail(line.Name, line.Kind, line.Amount, line.SortOrder))
             .ToList(),
         Split(row.Warnings),
-        Split(row.Errors));
+        Split(row.Errors),
+        row.PaymentStatus,
+        row.PaymentMode,
+        row.PaidOn,
+        row.PaymentReference);
 
     private static IReadOnlyList<string> Split(string? joined) =>
         string.IsNullOrEmpty(joined) ? [] : joined.Split('\n');

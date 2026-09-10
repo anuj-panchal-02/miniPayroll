@@ -13,16 +13,22 @@ import { PasswordField } from "@/components/ui/PasswordField";
 import {
   CompanyDetail,
   CreateAdminResponse,
+  PayrollRunStatus,
   activateCompany,
   createCompanyAdmin,
   getCompany,
   getPlatformLimits,
   getToken,
+  listCompanyPayrollRuns,
+  reversePayrollRun,
   setToken,
   updateCompanyLimit,
+  type PayrollHistoryItem,
 } from "@/lib/api";
 import { FALLBACK_PLATFORM_LIMITS } from "@/lib/platform";
+import { formatRupees, periodLabel, runStatusLabel } from "@/lib/payroll";
 import { emailError, employeeLimitError } from "@/lib/validation";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const ADMIN_EMAIL_MESSAGES = {
   empty: "Enter an admin email.",
@@ -55,6 +61,11 @@ export default function CompanyDetailsPage() {
   const [limitTouched, setLimitTouched] = useState(false);
   const [adminEmailTouched, setAdminEmailTouched] = useState(false);
   const [adminPasswordTouched, setAdminPasswordTouched] = useState(false);
+  const [payrollRuns, setPayrollRuns] = useState<PayrollHistoryItem[]>([]);
+  const [reversalReason, setReversalReason] = useState("");
+  const [reversingId, setReversingId] = useState<string | null>(null);
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
 
   const limitFieldError = employeeLimitError(employeeLimit, {
     min: limits.minEmployeeLimit,
@@ -77,15 +88,17 @@ export default function CompanyDetailsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [detail, loadedLimits] = await Promise.all([
+        const [detail, loadedLimits, runs] = await Promise.all([
           getCompany(id),
           getPlatformLimits().catch(() => FALLBACK_PLATFORM_LIMITS),
+          listCompanyPayrollRuns(id).catch(() => []),
         ]);
         if (cancelled) {
           return;
         }
         setLimits(loadedLimits);
         setCompany(detail);
+        setPayrollRuns(runs);
         setAdminEmail(detail.adminEmail ?? detail.contactEmail);
         setEmployeeLimit(String(detail.employeeLimit));
         setError(null);
@@ -164,6 +177,29 @@ export default function CompanyDetailsPage() {
       }
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function confirmReverse() {
+    if (!pendingReverseId) {
+      return;
+    }
+    const reason = reversalReason.trim();
+    if (!reason) {
+      return;
+    }
+    const runId = pendingReverseId;
+    setReverseOpen(false);
+    setPendingReverseId(null);
+    setReversingId(runId);
+    setError(null);
+    try {
+      await reversePayrollRun(id, runId, reason);
+      setPayrollRuns(await listCompanyPayrollRuns(id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reverse payroll.");
+    } finally {
+      setReversingId(null);
     }
   }
 
@@ -373,6 +409,82 @@ export default function CompanyDetailsPage() {
               </>
             ) : null}
           </>
+        ) : null}
+
+        {company && payrollRuns.length > 0 ? (
+          <FieldGroup title="Payroll runs">
+            <p className="mp-group__hint">
+              Reversal is Superadmin-only and needs a reason. Amounts stay on the reversed run.
+            </p>
+            <Field id="reversal-reason" label="Reversal reason" required>
+              <textarea
+                className="mp-textarea"
+                rows={2}
+                value={reversalReason}
+                onChange={(event) => setReversalReason(event.target.value)}
+              />
+            </Field>
+            <div className="sa-master-wrap">
+              <table className="sa-master">
+                <thead>
+                  <tr>
+                    <th scope="col">Period</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Employees</th>
+                    <th scope="col">Net</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payrollRuns.map((run) => (
+                    <tr key={run.id}>
+                      <td>{periodLabel(run.year, run.month)}</td>
+                      <td>
+                        <span className="sa-chip">{runStatusLabel(run.status)}</span>
+                      </td>
+                      <td>{run.employeeCount} employees</td>
+                      <td>{formatRupees(run.netSalary)}</td>
+                      <td>
+                        {run.status === PayrollRunStatus.Finalized ? (
+                          <div className="sa-master__actions">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              loading={reversingId === run.id}
+                              loadingLabel="Reversing…"
+                              disabled={!reversalReason.trim()}
+                              onClick={() => {
+                                setPendingReverseId(run.id);
+                                setReverseOpen(true);
+                              }}
+                            >
+                              Reverse
+                            </Button>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ConfirmDialog
+              open={reverseOpen}
+              onOpenChange={(open) => {
+                setReverseOpen(open);
+                if (!open) {
+                  setPendingReverseId(null);
+                }
+              }}
+              title="Reverse payroll"
+              description="Reversal is Superadmin-only and cannot be undone. Amounts stay on the reversed run."
+              confirmLabel="Reverse"
+              tone="destructive"
+              confirmLoading={pendingReverseId !== null && reversingId === pendingReverseId}
+              confirmLoadingLabel="Reversing…"
+              onConfirm={() => void confirmReverse()}
+            />
+          </FieldGroup>
         ) : null}
 
         <Alert>{error}</Alert>

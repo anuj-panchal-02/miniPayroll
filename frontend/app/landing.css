@@ -1,0 +1,314 @@
+/* Hallmark · macrostructure: Manifesto · tone: utilitarian · anchor hue: green
+ * genre: modern-minimal · theme: Coral (accent retuned green) · nav: N5 · footer: Ft5
+ * enrichment: product screenshots · reveal: none · design-system: design.md
+ * Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4
+ */
+
+.landing {
+  min-height: 100dvh;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+.landing-skip {
+  position: absolute;
+  inset: var(--space-sm) auto auto var(--page-gutter);
+  z-index: var(--z-tooltip);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-input);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transform: translateY(-200%);
+}
+
+.landing-skip:focus-visible {
+  transform: none;
+}
+
+.landing-nav {
+  position: fixed;
+  inset: var(--space-md) auto auto 50%;
+  z-index: var(--z-sticky);
+  display: inline-flex;
+  width: max-content;
+  max-width: calc(100% - (2 * var(--page-gutter)));
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-sm);
+  transform: translateX(-50%);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--color-paper) 78%, transparent);
+  box-shadow: var(--shadow-whisper);
+  backdrop-filter: blur(14px) saturate(120%);
+}
+
+.landing-nav__brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  text-decoration: none;
+}
+
+.landing-nav .brand-logo {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: min(9rem, 42vw);
+  height: var(--logo-height-nav);
+}
+
+.landing-nav .mp-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.landing-main {
+  display: grid;
+}
+
+.landing-band {
+  padding-block: var(--space-2xl);
+  padding-inline: var(--page-gutter);
+}
+
+.landing-hero {
+  padding-block-start: calc(var(--space-md) + var(--logo-height-nav) + var(--space-2xl));
+  padding-block-end: var(--space-3xl);
+}
+
+.landing-band--ink {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  padding-block: var(--space-3xl);
+}
+
+.landing-band--steps {
+  padding-block-start: var(--space-3xl);
+  padding-block-end: var(--space-2xl);
+}
+
+.landing-band--wash {
+  background: var(--color-paper-2);
+  padding-block: var(--space-3xl);
+}
+
+.landing-inner {
+  display: grid;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: var(--content-shell);
+  min-width: 0;
+  justify-items: start;
+}
+
+.landing-inner--hero {
+  gap: var(--space-lg);
+}
+
+.landing-hero h1,
+.landing-band h2,
+.landing-steps h3,
+.landing-foot__line,
+.landing-claim {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: var(--tracking-display);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.landing-hero h1 {
+  max-width: 16ch;
+  font-size: var(--text-display);
+  line-height: 1.05;
+}
+
+.landing-lede {
+  margin: 0;
+  max-width: 28ch;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.2;
+}
+
+.landing-mark {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  padding-inline: var(--space-2xs);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.landing-note {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.landing-band--ink .landing-kicker {
+  color: var(--color-paper-2);
+}
+
+.landing-kicker {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.landing-band h2 {
+  max-width: 20ch;
+  font-size: var(--text-xl);
+  line-height: 1.15;
+}
+
+.landing-claims {
+  display: grid;
+  gap: var(--space-xl);
+  width: 100%;
+  margin-block-start: var(--space-lg);
+  justify-items: start;
+}
+
+.landing-claim {
+  max-width: 20ch;
+  font-size: var(--text-xl);
+  line-height: 1.15;
+}
+
+.landing-claim:last-child {
+  max-width: 18ch;
+}
+
+.landing-steps {
+  display: grid;
+  gap: var(--space-2xl);
+  width: 100%;
+  margin: var(--space-xl) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-steps li {
+  display: grid;
+  gap: var(--space-sm);
+  width: 100%;
+  min-width: 0;
+  justify-items: start;
+}
+
+.landing-steps h3 {
+  max-width: 28ch;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.landing-steps li > p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.landing-shot,
+.landing-shot-stack {
+  width: 100%;
+  min-width: 0;
+}
+
+.landing-shot {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.landing-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  border: 1px solid var(--color-rule);
+  background: var(--color-paper-2);
+}
+
+.landing-shot figcaption {
+  max-width: 46ch;
+  color: var(--color-ink-2);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.landing-shot-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.landing-band--wash .mp-btn {
+  margin-block-start: var(--space-sm);
+  white-space: nowrap;
+}
+
+.landing-foot {
+  display: grid;
+  gap: var(--space-xl);
+  padding: var(--space-3xl) var(--page-gutter) var(--space-lg);
+}
+
+.landing-foot__line {
+  max-width: 14ch;
+  font-size: var(--text-display);
+  line-height: 1.05;
+}
+
+.landing-foot__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  max-width: var(--content-shell);
+  padding-block-start: var(--space-md);
+  border-top: 1px solid var(--color-rule);
+}
+
+.landing-foot__meta p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+@media (min-width: 60rem) {
+  .landing-shot-stack {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-nav__brand:hover {
+    opacity: 0.72;
+  }
+}
+
+@media (pointer: coarse) {
+  .landing-nav .mp-btn,
+  .landing-band--wash .mp-btn {
+    min-height: var(--control-height-touch);
+  }
+}

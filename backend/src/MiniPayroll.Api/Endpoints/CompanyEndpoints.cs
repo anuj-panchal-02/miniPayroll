@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
@@ -24,6 +25,8 @@ public static class CompanyEndpoints
         group.MapPost("/{id:guid}/admin", CreateAdmin);
         group.MapPost("/{id:guid}/activate", Activate);
         group.MapPatch("/{id:guid}/limit", UpdateLimit);
+        group.MapGet("/{id:guid}/payroll-runs", ListPayrollRuns);
+        group.MapPost("/{id:guid}/payroll-runs/{runId:guid}/reverse", ReversePayroll);
 
         return routes;
     }
@@ -260,6 +263,41 @@ public static class CompanyEndpoints
             admin.Email);
     }
 
+    private static async Task<IResult> ListPayrollRuns(
+        Guid id,
+        [FromServices] PayrollCalculationService payroll,
+        CancellationToken cancellationToken)
+    {
+        var result = await payroll.ListCompanyRunsAsync(id, cancellationToken);
+        return result.Status == PayrollRunStatusCode.Success
+            ? Results.Ok(result.Runs)
+            : PayrollError(result.Status);
+    }
+
+    private static async Task<IResult> ReversePayroll(
+        Guid id,
+        Guid runId,
+        ReversePayrollRequest? request,
+        [FromServices] PayrollCalculationService payroll,
+        CancellationToken cancellationToken)
+    {
+        var result = await payroll.ReverseAsync(id, runId, request?.Reason, cancellationToken);
+        return result.Status == PayrollRunStatusCode.Success
+            ? Results.Ok(result.Run)
+            : PayrollError(result.Status);
+    }
+
+    private static IResult PayrollError(PayrollRunStatusCode status) =>
+        Results.Json(new { error = status switch
+        {
+            PayrollRunStatusCode.InvalidInput => "A reversal reason is required.",
+            PayrollRunStatusCode.NotFound => "The payroll run was not found.",
+            PayrollRunStatusCode.Forbidden => "You are not allowed to reverse payroll.",
+            PayrollRunStatusCode.RunLocked => "Only a finalized payroll run can be reversed.",
+            PayrollRunStatusCode.CompanyNotFound => "The company was not found.",
+            _ => "The payroll request could not be completed."
+        }}, statusCode: PayrollHttpStatus.For(status));
+
     private static Guid GetUserId(ClaimsPrincipal principal) =>
         Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
 
@@ -276,6 +314,9 @@ public static class CompanyEndpoints
         [Required] string TemporaryPassword);
 
     public sealed record CreateAdminResponse(Guid UserId, string Email);
+
+    public sealed record ReversePayrollRequest(
+        [Required, MinLength(1), MaxLength(500)] string Reason);
 
     public sealed record CompanyListItem(
         Guid Id,

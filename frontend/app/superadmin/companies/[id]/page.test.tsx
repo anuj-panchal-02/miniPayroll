@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   activateCompany: vi.fn(),
   updateCompanyLimit: vi.fn(),
   setToken: vi.fn(),
+  listCompanyPayrollRuns: vi.fn(),
+  reversePayrollRun: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -30,6 +32,11 @@ vi.mock("@/lib/api", () => ({
   activateCompany: mocks.activateCompany,
   updateCompanyLimit: mocks.updateCompanyLimit,
   setToken: mocks.setToken,
+  listCompanyPayrollRuns: mocks.listCompanyPayrollRuns,
+  reversePayrollRun: mocks.reversePayrollRun,
+  PayrollRunStatus: { Draft: 0, Calculated: 1, Finalized: 2, Reversed: 3 },
+  BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
+  OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
 }));
 
 vi.mock("@/components/SuperadminShell", () => ({
@@ -47,7 +54,10 @@ describe("CompanyDetailsPage", () => {
     mocks.getPlatformLimits.mockReset();
     mocks.createCompanyAdmin.mockReset();
     mocks.updateCompanyLimit.mockReset();
+    mocks.listCompanyPayrollRuns.mockReset();
+    mocks.reversePayrollRun.mockReset();
     mocks.getToken.mockReturnValue("token");
+    mocks.listCompanyPayrollRuns.mockResolvedValue([]);
     mocks.getPlatformLimits.mockResolvedValue({
       minEmployeeLimit: 1,
       hardEmployeeCap: 50,

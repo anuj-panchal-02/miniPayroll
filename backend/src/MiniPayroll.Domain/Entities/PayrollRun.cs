@@ -13,8 +13,17 @@ public class PayrollRun
     /// <summary>Daily-rate method snapshotted from the company when the run was created.</summary>
     public DailyRateMethod DailyRateMethod { get; set; }
 
+    /// <summary>Company display name frozen at finalization for payslips.</summary>
+    public string? CompanyName { get; set; }
+    public string? CompanyLogoPath { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CalculatedAt { get; set; }
+    public DateTimeOffset? FinalizedAt { get; set; }
+    public Guid? FinalizedByUserId { get; set; }
+    public DateTimeOffset? ReversedAt { get; set; }
+    public Guid? ReversedByUserId { get; set; }
+    public string? ReversalReason { get; set; }
     public byte[]? RowVersion { get; set; }
 
     public Company Company { get; set; } = null!;

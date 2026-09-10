@@ -10,4 +10,7 @@ public static class AuditActions
     public const string PayrollRunCreate = "payroll.run.create";
     public const string PayrollRunCalculate = "payroll.run.calculate";
     public const string PayrollInputsSave = "payroll.inputs.save";
+    public const string PayrollRunFinalize = "payroll.run.finalize";
+    public const string PayrollRunReverse = "payroll.run.reverse";
+    public const string PayrollPaymentUpdate = "payroll.payment.update";
 }

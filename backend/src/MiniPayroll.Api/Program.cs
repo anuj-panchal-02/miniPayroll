@@ -25,6 +25,8 @@ builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<SalaryStructureService>();
 builder.Services.AddScoped<PayrollCalculationService>();
 builder.Services.AddScoped<PayrollInputService>();
+builder.Services.AddScoped<PayslipPdfService>();
+builder.Services.AddScoped<PayrollPayslipService>();
 builder.Services.AddScoped<LocationCatalogService>();
 builder.Services.AddScoped<CompanyLogoUploadCoordinator>();
 builder.Services.AddHttpContextAccessor();
