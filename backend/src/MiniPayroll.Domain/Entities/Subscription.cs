@@ -17,4 +17,5 @@ public class Subscription
     public Company Company { get; set; } = null!;
     public Plan Plan { get; set; } = null!;
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
+    public ICollection<BillingPeriodSnapshot> BillingPeriods { get; set; } = new List<BillingPeriodSnapshot>();
 }

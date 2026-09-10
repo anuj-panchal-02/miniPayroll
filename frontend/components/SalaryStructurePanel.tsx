@@ -16,6 +16,7 @@ import {
   type SalaryStructureComponentDetail,
   type SalaryStructureDetail,
 } from "@/lib/api";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 
@@ -23,6 +24,7 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
   const [structures, setStructures] = useState<SalaryStructureDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const toast = useToast();
   const [editor, setEditor] = useState<SalaryStructureFields | null>(null);
   const [editorError, setEditorError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -81,8 +83,9 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
       const created = await createSalaryStructure(employee.id, toSalaryStructureInput(editor));
       setStructures((current) => [created, ...current]);
       setEditor(null);
+      toast.showSuccess("Salary revision saved.");
     } catch (reason) {
-      setEditorError(reason instanceof Error ? reason.message : "Could not save the salary revision.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not save the salary revision.");
     } finally {
       setSaving(false);
     }
@@ -107,6 +110,7 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
         )}
       </header>
       <Alert>{error || null}</Alert>
+      <ToastOutlet toast={toast} />
       {loading ? (
         <p className="sa-salary-history__status" role="status">
           Loading salary history…

@@ -92,7 +92,6 @@ export default function SuperadminPage() {
           </Link>
           <p>{intro}</p>
         </header>
-
         <Alert>{error}</Alert>
 
         {!loading && companies.length > 0 ? (

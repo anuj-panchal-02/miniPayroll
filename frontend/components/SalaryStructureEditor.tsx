@@ -5,9 +5,11 @@ import {
   SalaryComponentValueType,
   type SalaryStructureInput,
 } from "@/lib/api";
+import { Badge } from "@/components/ui/Badge";
 import { Field } from "@/components/ui/Field";
 import { DateField } from "@/components/ui/DateField";
 import { Select } from "@/components/ui/Select";
+import { formatRupees } from "@/lib/payroll";
 
 type ComponentDraft = {
   key: string;
@@ -112,6 +114,11 @@ export function SalaryStructureEditor({
   onChange: (value: SalaryStructureFields) => void;
   joiningDate: string;
   error?: string;
+}: {
+  value: SalaryStructureFields;
+  onChange: (value: SalaryStructureFields) => void;
+  joiningDate: string;
+  error?: string;
 }) {
   const dateError =
     error && /effective|joining date/i.test(error) ? error : "";
@@ -139,6 +146,28 @@ export function SalaryStructureEditor({
     );
   }
 
+  // Real-time calculation preview
+  const basicComp = value.components.find((c) => c.name.trim().toLowerCase() === "basic salary");
+  const basicSalary = basicComp ? Math.max(0, Number(basicComp.value) || 0) : 0;
+
+  let gross = 0;
+  let deductions = 0;
+  for (const comp of value.components) {
+    const val = Number(comp.value) || 0;
+    const amount =
+      comp.valueType === SalaryComponentValueType.PercentageOfBasic
+        ? Math.max(0, (val / 100) * basicSalary)
+        : Math.max(0, val);
+
+    if (comp.type === SalaryComponentType.Earning) {
+      gross += amount;
+    } else {
+      deductions += amount;
+    }
+  }
+  const netTakeHome = Math.max(0, gross - deductions);
+  const basicRatio = gross > 0 ? Math.round((basicSalary / gross) * 100) : 0;
+
   return (
     <section className="sa-compose__salary" aria-label="Salary structure">
       <Field
@@ -152,7 +181,35 @@ export function SalaryStructureEditor({
           onChange={(effectiveFrom) => onChange({ ...value, effectiveFrom })}
         />
       </Field>
+
       <p className="sa-muted">Recurring lines only. One-time changes are added when payroll is run.</p>
+
+      {/* Live Take-Home Preview Card */}
+      <div className="mp-preview-card my-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <span className="text-xs font-mono uppercase text-muted-foreground block">Gross Monthly</span>
+            <span className="text-base font-semibold font-mono text-ink">{formatRupees(gross)}</span>
+          </div>
+          <div>
+            <span className="text-xs font-mono uppercase text-muted-foreground block">Total Deductions</span>
+            <span className="text-base font-semibold font-mono text-ink">{formatRupees(deductions)}</span>
+          </div>
+          <div>
+            <span className="text-xs font-mono uppercase text-muted-foreground block">Est. Take-Home</span>
+            <span className="text-lg font-bold font-mono text-accent">{formatRupees(netTakeHome)}</span>
+          </div>
+        </div>
+        {gross > 0 ? (
+          <div className="pt-2 border-t border-rule flex items-center justify-between text-xs text-muted-foreground">
+            <span>Basic is {basicRatio}% of gross salary</span>
+            <Badge tone={basicRatio >= 50 ? "success" : "neutral"} size="sm">
+              {basicRatio >= 50 ? "✓ ≥ 50% Wage Code Compliant" : "Standard"}
+            </Badge>
+          </div>
+        ) : null}
+      </div>
+
       <div className="sa-preset-actions" aria-label="Add standard salary component">
         {PRESETS.filter((preset) => !presetAdded(preset)).map((preset) => (
           <button
@@ -168,10 +225,16 @@ export function SalaryStructureEditor({
           + Custom line
         </button>
       </div>
+
       {value.components.map((component, index) => {
         const basic = component.name.trim().toLowerCase() === "basic salary";
         const percent = component.valueType === SalaryComponentValueType.PercentageOfBasic;
-        const rowError = rowMessage(component, Boolean(valueError), index === value.components.length - 1 ? valueError : "");
+        const rowError = rowMessage(
+          component,
+          Boolean(valueError),
+          index === value.components.length - 1 ? valueError : "",
+        );
+
         return (
           <div className="sa-salary-fields" key={component.key}>
             <Field id={`salary-name-${component.key}`} label="Name">
@@ -228,10 +291,12 @@ export function SalaryStructureEditor({
                 type="button"
                 className="sa-compose__remove"
                 aria-label={`Remove ${component.name || "component"}`}
-                onClick={() => onChange({
-                  ...value,
-                  components: value.components.filter((_, current) => current !== index),
-                })}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    components: value.components.filter((_, current) => current !== index),
+                  })
+                }
               >
                 Remove
               </button>

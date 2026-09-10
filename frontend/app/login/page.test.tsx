@@ -67,6 +67,14 @@ describe("LoginPage", () => {
     expect(password.type).toBe("text");
   });
 
+  it("does not show a password strength meter", () => {
+    const { container } = render(<LoginPage />);
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "Tmp_TestAdmin1!" },
+    });
+    expect(container.querySelector(".mp-field__meter")).toBeNull();
+  });
+
   it("submits from the keyboard and replaces login history", async () => {
     render(<LoginPage />);
     fireEvent.change(screen.getByLabelText("Email"), {

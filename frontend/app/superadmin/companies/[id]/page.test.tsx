@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   setToken: vi.fn(),
   listCompanyPayrollRuns: vi.fn(),
   reversePayrollRun: vi.fn(),
+  getCompanyBilling: vi.fn(),
+  recordCompanyPayment: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -34,7 +36,10 @@ vi.mock("@/lib/api", () => ({
   setToken: mocks.setToken,
   listCompanyPayrollRuns: mocks.listCompanyPayrollRuns,
   reversePayrollRun: mocks.reversePayrollRun,
+  getCompanyBilling: mocks.getCompanyBilling,
+  recordCompanyPayment: mocks.recordCompanyPayment,
   PayrollRunStatus: { Draft: 0, Calculated: 1, Finalized: 2, Reversed: 3 },
+  BillableSource: { FinalizedPayroll: 0, ActiveHeadcount: 1 },
   BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
   OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
 }));
@@ -56,8 +61,16 @@ describe("CompanyDetailsPage", () => {
     mocks.updateCompanyLimit.mockReset();
     mocks.listCompanyPayrollRuns.mockReset();
     mocks.reversePayrollRun.mockReset();
+    mocks.getCompanyBilling.mockReset();
+    mocks.recordCompanyPayment.mockReset();
     mocks.getToken.mockReturnValue("token");
     mocks.listCompanyPayrollRuns.mockResolvedValue([]);
+    mocks.getCompanyBilling.mockResolvedValue({
+      planName: "Basic",
+      pricePerEmployee: 49,
+      gracePeriodDays: 7,
+      periods: [],
+    });
     mocks.getPlatformLimits.mockResolvedValue({
       minEmployeeLimit: 1,
       hardEmployeeCap: 50,
@@ -129,5 +142,80 @@ describe("CompanyDetailsPage", () => {
       expect(mocks.updateCompanyLimit).toHaveBeenCalledWith("co-1", 20);
     });
     expect(await screen.findByText("Employee limit saved.")).toBeTruthy();
+  });
+
+  it("hides billing until the company is activated", async () => {
+    render(<CompanyDetailsPage />);
+    await screen.findByLabelText("Employee limit");
+    expect(screen.queryByRole("heading", { name: "Billing" })).toBeNull();
+  });
+
+  it("shows the amount due and records an offline payment", async () => {
+    mocks.getCompany.mockResolvedValue({
+      id: "co-1",
+      name: "ABC Traders",
+      contactEmail: "owner@abctraders.example",
+      contactPhone: null,
+      status: "Active",
+      employeeLimit: 50,
+      planName: "Basic",
+      isSetupComplete: true,
+      activatedAt: "2026-08-01T00:00:00.000Z",
+      hasAdmin: true,
+      adminEmail: "owner@abctraders.example",
+    });
+    const august = {
+      billingPeriod: "2026-08",
+      year: 2026,
+      month: 8,
+      billableEmployees: 2,
+      billableSource: 0,
+      pricePerEmployee: 49,
+      amountDue: 98,
+      prorated: false,
+      isEstimated: true,
+      dueDate: "2026-08-31T23:59:59+00:00",
+      isOverdue: false,
+      isPastGrace: false,
+      paidAmount: 0,
+      remaining: 98,
+      payments: [],
+    };
+    mocks.getCompanyBilling.mockResolvedValue({
+      planName: "Basic",
+      pricePerEmployee: 49,
+      gracePeriodDays: 7,
+      periods: [august],
+    });
+    mocks.recordCompanyPayment.mockResolvedValue({
+      planName: "Basic",
+      pricePerEmployee: 49,
+      gracePeriodDays: 7,
+      periods: [{ ...august, paidAmount: 98, remaining: 0 }],
+    });
+
+    render(<CompanyDetailsPage />);
+
+    expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
+    expect(screen.getByText("2 × ₹49 = ₹98")).toBeTruthy();
+    expect(screen.getByText(/Finalized payroll/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/GST \/ invoice reference/), {
+      target: { value: "GST-88" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+
+    await waitFor(() => {
+      expect(mocks.recordCompanyPayment).toHaveBeenCalledWith(
+        "co-1",
+        expect.objectContaining({
+          billingPeriod: "2026-08",
+          amount: 98,
+          paymentMode: "UPI",
+          invoiceGstReference: "GST-88",
+        }),
+      );
+    });
+    expect(await screen.findByText("Payment recorded.")).toBeTruthy();
   });
 });

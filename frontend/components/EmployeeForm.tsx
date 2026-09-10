@@ -10,7 +10,7 @@ import {
   toSalaryStructureInput,
   type SalaryStructureFields,
 } from "@/components/SalaryStructureEditor";
-import { Alert } from "@/components/ui/Alert";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
@@ -82,8 +82,7 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
   );
   const [salaryError, setSalaryError] = useState("");
   const [pending, setPending] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [formStatus, setFormStatus] = useState("");
+  const toast = useToast();
   const refs = useRef<Partial<Record<EmployeeField, HTMLElement | null>>>({});
 
   async function save(kind: "draft" | "complete") {
@@ -110,8 +109,7 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
     }
 
     setPending(true);
-    setFormError("");
-    setFormStatus("");
+    toast.dismiss();
     try {
       await onSave(
         toInput(
@@ -123,10 +121,10 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
         ),
       );
       if (kind === "draft") {
-        setFormStatus("Draft saved.");
+        toast.showSuccess("Draft saved.");
       }
     } catch (reason) {
-      setFormError(reason instanceof Error ? reason.message : "Could not save the employee.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not save the employee.");
     } finally {
       setPending(false);
     }
@@ -141,13 +139,11 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
       refs.current[invalid]?.focus();
       return;
     }
-    setFormStatus("");
     setStep((current) => clampStep(current + 1));
   }
 
   function updateField(name: EmployeeField, value: string) {
     setValues((current) => ({ ...current, [name]: value }));
-    setFormStatus("");
     setErrors((current) => {
       if (!current[name]) {
         return current;
@@ -206,8 +202,7 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
         currentStep={step}
         steps={steps}
       />
-      <Alert>{formError || null}</Alert>
-      <Alert tone="success">{formStatus || null}</Alert>
+      <ToastOutlet toast={toast} />
       {step === 1 ? (
         <>
           <FieldGroup title="Identity">
@@ -291,7 +286,6 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
           onChange={(next) => {
             setSalary(next);
             setSalaryError("");
-            setFormStatus("");
           }}
         />
       ) : null}
@@ -302,7 +296,6 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
             variant="secondary"
             disabled={pending}
             onClick={() => {
-              setFormStatus("");
               setStep((current) => clampStep(current - 1));
             }}
           >

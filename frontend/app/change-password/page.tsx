@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { PasswordField } from "@/components/ui/PasswordField";
@@ -44,6 +45,7 @@ export default function ChangePasswordPage() {
     confirmPassword: false,
   });
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [account, setAccount] = useState<MeResponse | null>(null);
@@ -123,7 +125,7 @@ export default function ChangePasswordPage() {
     }
 
     setBusy(true);
-    setError(null);
+    toast.dismiss();
     try {
       await changePassword(currentPassword, newPassword);
       if (!account) {
@@ -133,7 +135,7 @@ export default function ChangePasswordPage() {
       }
       router.replace(homePath({ ...account, mustChangePassword: false }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not change password");
+      toast.showError(err instanceof Error ? err.message : "Could not change password");
       setBusy(false);
     }
   }
@@ -206,6 +208,7 @@ export default function ChangePasswordPage() {
             />
 
             <Alert>{error}</Alert>
+            <ToastOutlet toast={toast} />
 
             <Button type="submit" loading={busy} loadingLabel="Saving">
               Change password

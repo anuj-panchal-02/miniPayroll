@@ -24,6 +24,12 @@
   --color-success: oklch(46% 0.11 150);
   --color-success-ink: oklch(98.5% 0.01 150);
   --color-success-soft: oklch(94% 0.03 150);
+  --color-warning: oklch(62% 0.16 75);
+  --color-warning-ink: oklch(24% 0.04 75);
+  --color-warning-soft: oklch(95% 0.04 75);
+  --color-info: oklch(55% 0.14 240);
+  --color-info-ink: oklch(98.5% 0.01 240);
+  --color-info-soft: oklch(95% 0.03 240);
 
   --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;

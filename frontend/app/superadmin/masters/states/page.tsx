@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SuperadminShell } from "@/components/SuperadminShell";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -23,6 +24,7 @@ export default function PlatformStatesPage() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -64,9 +66,9 @@ export default function PlatformStatesPage() {
       setStates((current) => [...current, created].sort((a, b) => a.sortOrder - b.sortOrder));
       setName("");
       setCode("");
-      setError(null);
+      toast.showSuccess("State added.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not add the state.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not add the state.");
     } finally {
       setBusy(false);
     }
@@ -78,9 +80,9 @@ export default function PlatformStatesPage() {
       const updated = await updatePlatformState(id, { name: editName, code: editCode });
       setStates((current) => current.map((item) => (item.id === id ? updated : item)));
       setEditingId(null);
-      setError(null);
+      toast.showSuccess("State saved.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not rename the state.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not rename the state.");
     } finally {
       setBusy(false);
     }
@@ -91,9 +93,9 @@ export default function PlatformStatesPage() {
     try {
       const updated = await updatePlatformState(state.id, { isActive: !state.isActive });
       setStates((current) => current.map((item) => (item.id === state.id ? updated : item)));
-      setError(null);
+      toast.showSuccess("State saved.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not update the state.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not update the state.");
     } finally {
       setBusy(false);
     }
@@ -111,6 +113,7 @@ export default function PlatformStatesPage() {
         </header>
 
         <Alert>{error}</Alert>
+        <ToastOutlet toast={toast} />
 
         <form className="sa-compose" onSubmit={onAdd}>
           <FieldGroup title="Add a state" className="mp-group--inline">

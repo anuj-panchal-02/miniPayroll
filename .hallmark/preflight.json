@@ -1,8 +1,8 @@
 {
-  "scanned": "2026-08-20",
-  "fontStack": "Geist + Geist Mono (next/font)",
-  "palette": "slate paper + teal accents, now Coral tokens in frontend/tokens.css",
-  "motion": "none",
-  "spacing": "Tailwind defaults; Hallmark 4pt scale in tokens.css",
+  "scanned": "2026-09-11",
+  "fontStack": "Geist + Geist Mono (next/font, app/layout.tsx)",
+  "palette": "Coral OKLCH tokens (frontend/tokens.css) · locked by design.md",
+  "motion": "none (no framer-motion / gsap / motion)",
+  "spacing": "Hallmark 4pt named scale in frontend/tokens.css",
   "framework": "Next.js 16 App Router"
 }

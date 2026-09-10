@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/BrandLogo";
-import { Alert } from "@/components/ui/Alert";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { PasswordField } from "@/components/ui/PasswordField";
@@ -23,7 +23,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
 
   const emailFieldError = emailError(email, EMAIL_MESSAGES);
@@ -45,13 +45,13 @@ export default function LoginPage() {
     }
 
     setBusy(true);
-    setError(null);
+    toast.dismiss();
     try {
       const result = await login(email, password);
       setToken(result.token);
       router.replace(homePath(result));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed. Check your email and password.");
+      toast.showError(err instanceof Error ? err.message : "Sign in failed. Check your email and password.");
       setBusy(false);
     }
   }
@@ -100,9 +100,10 @@ export default function LoginPage() {
             required
             disabled={busy}
             error={shownPasswordError}
+            showStrength={false}
           />
 
-          <Alert>{error}</Alert>
+          <ToastOutlet toast={toast} />
 
           <Button type="submit" loading={busy} loadingLabel="Signing in">
             Sign in

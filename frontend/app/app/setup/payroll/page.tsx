@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Choice } from "@/components/ui/Choice";
 import { Field } from "@/components/ui/Field";
@@ -33,7 +34,7 @@ export default function PayrollSetupPage() {
   const [workingDaysMessage, setWorkingDaysMessage] = useState("");
   const [weeklyOffMessage, setWeeklyOffMessage] = useState("");
   const [loadError, setLoadError] = useState("");
-  const [submitError, setSubmitError] = useState("");
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const workingDaysRef = useRef<HTMLInputElement>(null);
@@ -76,7 +77,7 @@ export default function PayrollSetupPage() {
     const nextWeeklyOffError = weeklyOffDaysError(weeklyOffDays);
     setWorkingDaysMessage(nextWorkingDaysError ?? "");
     setWeeklyOffMessage(nextWeeklyOffError ?? "");
-    setSubmitError("");
+    toast.dismiss();
 
     if (nextWorkingDaysError) {
       workingDaysRef.current?.focus();
@@ -101,7 +102,7 @@ export default function PayrollSetupPage() {
       router.push("/app/setup/review");
     } catch (reason) {
       if (isCurrentSubmission()) {
-        setSubmitError(reason instanceof Error ? reason.message : "Unable to save payroll settings.");
+        toast.showError(reason instanceof Error ? reason.message : "Unable to save payroll settings.");
       }
     } finally {
       if (isCurrentSubmission()) {
@@ -226,7 +227,7 @@ export default function PayrollSetupPage() {
           {workingDaysMessage || weeklyOffMessage ? (
             <p className="setup-alert" role="alert">Review the highlighted payroll settings.</p>
           ) : null}
-          {submitError ? <p className="setup-alert" role="alert">{submitError}</p> : null}
+          <ToastOutlet toast={toast} />
           <div className="setup-actions">
             <Button type="submit" loading={saving} loadingLabel="Saving…">
               Save and continue

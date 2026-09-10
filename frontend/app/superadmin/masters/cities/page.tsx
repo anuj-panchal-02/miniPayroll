@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SuperadminShell } from "@/components/SuperadminShell";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -27,6 +28,7 @@ export default function PlatformCitiesPage() {
   const [stateId, setStateId] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -91,9 +93,9 @@ export default function PlatformCitiesPage() {
       const created = await createPlatformCity({ stateId, name });
       setCities((current) => [...current, created].sort((a, b) => a.sortOrder - b.sortOrder));
       setName("");
-      setError(null);
+      toast.showSuccess("City added.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not add the city.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not add the city.");
     } finally {
       setBusy(false);
     }
@@ -105,9 +107,9 @@ export default function PlatformCitiesPage() {
       const updated = await updatePlatformCity(id, { name: editName });
       setCities((current) => current.map((item) => (item.id === id ? updated : item)));
       setEditingId(null);
-      setError(null);
+      toast.showSuccess("City saved.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not rename the city.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not rename the city.");
     } finally {
       setBusy(false);
     }
@@ -118,9 +120,9 @@ export default function PlatformCitiesPage() {
     try {
       const updated = await updatePlatformCity(city.id, { isActive: !city.isActive });
       setCities((current) => current.map((item) => (item.id === city.id ? updated : item)));
-      setError(null);
+      toast.showSuccess("City saved.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not update the city.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not update the city.");
     } finally {
       setBusy(false);
     }
@@ -138,6 +140,7 @@ export default function PlatformCitiesPage() {
         </header>
 
         <Alert>{error}</Alert>
+        <ToastOutlet toast={toast} />
 
         <form className="sa-compose" onSubmit={onAdd}>
           <FieldGroup title="Add a city" className="mp-group--inline mp-group--inline-fields">

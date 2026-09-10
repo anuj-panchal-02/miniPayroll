@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import {
   completeCompanySetup,
@@ -15,7 +16,7 @@ export default function ReviewSetupPage() {
   const router = useRouter();
   const [setup, setSetup] = useState<CompanySetup | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [submitError, setSubmitError] = useState("");
+  const toast = useToast();
   const [completing, setCompleting] = useState(false);
   const mountedRef = useRef(false);
   const submissionRef = useRef(0);
@@ -46,7 +47,7 @@ export default function ReviewSetupPage() {
   }, []);
 
   async function completeSetup() {
-    setSubmitError("");
+    toast.dismiss();
     setCompleting(true);
     const submission = ++submissionRef.current;
     const isCurrentSubmission = () =>
@@ -57,7 +58,7 @@ export default function ReviewSetupPage() {
       router.replace("/app");
     } catch (reason) {
       if (isCurrentSubmission()) {
-        setSubmitError(
+        toast.showError(
           reason instanceof Error
             ? reason.message
             : "Unable to complete company setup.",
@@ -163,11 +164,7 @@ export default function ReviewSetupPage() {
             </dl>
           </section>
 
-          {submitError ? (
-            <p className="setup-alert" role="alert">
-              {submitError}
-            </p>
-          ) : null}
+          <ToastOutlet toast={toast} />
           <div className="setup-actions">
             <Button
               type="button"

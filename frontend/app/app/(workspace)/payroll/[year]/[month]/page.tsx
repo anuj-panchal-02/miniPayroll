@@ -13,19 +13,21 @@ import {
   type PayrollPeriodDetail,
   type PayrollRosterEmployee,
 } from "@/lib/api";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
-  BONUS_TYPE_OPTIONS,
-  DEDUCTION_TYPE_OPTIONS,
+  PayrollExtrasDrawer,
+  type ExtraLine,
+  type OvertimeLine,
+} from "@/components/PayrollExtrasDrawer";
+import {
   attendanceBalances,
   parseQuantity,
   periodLabel,
 } from "@/lib/payroll";
-
-type ExtraLine = { type: string; amount: string; notes: string };
-type OvertimeLine = { hours: string; rate: string; notes: string };
 
 type DraftRow = {
   employeeId: string;
@@ -36,7 +38,6 @@ type DraftRow = {
   present: string;
   paidLeave: string;
   unpaidLeave: string;
-  extrasOpen: boolean;
   overtime: OvertimeLine[];
   bonuses: ExtraLine[];
   deductions: ExtraLine[];
@@ -54,15 +55,16 @@ function toDraft(employee: PayrollRosterEmployee, workingDaysPerMonth: number): 
     present: String(attendance?.present ?? working),
     paidLeave: String(attendance?.paidLeave ?? 0),
     unpaidLeave: String(attendance?.unpaidLeave ?? 0),
-    extrasOpen:
-      employee.overtime.length > 0 || employee.bonuses.length > 0 || employee.deductions.length > 0,
     overtime:
       employee.overtime.length > 0
         ? employee.overtime.map((item) => ({
             hours: String(item.hours),
-            rate: item.rate != null ? String(item.rate) : employee.overtimeRate != null
-              ? String(employee.overtimeRate)
-              : "",
+            rate:
+              item.rate != null
+                ? String(item.rate)
+                : employee.overtimeRate != null
+                  ? String(employee.overtimeRate)
+                  : "",
             notes: item.notes ?? "",
           }))
         : [],
@@ -80,22 +82,36 @@ function toDraft(employee: PayrollRosterEmployee, workingDaysPerMonth: number): 
 }
 
 function buildPayload(rows: DraftRow[]): PayrollInputsPayload | string {
-  const attendance: PayrollInputsPayload["attendance"] = [];
-  const overtime: PayrollInputsPayload["overtime"] = [];
-  const bonuses: PayrollInputsPayload["bonuses"] = [];
-  const deductions: PayrollInputsPayload["deductions"] = [];
+  const attendance = [];
+  const overtime = [];
+  const bonuses = [];
+  const deductions = [];
 
   for (const row of rows) {
-    const workingDays = parseQuantity(row.workingDays);
+    const working = parseQuantity(row.workingDays);
     const present = parseQuantity(row.present);
     const paidLeave = parseQuantity(row.paidLeave);
     const unpaidLeave = parseQuantity(row.unpaidLeave);
-    if (workingDays == null || present == null || paidLeave == null || unpaidLeave == null) {
-      return `Enter valid attendance for ${row.fullName}.`;
+
+    if (working == null || working <= 0) {
+      return `Enter valid working days for ${row.fullName}.`;
     }
+    if (present == null || present < 0) {
+      return `Enter valid present days for ${row.fullName}.`;
+    }
+    if (paidLeave == null || paidLeave < 0) {
+      return `Enter valid paid leave for ${row.fullName}.`;
+    }
+    if (unpaidLeave == null || unpaidLeave < 0) {
+      return `Enter valid unpaid leave for ${row.fullName}.`;
+    }
+    if (!attendanceBalances(working, present, paidLeave, unpaidLeave)) {
+      return `Attendance identity violated for ${row.fullName}.`;
+    }
+
     attendance.push({
       employeeId: row.employeeId,
-      workingDays,
+      workingDays: working,
       present,
       paidLeave,
       unpaidLeave,
@@ -155,9 +171,10 @@ export default function MonthlyInputsPage() {
   const [period, setPeriod] = useState<PayrollPeriodDetail | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState("");
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [activeExtrasEmployeeId, setActiveExtrasEmployeeId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,8 +198,9 @@ export default function MonthlyInputsPage() {
     };
   }, [year, month]);
 
-  const locked = period?.run?.status === PayrollRunStatus.Finalized
-    || period?.run?.status === PayrollRunStatus.Reversed;
+  const locked =
+    period?.run?.status === PayrollRunStatus.Finalized ||
+    period?.run?.status === PayrollRunStatus.Reversed;
   const calculated = period?.run?.status === PayrollRunStatus.Calculated;
   const missingStructure = useMemo(
     () => rows.filter((row) => !row.hasStructure).map((row) => row.fullName),
@@ -193,7 +211,6 @@ export default function MonthlyInputsPage() {
     setRows((current) =>
       current.map((row) => (row.employeeId === employeeId ? { ...row, ...patch } : row)),
     );
-    setSaved("");
   }
 
   function applyWorkingDays() {
@@ -208,14 +225,47 @@ export default function MonthlyInputsPage() {
         unpaidLeave: "0",
       })),
     );
-    setSaved("");
+    toast.showSuccess(`Applied ${working} working days to all employees.`);
+  }
+
+  function markAllPresent() {
+    if (!period) return;
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        present: row.workingDays,
+        paidLeave: "0",
+        unpaidLeave: "0",
+      })),
+    );
+    toast.showSuccess("Marked all employees 100% present.");
+  }
+
+  function autoBalanceUnpaidLeave() {
+    if (!period) return;
+    setRows((current) =>
+      current.map((row) => {
+        const working = parseQuantity(row.workingDays) ?? 0;
+        const present = parseQuantity(row.present) ?? 0;
+        const paid = parseQuantity(row.paidLeave) ?? 0;
+        const accounted = present + paid;
+        if (accounted < working) {
+          return {
+            ...row,
+            unpaidLeave: String(working - accounted),
+          };
+        }
+        return row;
+      }),
+    );
+    toast.showSuccess("Auto-balanced unpaid leave for short attendance.");
   }
 
   async function onSave() {
     if (!period?.run) return;
     const payload = buildPayload(rows);
     if (typeof payload === "string") {
-      setError(payload);
+      toast.showError(payload);
       return;
     }
     setBusy(true);
@@ -223,14 +273,18 @@ export default function MonthlyInputsPage() {
       const next = await savePayrollInputs(period.run.id, payload);
       setPeriod(next);
       setRows(next.employees.map((employee) => toDraft(employee, next.workingDaysPerMonth)));
-      setError("");
-      setSaved("Monthly inputs saved.");
+      toast.showSuccess("Monthly inputs saved.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not save payroll inputs.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not save payroll inputs.");
     } finally {
       setBusy(false);
     }
   }
+
+  const activeEmployee = useMemo(
+    () => rows.find((r) => r.employeeId === activeExtrasEmployeeId) ?? null,
+    [rows, activeExtrasEmployeeId],
+  );
 
   return (
     <main className="sa-shell">
@@ -250,18 +304,28 @@ export default function MonthlyInputsPage() {
         <h1>Monthly inputs</h1>
         <p>{periodLabel(year, month)} attendance, overtime, bonuses, and deductions.</p>
       </header>
+
       <Alert>{error || null}</Alert>
-      <Alert tone="success">{saved || null}</Alert>
+      <ToastOutlet toast={toast} />
+
       {calculated ? (
         <Alert tone="status">Saving will return this run to Draft so you can recalculate.</Alert>
       ) : null}
       {locked ? (
         <Alert tone="status">This payroll run is finalized or reversed and cannot be changed.</Alert>
       ) : null}
+
       {loading ? (
-        <p className="sa-empty" role="status">
-          Loading monthly inputs…
-        </p>
+        <div className="space-y-4 py-8">
+          <p className="sa-empty" role="status">
+            Loading monthly inputs…
+          </p>
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
       ) : !period?.run ? (
         <p className="sa-empty">
           No payroll run for this month.{" "}
@@ -274,24 +338,52 @@ export default function MonthlyInputsPage() {
               {`Missing salary structure: ${missingStructure.join(", ")}.`}
             </Alert>
           ) : null}
-          <div className="sa-payroll-toolbar">
-            <Button type="button" variant="secondary" onClick={applyWorkingDays} disabled={locked}>
-              Apply {period.workingDaysPerMonth} working days to all
-            </Button>
+
+          {/* Quick Toolbar */}
+          <div className="sa-payroll-toolbar flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={applyWorkingDays}
+                disabled={locked}
+              >
+                Apply {period.workingDaysPerMonth} working days to all
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={markAllPresent}
+                disabled={locked}
+              >
+                Mark all 100% present
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={autoBalanceUnpaidLeave}
+                disabled={locked}
+              >
+                Auto-balance unpaid leave
+              </Button>
+            </div>
             <Link href={`/app/payroll/${year}/${month}/review`} className="sa-compose__secondary">
-              Review payroll
+              Review payroll →
             </Link>
           </div>
+
+          {/* Clean Grid Table */}
           <div className="sa-payroll-grid-wrap">
             <table className="sa-payroll-grid">
               <thead>
                 <tr>
                   <th>Employee</th>
-                  <th>Working</th>
-                  <th>Present</th>
-                  <th>Paid leave</th>
-                  <th>Unpaid leave</th>
-                  <th>One-time</th>
+                  <th className="sa-payroll-grid__num">Working</th>
+                  <th className="sa-payroll-grid__num">Present</th>
+                  <th className="sa-payroll-grid__num">Paid leave</th>
+                  <th className="sa-payroll-grid__num">Unpaid leave</th>
+                  <th className="sa-payroll-grid__center">Status / Balance</th>
+                  <th className="sa-payroll-grid__action">Adjustments</th>
                 </tr>
               </thead>
               <tbody>
@@ -300,9 +392,17 @@ export default function MonthlyInputsPage() {
                   const present = parseQuantity(row.present) ?? 0;
                   const paid = parseQuantity(row.paidLeave) ?? 0;
                   const unpaid = parseQuantity(row.unpaidLeave) ?? 0;
+                  const totalDays = present + paid + unpaid;
+                  const delta = totalDays - working;
                   const identityOk = attendanceBalances(working, present, paid, unpaid);
+                  const totalExtras =
+                    row.overtime.length + row.bonuses.length + row.deductions.length;
+
                   return (
-                    <tr key={row.employeeId} className={identityOk ? undefined : "sa-payroll-row--warn"}>
+                    <tr
+                      key={row.employeeId}
+                      className={identityOk ? undefined : "sa-payroll-row--warn"}
+                    >
                       <td className="sa-payroll-grid__person">
                         <strong>{row.fullName}</strong>
                         <span>{row.employeeCode}</span>
@@ -310,7 +410,7 @@ export default function MonthlyInputsPage() {
                           <p className="sa-payroll-warn">No salary structure</p>
                         ) : null}
                       </td>
-                      <td>
+                      <td className="sa-payroll-grid__num">
                         <input
                           className="sa-payroll-qty"
                           type="number"
@@ -320,10 +420,12 @@ export default function MonthlyInputsPage() {
                           aria-label={`Working days for ${row.fullName}`}
                           value={row.workingDays}
                           disabled={locked}
-                          onChange={(event) => updateRow(row.employeeId, { workingDays: event.target.value })}
+                          onChange={(event) =>
+                            updateRow(row.employeeId, { workingDays: event.target.value })
+                          }
                         />
                       </td>
-                      <td>
+                      <td className="sa-payroll-grid__num">
                         <input
                           className="sa-payroll-qty"
                           type="number"
@@ -333,10 +435,12 @@ export default function MonthlyInputsPage() {
                           aria-label={`Present days for ${row.fullName}`}
                           value={row.present}
                           disabled={locked}
-                          onChange={(event) => updateRow(row.employeeId, { present: event.target.value })}
+                          onChange={(event) =>
+                            updateRow(row.employeeId, { present: event.target.value })
+                          }
                         />
                       </td>
-                      <td>
+                      <td className="sa-payroll-grid__num">
                         <input
                           className="sa-payroll-qty"
                           type="number"
@@ -346,10 +450,12 @@ export default function MonthlyInputsPage() {
                           aria-label={`Paid leave for ${row.fullName}`}
                           value={row.paidLeave}
                           disabled={locked}
-                          onChange={(event) => updateRow(row.employeeId, { paidLeave: event.target.value })}
+                          onChange={(event) =>
+                            updateRow(row.employeeId, { paidLeave: event.target.value })
+                          }
                         />
                       </td>
-                      <td>
+                      <td className="sa-payroll-grid__num">
                         <input
                           className="sa-payroll-qty"
                           type="number"
@@ -359,242 +465,35 @@ export default function MonthlyInputsPage() {
                           aria-label={`Unpaid leave for ${row.fullName}`}
                           value={row.unpaidLeave}
                           disabled={locked}
-                          onChange={(event) => updateRow(row.employeeId, { unpaidLeave: event.target.value })}
+                          onChange={(event) =>
+                            updateRow(row.employeeId, { unpaidLeave: event.target.value })
+                          }
                         />
                         {!identityOk ? (
-                          <p className="sa-payroll-warn">Present + paid + unpaid must equal working days.</p>
+                          <p className="sa-payroll-warn text-xs mt-1">
+                            Present + paid + unpaid must equal working days.
+                          </p>
                         ) : null}
                       </td>
-                      <td>
+                      <td className="sa-payroll-grid__center">
+                        {identityOk ? (
+                          <span className="mp-balance-pill mp-balance-pill--balanced">
+                            ✓ {totalDays}/{working}d
+                          </span>
+                        ) : (
+                          <span className="mp-balance-pill mp-balance-pill--unbalanced">
+                            ⚠ {totalDays}/{working}d ({delta > 0 ? `+${delta}` : delta}d)
+                          </span>
+                        )}
+                      </td>
+                      <td className="sa-payroll-grid__action">
                         <Button
                           type="button"
-                          variant="ghost"
-                          onClick={() => updateRow(row.employeeId, { extrasOpen: !row.extrasOpen })}
+                          variant="secondary"
+                          onClick={() => setActiveExtrasEmployeeId(row.employeeId)}
                         >
-                          {row.extrasOpen ? "Hide extras" : "Overtime, bonus, deduction"}
+                          {totalExtras > 0 ? `Extras (${totalExtras})` : "Add Extras"}
                         </Button>
-                        {row.extrasOpen ? (
-                          <div className="sa-payroll-extras">
-                            <p className="mp-group__hint">
-                              Advances and loans are for this month only — no balance is tracked.
-                            </p>
-                            {row.overtime.map((item, index) => (
-                              <div className="sa-payroll-extra-row" key={`ot-${index}`}>
-                                <input
-                                  className="sa-payroll-qty"
-                                  type="number"
-                                  step="0.25"
-                                  min="0"
-                                  aria-label={`Overtime hours for ${row.fullName}`}
-                                  placeholder="Hours"
-                                  value={item.hours}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const overtime = row.overtime.slice();
-                                    overtime[index] = { ...item, hours: event.target.value };
-                                    updateRow(row.employeeId, { overtime });
-                                  }}
-                                />
-                                <input
-                                  className="sa-payroll-qty"
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  aria-label={`Overtime rate for ${row.fullName}`}
-                                  placeholder="Rate"
-                                  value={item.rate}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const overtime = row.overtime.slice();
-                                    overtime[index] = { ...item, rate: event.target.value };
-                                    updateRow(row.employeeId, { overtime });
-                                  }}
-                                />
-                                <input
-                                  className="mp-input"
-                                  aria-label={`Overtime notes for ${row.fullName}`}
-                                  placeholder="Notes"
-                                  value={item.notes}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const overtime = row.overtime.slice();
-                                    overtime[index] = { ...item, notes: event.target.value };
-                                    updateRow(row.employeeId, { overtime });
-                                  }}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  disabled={locked}
-                                  onClick={() =>
-                                    updateRow(row.employeeId, {
-                                      overtime: row.overtime.filter((_, i) => i !== index),
-                                    })
-                                  }
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={locked}
-                              onClick={() =>
-                                updateRow(row.employeeId, {
-                                  overtime: [
-                                    ...row.overtime,
-                                    { hours: "", rate: "", notes: "" },
-                                  ],
-                                })
-                              }
-                            >
-                              Add overtime
-                            </Button>
-                            {row.bonuses.map((item, index) => (
-                              <div className="sa-payroll-extra-row" key={`bonus-${index}`}>
-                                <Select
-                                  id={`${row.employeeId}-bonus-type-${index}`}
-                                  value={item.type}
-                                  options={BONUS_TYPE_OPTIONS}
-                                  disabled={locked}
-                                  onChange={(value) => {
-                                    const bonuses = row.bonuses.slice();
-                                    bonuses[index] = { ...item, type: value };
-                                    updateRow(row.employeeId, { bonuses });
-                                  }}
-                                />
-                                <input
-                                  className="sa-payroll-qty"
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  aria-label={`Bonus amount for ${row.fullName}`}
-                                  placeholder="Amount"
-                                  value={item.amount}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const bonuses = row.bonuses.slice();
-                                    bonuses[index] = { ...item, amount: event.target.value };
-                                    updateRow(row.employeeId, { bonuses });
-                                  }}
-                                />
-                                <input
-                                  className="mp-input"
-                                  aria-label={`Bonus notes for ${row.fullName}`}
-                                  placeholder="Notes"
-                                  value={item.notes}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const bonuses = row.bonuses.slice();
-                                    bonuses[index] = { ...item, notes: event.target.value };
-                                    updateRow(row.employeeId, { bonuses });
-                                  }}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  disabled={locked}
-                                  onClick={() =>
-                                    updateRow(row.employeeId, {
-                                      bonuses: row.bonuses.filter((_, i) => i !== index),
-                                    })
-                                  }
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={locked}
-                              onClick={() =>
-                                updateRow(row.employeeId, {
-                                  bonuses: [
-                                    ...row.bonuses,
-                                    { type: String(BonusType.Festival), amount: "", notes: "" },
-                                  ],
-                                })
-                              }
-                            >
-                              Add bonus
-                            </Button>
-                            {row.deductions.map((item, index) => (
-                              <div className="sa-payroll-extra-row" key={`ded-${index}`}>
-                                <Select
-                                  id={`${row.employeeId}-deduction-type-${index}`}
-                                  value={item.type}
-                                  options={DEDUCTION_TYPE_OPTIONS}
-                                  disabled={locked}
-                                  onChange={(value) => {
-                                    const deductions = row.deductions.slice();
-                                    deductions[index] = { ...item, type: value };
-                                    updateRow(row.employeeId, { deductions });
-                                  }}
-                                />
-                                <input
-                                  className="sa-payroll-qty"
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  aria-label={`Deduction amount for ${row.fullName}`}
-                                  placeholder="Amount"
-                                  value={item.amount}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const deductions = row.deductions.slice();
-                                    deductions[index] = { ...item, amount: event.target.value };
-                                    updateRow(row.employeeId, { deductions });
-                                  }}
-                                />
-                                <input
-                                  className="mp-input"
-                                  aria-label={`Deduction notes for ${row.fullName}`}
-                                  placeholder="Notes"
-                                  value={item.notes}
-                                  disabled={locked}
-                                  onChange={(event) => {
-                                    const deductions = row.deductions.slice();
-                                    deductions[index] = { ...item, notes: event.target.value };
-                                    updateRow(row.employeeId, { deductions });
-                                  }}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  disabled={locked}
-                                  onClick={() =>
-                                    updateRow(row.employeeId, {
-                                      deductions: row.deductions.filter((_, i) => i !== index),
-                                    })
-                                  }
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={locked}
-                              onClick={() =>
-                                updateRow(row.employeeId, {
-                                  deductions: [
-                                    ...row.deductions,
-                                    {
-                                      type: String(OneTimeDeductionType.AdvanceRecovery),
-                                      amount: "",
-                                      notes: "",
-                                    },
-                                  ],
-                                })
-                              }
-                            >
-                              Add deduction
-                            </Button>
-                          </div>
-                        ) : null}
                       </td>
                     </tr>
                   );
@@ -602,11 +501,40 @@ export default function MonthlyInputsPage() {
               </tbody>
             </table>
           </div>
+
           <div className="sa-payroll-toolbar">
-            <Button type="button" onClick={() => void onSave()} loading={busy} loadingLabel="Saving…" disabled={locked}>
+            <Button
+              type="button"
+              onClick={() => void onSave()}
+              loading={busy}
+              loadingLabel="Saving…"
+              disabled={locked}
+            >
               Save inputs
             </Button>
           </div>
+
+          {/* Slide-over Extras Drawer */}
+          {activeEmployee ? (
+            <PayrollExtrasDrawer
+              open={Boolean(activeExtrasEmployeeId)}
+              onClose={() => setActiveExtrasEmployeeId(null)}
+              employeeName={activeEmployee.fullName}
+              employeeCode={activeEmployee.employeeCode}
+              locked={locked}
+              initialOvertime={activeEmployee.overtime}
+              initialBonuses={activeEmployee.bonuses}
+              initialDeductions={activeEmployee.deductions}
+              onSave={(overtime, bonuses, deductions) => {
+                updateRow(activeEmployee.employeeId, {
+                  overtime,
+                  bonuses,
+                  deductions,
+                });
+                toast.showSuccess(`Updated adjustments for ${activeEmployee.fullName}.`);
+              }}
+            />
+          ) : null}
         </>
       )}
     </main>

@@ -64,6 +64,9 @@ describe("PayrollPage", () => {
     render(<PayrollPage />);
 
     expect(await screen.findByRole("button", { name: /start payroll/i })).toBeTruthy();
+    expect(screen.getByLabelText("Month").getAttribute("aria-haspopup")).toBe("listbox");
+    expect(screen.getByLabelText("Year").getAttribute("aria-haspopup")).toBe("listbox");
+    expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.getByText(/no run yet/i)).toBeTruthy();
     expect(screen.getByText(/0 missing salary structure/i)).toBeTruthy();
   });

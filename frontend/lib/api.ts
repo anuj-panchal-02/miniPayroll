@@ -842,6 +842,90 @@ export function reversePayrollRun(
   });
 }
 
+export const BillableSource = {
+  FinalizedPayroll: 0,
+  ActiveHeadcount: 1,
+} as const;
+
+export type BillableSource = (typeof BillableSource)[keyof typeof BillableSource];
+
+export type BillingPaymentItem = {
+  id: string;
+  amount: number;
+  paidOn: string;
+  paymentMode: string;
+  invoiceGstReference: string | null;
+  recordedAt: string;
+};
+
+export type BillingPeriodSummary = {
+  billingPeriod: string;
+  year: number;
+  month: number;
+  billableEmployees: number;
+  billableSource: BillableSource;
+  pricePerEmployee: number;
+  amountDue: number;
+  prorated: boolean;
+  isEstimated: boolean;
+  dueDate: string;
+  isOverdue: boolean;
+  isPastGrace: boolean;
+  paidAmount: number;
+  remaining: number;
+  payments: BillingPaymentItem[];
+};
+
+export type CompanyBilling = {
+  planName: string;
+  pricePerEmployee: number;
+  gracePeriodDays: number;
+  periods: BillingPeriodSummary[];
+};
+
+export type RecordCompanyPaymentInput = {
+  billingPeriod: string;
+  amount: number;
+  paidOn: string;
+  paymentMode: string;
+  invoiceGstReference?: string | null;
+};
+
+export function getCompanyBilling(companyId: string): Promise<CompanyBilling> {
+  return api<CompanyBilling>(`/api/companies/${companyId}/billing`, { method: "GET" });
+}
+
+export function getWorkspaceBilling(): Promise<CompanyBilling> {
+  return api<CompanyBilling>("/api/company/billing", { method: "GET" });
+}
+
+export type PlatformPlan = {
+  id: string;
+  name: string;
+  pricePerEmployee: number;
+};
+
+export function getPlatformPlan(): Promise<PlatformPlan> {
+  return api<PlatformPlan>("/api/platform/plan", { method: "GET" });
+}
+
+export function updatePlatformPlan(pricePerEmployee: number): Promise<PlatformPlan> {
+  return api<PlatformPlan>("/api/platform/plan", {
+    method: "PATCH",
+    body: JSON.stringify({ pricePerEmployee }),
+  });
+}
+
+export function recordCompanyPayment(
+  companyId: string,
+  input: RecordCompanyPaymentInput,
+): Promise<CompanyBilling> {
+  return api<CompanyBilling>(`/api/companies/${companyId}/payments`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function downloadPayrollPayslip(
   runId: string,
   employeeId: string,

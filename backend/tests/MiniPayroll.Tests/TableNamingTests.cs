@@ -36,6 +36,7 @@ public class TableNamingTests
         Assert.Contains(TableNames.Plan, tables);
         Assert.Contains(TableNames.Subscription, tables);
         Assert.Contains(TableNames.Payment, tables);
+        Assert.Contains(TableNames.BillingPeriod, tables);
         Assert.Contains(TableNames.AuditLog, tables);
         Assert.Contains(TableNames.Employee, tables);
         Assert.Contains(TableNames.SalaryComponent, tables);

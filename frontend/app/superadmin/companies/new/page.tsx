@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SuperadminShell } from "@/components/SuperadminShell";
-import { Alert } from "@/components/ui/Alert";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
@@ -46,7 +46,7 @@ export default function CreateCompanyPage() {
     contactEmail: false,
     employeeLimit: false,
   });
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
 
   const nameFieldError = companyNameError(name);
@@ -108,7 +108,7 @@ export default function CreateCompanyPage() {
     }
 
     setBusy(true);
-    setError(null);
+    toast.dismiss();
     try {
       const created = await createCompany({
         name,
@@ -117,7 +117,7 @@ export default function CreateCompanyPage() {
       });
       router.push(`/superadmin/companies/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create company");
+      toast.showError(err instanceof Error ? err.message : "Could not create company");
       setBusy(false);
     }
   }
@@ -144,6 +144,7 @@ export default function CreateCompanyPage() {
             company details later.
           </p>
         </header>
+        <ToastOutlet toast={toast} />
 
         <form className="sa-compose" noValidate autoComplete="off" onSubmit={onCreate}>
           <FieldGroup title="Company" className="sa-compose__span">
@@ -212,8 +213,6 @@ export default function CreateCompanyPage() {
             Create company
           </Button>
         </form>
-
-        <Alert>{error}</Alert>
       </main>
     </SuperadminShell>
   );

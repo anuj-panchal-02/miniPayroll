@@ -16,6 +16,7 @@ public static class TableNames
     public const string Plan = "mp_TblPlan";
     public const string Subscription = "mp_TblSubscription";
     public const string Payment = "mp_TblPayment";
+    public const string BillingPeriod = "mp_TblBillingPeriod";
     public const string AuditLog = "mp_TblAuditLog";
     public const string Employee = "mp_TblEmployee";
     public const string SalaryComponent = "mp_TblSalaryComponent";
@@ -36,7 +37,7 @@ public static class TableNames
     public static readonly IReadOnlyList<string> All =
     [
         User, Role, UserRole, UserClaim, RoleClaim, UserLogin, UserToken,
-        Company, Plan, Subscription, Payment, AuditLog, Employee, SalaryComponent,
+        Company, Plan, Subscription, Payment, BillingPeriod, AuditLog, Employee, SalaryComponent,
         SalaryStructure, EmployeeSalaryComponent, PlatformState, PlatformCity,
         PayrollRun, MonthlyAttendance, Overtime, Bonus, Deduction,
         PayrollEmployee, PayrollEarning, PayrollDeduction

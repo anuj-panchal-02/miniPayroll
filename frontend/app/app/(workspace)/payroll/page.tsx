@@ -8,10 +8,12 @@ import {
   createPayrollRun,
   type PayrollPeriodDetail,
 } from "@/lib/api";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
+import { Select } from "@/components/ui/Select";
 import { MONTH_LABELS, periodLabel, runStatusLabel } from "@/lib/payroll";
 
 function currentPeriod() {
@@ -26,6 +28,7 @@ export default function PayrollPage() {
   const [month, setMonth] = useState(initial.month);
   const [period, setPeriod] = useState<PayrollPeriodDetail | null>(null);
   const [error, setError] = useState("");
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -68,7 +71,7 @@ export default function PayrollPage() {
       await createPayrollRun(year, month);
       router.push(`/app/payroll/${year}/${month}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not start payroll.");
+      toast.showError(reason instanceof Error ? reason.message : "Could not start payroll.");
     } finally {
       setBusy(false);
     }
@@ -85,33 +88,28 @@ export default function PayrollPage() {
       </header>
       <FieldGroup title="Payroll month">
         <Field id="payroll-month" label="Month">
-          <select
-            className="mp-select"
-            value={month}
-            onChange={(event) => setMonth(Number(event.target.value))}
-          >
-            {MONTH_LABELS.map((label, index) => (
-              <option key={label} value={index + 1}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={String(month)}
+            options={MONTH_LABELS.map((label, index) => ({
+              value: String(index + 1),
+              label,
+            }))}
+            onChange={(value) => setMonth(Number(value))}
+          />
         </Field>
         <Field id="payroll-year" label="Year">
-          <select
-            className="mp-select"
-            value={year}
-            onChange={(event) => setYear(Number(event.target.value))}
-          >
-            {years.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={String(year)}
+            options={years.map((item) => ({
+              value: String(item),
+              label: String(item),
+            }))}
+            onChange={(value) => setYear(Number(value))}
+          />
         </Field>
       </FieldGroup>
       <Alert>{error || null}</Alert>
+      <ToastOutlet toast={toast} />
       {loading ? (
         <p className="sa-empty" role="status">
           Loading payroll…

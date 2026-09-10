@@ -4,29 +4,36 @@ import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { SuperadminShell } from "@/components/SuperadminShell";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { DateField } from "@/components/ui/DateField";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
 import { PasswordField } from "@/components/ui/PasswordField";
+import { Select } from "@/components/ui/Select";
 import {
+  BillableSource,
   CompanyDetail,
   CreateAdminResponse,
   PayrollRunStatus,
   activateCompany,
   createCompanyAdmin,
   getCompany,
+  getCompanyBilling,
   getPlatformLimits,
   getToken,
   listCompanyPayrollRuns,
+  recordCompanyPayment,
   reversePayrollRun,
   setToken,
   updateCompanyLimit,
+  type CompanyBilling,
   type PayrollHistoryItem,
 } from "@/lib/api";
 import { FALLBACK_PLATFORM_LIMITS } from "@/lib/platform";
-import { formatRupees, periodLabel, runStatusLabel } from "@/lib/payroll";
+import { formatRupees, periodLabel, runStatusLabel, billingFormula, formatDueDate } from "@/lib/payroll";
 import { emailError, employeeLimitError } from "@/lib/validation";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
@@ -34,6 +41,23 @@ const ADMIN_EMAIL_MESSAGES = {
   empty: "Enter an admin email.",
   invalid: "Enter a valid admin email.",
 };
+
+const PAYMENT_MODES = [
+  { value: "UPI", label: "UPI" },
+  { value: "NEFT", label: "NEFT" },
+  { value: "Cash", label: "Cash" },
+];
+
+function todayIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function billableSourceLabel(source: BillableSource) {
+  return source === BillableSource.FinalizedPayroll
+    ? "Finalized payroll"
+    : "Headcount";
+}
 
 export default function CompanyDetailsPage() {
   const params = useParams<{ id: string }>();
@@ -48,7 +72,7 @@ export default function CompanyDetailsPage() {
 
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [limitSaved, setLimitSaved] = useState(false);
+  const toast = useToast();
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,6 +90,13 @@ export default function CompanyDetailsPage() {
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [reverseOpen, setReverseOpen] = useState(false);
   const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
+  const [billing, setBilling] = useState<CompanyBilling | null>(null);
+  const [paymentPeriod, setPaymentPeriod] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(todayIsoDate);
+  const [paymentMode, setPaymentMode] = useState("UPI");
+  const [invoiceGst, setInvoiceGst] = useState("");
+  const [recordingPayment, setRecordingPayment] = useState(false);
 
   const limitFieldError = employeeLimitError(employeeLimit, {
     min: limits.minEmployeeLimit,
@@ -79,6 +110,19 @@ export default function CompanyDetailsPage() {
   const shownAdminEmailError = adminEmailTouched ? adminEmailFieldError : null;
   const shownAdminPasswordError = adminPasswordTouched ? adminPasswordFieldError : null;
 
+  function applyBilling(next: CompanyBilling) {
+    setBilling(next);
+    const preferred =
+      next.periods.find((period) => period.remaining > 0) ?? next.periods.at(-1) ?? null;
+    if (!preferred) {
+      setPaymentPeriod("");
+      setPaymentAmount("");
+      return;
+    }
+    setPaymentPeriod(preferred.billingPeriod);
+    setPaymentAmount(preferred.remaining > 0 ? String(preferred.remaining) : "");
+  }
+
   useEffect(() => {
     if (!getToken()) {
       router.replace("/login");
@@ -88,10 +132,11 @@ export default function CompanyDetailsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [detail, loadedLimits, runs] = await Promise.all([
+        const [detail, loadedLimits, runs, loadedBilling] = await Promise.all([
           getCompany(id),
           getPlatformLimits().catch(() => FALLBACK_PLATFORM_LIMITS),
           listCompanyPayrollRuns(id).catch(() => []),
+          getCompanyBilling(id).catch(() => null),
         ]);
         if (cancelled) {
           return;
@@ -99,6 +144,9 @@ export default function CompanyDetailsPage() {
         setLimits(loadedLimits);
         setCompany(detail);
         setPayrollRuns(runs);
+        if (loadedBilling) {
+          applyBilling(loadedBilling);
+        }
         setAdminEmail(detail.adminEmail ?? detail.contactEmail);
         setEmployeeLimit(String(detail.employeeLimit));
         setError(null);
@@ -137,7 +185,7 @@ export default function CompanyDetailsPage() {
       return;
     }
     setBusy(true);
-    setError(null);
+    toast.dismiss();
     try {
       const created = await createCompanyAdmin(id, adminEmail, adminPassword);
       setCredentials(created);
@@ -148,7 +196,7 @@ export default function CompanyDetailsPage() {
           : current,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create Company Admin");
+      toast.showError(err instanceof Error ? err.message : "Could not create Company Admin");
     } finally {
       setBusy(false);
     }
@@ -165,12 +213,14 @@ export default function CompanyDetailsPage() {
   async function confirmActivate() {
     closeActivateConfirm();
     setActivating(true);
-    setError(null);
+    toast.dismiss();
     try {
       const result = await activateCompany(id);
       setCompany(result);
+      applyBilling(await getCompanyBilling(id));
+      toast.showSuccess("Company activated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not activate company");
+      toast.showError(err instanceof Error ? err.message : "Could not activate company");
       if (String(err).toLowerCase().includes("unauthorized")) {
         setToken(null);
         router.push("/login");
@@ -192,12 +242,13 @@ export default function CompanyDetailsPage() {
     setReverseOpen(false);
     setPendingReverseId(null);
     setReversingId(runId);
-    setError(null);
+    toast.dismiss();
     try {
       await reversePayrollRun(id, runId, reason);
       setPayrollRuns(await listCompanyPayrollRuns(id));
+      toast.showSuccess("Payroll reversed.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not reverse payroll.");
+      toast.showError(err instanceof Error ? err.message : "Could not reverse payroll.");
     } finally {
       setReversingId(null);
     }
@@ -206,26 +257,53 @@ export default function CompanyDetailsPage() {
   async function onSaveLimit(event: FormEvent) {
     event.preventDefault();
     setLimitTouched(true);
-    setLimitSaved(false);
     if (limitFieldError) {
       limitRef.current?.focus();
       return;
     }
     setSavingLimit(true);
-    setError(null);
+    toast.dismiss();
     try {
       const result = await updateCompanyLimit(id, Number(employeeLimit));
       setCompany(result);
       setEmployeeLimit(String(result.employeeLimit));
-      setLimitSaved(true);
+      toast.showSuccess("Employee limit saved.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update employee limit");
+      toast.showError(err instanceof Error ? err.message : "Could not update employee limit");
       if (String(err).toLowerCase().includes("unauthorized")) {
         setToken(null);
         router.push("/login");
       }
     } finally {
       setSavingLimit(false);
+    }
+  }
+
+  async function onRecordPayment(event: FormEvent) {
+    event.preventDefault();
+    const amount = Number(paymentAmount);
+    if (!paymentPeriod || !Number.isFinite(amount) || amount <= 0 || !paymentDate) {
+      toast.showError("Enter a period, amount, and payment date.");
+      return;
+    }
+    setRecordingPayment(true);
+    toast.dismiss();
+    try {
+      applyBilling(
+        await recordCompanyPayment(id, {
+          billingPeriod: paymentPeriod,
+          amount,
+          paidOn: `${paymentDate}T00:00:00.000Z`,
+          paymentMode,
+          invoiceGstReference: invoiceGst.trim() || null,
+        }),
+      );
+      setInvoiceGst("");
+      toast.showSuccess("Payment recorded.");
+    } catch (err) {
+      toast.showError(err instanceof Error ? err.message : "Could not record payment.");
+    } finally {
+      setRecordingPayment(false);
     }
   }
 
@@ -266,6 +344,8 @@ export default function CompanyDetailsPage() {
           <h1>{heading}</h1>
           <p>{subhead}</p>
         </header>
+        <Alert>{error}</Alert>
+        <ToastOutlet toast={toast} />
 
         {company ? (
           <>
@@ -310,7 +390,6 @@ export default function CompanyDetailsPage() {
                   value={employeeLimit}
                   onChange={(e) => {
                     setEmployeeLimit(e.target.value);
-                    setLimitSaved(false);
                   }}
                   onBlur={() => setLimitTouched(true)}
                   disabled={savingLimit}
@@ -320,7 +399,114 @@ export default function CompanyDetailsPage() {
                 Save employee limit
               </Button>
             </form>
-            <Alert tone="success">{limitSaved ? "Employee limit saved." : null}</Alert>
+
+            {company.activatedAt && billing && billing.periods.length > 0 ? (
+              <FieldGroup
+                title="Billing"
+                hint="Collection is offline. Record UPI, NEFT, or cash against a calendar month. GST invoices stay outside the product."
+              >
+                <div className="sa-master-wrap">
+                  <table className="sa-master">
+                    <thead>
+                      <tr>
+                        <th scope="col">Period</th>
+                        <th scope="col">Charge</th>
+                        <th scope="col">Due date</th>
+                        <th scope="col">Paid</th>
+                        <th scope="col">Remaining</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billing.periods.map((period) => (
+                        <tr key={period.billingPeriod}>
+                          <td>
+                            {periodLabel(period.year, period.month)}
+                            {period.isEstimated ? (
+                              <>
+                                {" "}
+                                <span className="sa-chip">Estimated</span>
+                              </>
+                            ) : null}
+                          </td>
+                          <td>
+                            {billingFormula(
+                              period.billableEmployees,
+                              period.pricePerEmployee,
+                              period.amountDue,
+                            )}
+                            <span className="mp-group__hint">
+                              {" "}
+                              {billableSourceLabel(period.billableSource)}
+                            </span>
+                          </td>
+                          <td>{formatDueDate(period.dueDate)}</td>
+                          <td>{formatRupees(period.paidAmount)}</td>
+                          <td>{formatRupees(period.remaining)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <form className="sa-compose" noValidate autoComplete="off" onSubmit={onRecordPayment}>
+                  <Field id="billing-period" label="Period" required>
+                    <Select
+                      value={paymentPeriod}
+                      options={billing.periods.map((period) => ({
+                        value: period.billingPeriod,
+                        label: periodLabel(period.year, period.month),
+                      }))}
+                      onChange={(next) => {
+                        setPaymentPeriod(next);
+                        const selected = billing.periods.find((period) => period.billingPeriod === next);
+                        if (selected && selected.remaining > 0) {
+                          setPaymentAmount(String(selected.remaining));
+                        }
+                      }}
+                    />
+                  </Field>
+                  <Field id="billing-amount" label="Amount" required>
+                    <input
+                      className="mp-input"
+                      name="amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(event) => setPaymentAmount(event.target.value)}
+                      disabled={recordingPayment}
+                    />
+                  </Field>
+                  <Field id="billing-date" label="Payment date" required>
+                    <DateField
+                      name="paidOn"
+                      value={paymentDate}
+                      onChange={setPaymentDate}
+                      disabled={recordingPayment}
+                    />
+                  </Field>
+                  <Field id="billing-mode" label="Mode" required>
+                    <Select
+                      value={paymentMode}
+                      options={PAYMENT_MODES}
+                      onChange={setPaymentMode}
+                    />
+                  </Field>
+                  <Field id="billing-gst" label="GST / invoice reference" optional>
+                    <input
+                      className="mp-input"
+                      name="invoiceGstReference"
+                      value={invoiceGst}
+                      onChange={(event) => setInvoiceGst(event.target.value)}
+                      disabled={recordingPayment}
+                    />
+                  </Field>
+                  <Button type="submit" loading={recordingPayment} loadingLabel="Recording">
+                    Record payment
+                  </Button>
+                </form>
+              </FieldGroup>
+            ) : null}
 
             {credentials ? (
               <section className="sa-secret" aria-live="polite">
@@ -486,8 +672,6 @@ export default function CompanyDetailsPage() {
             />
           </FieldGroup>
         ) : null}
-
-        <Alert>{error}</Alert>
       </main>
     </SuperadminShell>
   );

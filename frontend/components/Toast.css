@@ -1,0 +1,37 @@
+/* Hallmark · genre: modern-minimal · designed-as-app
+ * Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4
+ */
+
+.mp-toast {
+  position: fixed;
+  top: max(var(--space-lg), env(safe-area-inset-top));
+  right: max(var(--page-gutter), env(safe-area-inset-right));
+  z-index: var(--z-toast);
+  width: min(22rem, calc(100vw - 2 * var(--page-gutter)));
+  pointer-events: none;
+  animation: mp-toast-in var(--dur-short) var(--ease-out);
+}
+
+.mp-toast [data-slot="alert"] {
+  margin: 0;
+  pointer-events: auto;
+  box-shadow: var(--shadow-whisper);
+}
+
+@keyframes mp-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.4rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-toast {
+    animation: none;
+  }
+}

@@ -740,12 +740,16 @@ a.sa-index__row:focus-visible {
 
   .sa-index__legend {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) 7.5rem 4.5rem;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) 7rem 6.5rem;
+  }
+
+  .sa-index__legend span:last-child {
+    text-align: end;
   }
 
   .sa-index__row {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) 7.5rem 4.5rem;
-    align-items: baseline;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) 7rem 6.5rem;
+    align-items: center;
   }
 
   .sa-index__meta {
@@ -755,6 +759,13 @@ a.sa-index__row:focus-visible {
   .sa-salary-fields {
     grid-template-columns: minmax(0, 1.2fr) minmax(7rem, 0.7fr) minmax(9rem, 1fr) minmax(0, 0.8fr) auto;
     align-items: start;
+  }
+
+  .sa-salary-fields .sa-compose__remove {
+    margin-top: var(--field-label-stack);
+    height: var(--control-height-field);
+    display: inline-flex;
+    align-items: center;
   }
 
   .sa-salary-history__intro {
@@ -830,7 +841,7 @@ a.sa-index__row:focus-visible {
 .sa-payroll-grid td {
   padding: var(--space-xs) var(--space-sm);
   text-align: start;
-  vertical-align: top;
+  vertical-align: middle;
   border-bottom: 1px solid var(--color-rule);
 }
 
@@ -843,12 +854,35 @@ a.sa-index__row:focus-visible {
   color: var(--color-muted);
 }
 
+.sa-payroll-grid th.sa-payroll-grid__num,
+.sa-payroll-grid td.sa-payroll-grid__num {
+  text-align: center;
+}
+
+.sa-payroll-grid th.sa-payroll-grid__center,
+.sa-payroll-grid td.sa-payroll-grid__center {
+  text-align: center;
+}
+
+.sa-payroll-grid th.sa-payroll-grid__action,
+.sa-payroll-grid td.sa-payroll-grid__action {
+  text-align: center;
+}
+
+.sa-payroll-grid tbody tr {
+  transition: background-color var(--dur-hover) var(--ease-out);
+}
+
+.sa-payroll-grid tbody tr:hover:not(.sa-payroll-row--warn) {
+  background: var(--color-paper-2);
+}
+
 .sa-payroll-grid td {
   font-size: var(--text-sm);
 }
 
 .sa-payroll-grid__person {
-  min-width: 10rem;
+  min-width: 12rem;
 }
 
 .sa-payroll-grid__person strong {
@@ -874,12 +908,19 @@ a.sa-index__row:focus-visible {
   color: var(--color-ink);
   font-family: var(--font-body);
   font-size: var(--text-sm);
+  text-align: center;
   font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-hover) var(--ease-out), background-color var(--dur-hover) var(--ease-out);
+}
+
+.sa-payroll-qty:hover:not(:disabled) {
+  border-color: var(--color-rule-2);
 }
 
 .sa-payroll-qty:focus-visible {
   outline: var(--outline-width) solid var(--color-focus);
   outline-offset: var(--outline-offset-control);
+  background: var(--color-paper);
 }
 
 .sa-payroll-row--warn {
@@ -906,46 +947,55 @@ a.sa-index__row:focus-visible {
 }
 
 .sa-payroll-review {
-  margin-top: var(--space-lg);
+  min-width: 36rem;
 }
 
-.sa-payroll-review__row {
-  display: grid;
-  gap: var(--space-xs);
-  padding-block: var(--space-md);
-  border-bottom: 1px solid var(--color-rule);
-}
-
-.sa-payroll-review__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-sm);
-  align-items: baseline;
-}
-
-.sa-payroll-review__amounts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(5rem, auto));
-  gap: var(--space-sm);
-  font-variant-numeric: tabular-nums;
+.sa-payroll-review th.sa-payroll-review__num,
+.sa-payroll-review td.sa-payroll-review__num {
+  width: 1%;
   text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sa-payroll-review__detail td {
+  padding-block: 0 var(--space-sm);
+}
+
+/* Hallmark · component: payroll-payment-row · genre: modern-minimal · theme: Coral
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (46–50)
+ * Hallmark · pre-emit critique: P5 H5 E5 S4 R5 V4
+ */
+.sa-payroll-review__pay {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 9.5rem) minmax(11rem, 13rem) minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: end;
+  width: 100%;
+  max-width: 48rem;
+}
+
+.sa-payroll-review__pay > .mp-field {
+  min-width: 0;
+}
+
+.sa-payroll-review__pay .mp-field__slot:empty {
+  display: none;
+  min-height: 0;
+}
+
+.sa-payroll-review__pay > .mp-btn {
+  justify-self: start;
+  width: auto;
+  min-height: var(--control-height-field);
 }
 
 .sa-payroll-review__lines {
-  margin: 0;
+  margin: var(--space-xs) 0 0;
   padding-inline-start: 1.1rem;
   color: var(--color-ink-2);
-}
-
-.sa-payroll-totals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-lg);
-  margin-top: var(--space-md);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 39.99rem) {
@@ -983,9 +1033,9 @@ a.sa-index__row:focus-visible {
     border-bottom: 1px solid var(--color-rule);
   }
 
-  .sa-sidebar a,
-  .sa-sidebar span {
-    white-space: nowrap;
+  .sa-payroll-review__pay {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
   }
 }
 

@@ -27,6 +27,8 @@ public static class CompanyEndpoints
         group.MapPatch("/{id:guid}/limit", UpdateLimit);
         group.MapGet("/{id:guid}/payroll-runs", ListPayrollRuns);
         group.MapPost("/{id:guid}/payroll-runs/{runId:guid}/reverse", ReversePayroll);
+        group.MapGet("/{id:guid}/billing", GetBilling);
+        group.MapPost("/{id:guid}/payments", RecordPayment);
 
         return routes;
     }
@@ -287,6 +289,42 @@ public static class CompanyEndpoints
             : PayrollError(result.Status);
     }
 
+    private static async Task<IResult> GetBilling(
+        Guid id,
+        [FromServices] BillingService billing,
+        CancellationToken cancellationToken) =>
+        BillingHttp(await billing.GetAsync(id, cancellationToken));
+
+    private static async Task<IResult> RecordPayment(
+        Guid id,
+        RecordPaymentRequest? request,
+        [FromServices] BillingService billing,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BillingError(BillingStatusCode.InvalidInput);
+        }
+
+        return BillingHttp(await billing.RecordPaymentAsync(id, request, cancellationToken));
+    }
+
+    private static IResult BillingHttp(BillingResult result) =>
+        result.Status == BillingStatusCode.Success
+            ? Results.Ok(result.Billing)
+            : BillingError(result.Status);
+
+    private static IResult BillingError(BillingStatusCode status) =>
+        Results.Json(new { error = status switch
+        {
+            BillingStatusCode.InvalidInput => "Amount, payment mode, or invoice reference is invalid.",
+            BillingStatusCode.InvalidPeriod => "Choose a billing period from activation through this month.",
+            BillingStatusCode.NotActivated => "Activate the company before recording a payment.",
+            BillingStatusCode.CompanyNotFound => "The company was not found.",
+            BillingStatusCode.Forbidden => "You are not allowed to manage billing.",
+            _ => "The billing request could not be completed."
+        }}, statusCode: BillingHttpStatus.For(status));
+
     private static IResult PayrollError(PayrollRunStatusCode status) =>
         Results.Json(new { error = status switch
         {
@@ -340,4 +378,17 @@ public static class CompanyEndpoints
         DateTimeOffset? ActivatedAt,
         bool HasAdmin,
         string? AdminEmail);
+}
+
+public static class BillingHttpStatus
+{
+    public static int For(BillingStatusCode status) => status switch
+    {
+        BillingStatusCode.Success => StatusCodes.Status200OK,
+        BillingStatusCode.InvalidInput or BillingStatusCode.InvalidPeriod => StatusCodes.Status400BadRequest,
+        BillingStatusCode.CompanyNotFound => StatusCodes.Status404NotFound,
+        BillingStatusCode.NotActivated => StatusCodes.Status409Conflict,
+        BillingStatusCode.Forbidden => StatusCodes.Status403Forbidden,
+        _ => StatusCodes.Status500InternalServerError
+    };
 }

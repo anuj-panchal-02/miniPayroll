@@ -31,6 +31,9 @@ describe("SuperadminNav", () => {
     expect(screen.getByRole("link", { name: "Companies" }).getAttribute("aria-current")).toBe(
       "page",
     );
+    expect(screen.getByRole("link", { name: "Plan" }).getAttribute("href")).toBe(
+      "/superadmin/plan",
+    );
     expect(screen.getByRole("link", { name: "States" }).getAttribute("href")).toBe(
       "/superadmin/masters/states",
     );

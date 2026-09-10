@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
+import { ToastOutlet, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
@@ -52,7 +53,7 @@ export default function CompanySetupPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [submitError, setSubmitError] = useState("");
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const fieldRefs = useRef<Partial<Record<CompanySetupField, HTMLElement | null>>>({});
@@ -130,7 +131,7 @@ export default function CompanySetupPage() {
     const nextLogoError = logoFile || logoUrl ? "" : "Choose a company logo.";
     setErrors(nextErrors);
     setLogoError((current) => current || nextLogoError);
-    setSubmitError("");
+    toast.dismiss();
 
     const firstInvalid = FIELD_ORDER.find((field) => nextErrors[field]);
     if (firstInvalid) {
@@ -166,7 +167,7 @@ export default function CompanySetupPage() {
       router.push("/app/setup/payroll");
     } catch (reason) {
       if (isCurrentSubmission()) {
-        setSubmitError(reason instanceof Error ? reason.message : "Unable to save company details.");
+        toast.showError(reason instanceof Error ? reason.message : "Unable to save company details.");
       }
     } finally {
       if (isCurrentSubmission()) {
@@ -281,7 +282,7 @@ export default function CompanySetupPage() {
               {errors[FIELD_ORDER.find((field) => errors[field]) ?? "name"] ?? logoError}
             </p>
           ) : null}
-          {submitError ? <p className="setup-alert" role="alert">{submitError}</p> : null}
+          <ToastOutlet toast={toast} />
 
           <div className="setup-actions">
             <Button type="submit" loading={saving} loadingLabel="Saving…">

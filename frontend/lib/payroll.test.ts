@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { attendanceBalances, formatRupees, periodLabel, runStatusLabel } from "./payroll";
+import { attendanceBalances, billingFormula, formatRupees, periodLabel, runStatusLabel } from "./payroll";
 import { PayrollRunStatus } from "./api";
 
 describe("payroll helpers", () => {
   it("labels periods and rupee amounts", () => {
     expect(periodLabel(2026, 8)).toBe("August 2026");
     expect(formatRupees(28000)).toBe("₹28,000");
+    expect(billingFormula(2, 49, 98)).toBe("2 × ₹49 = ₹98");
     expect(runStatusLabel(PayrollRunStatus.Draft)).toBe("Draft");
   });
 

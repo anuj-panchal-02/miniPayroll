@@ -29,6 +29,7 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<BillingPeriodSnapshot> BillingPeriods => Set<BillingPeriodSnapshot>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<SalaryComponent> SalaryComponents => Set<SalaryComponent>();
@@ -126,6 +127,25 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .HasForeignKey(p => p.SubscriptionId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(p => _tenant.IsSuperadmin || p.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<BillingPeriodSnapshot>(entity =>
+        {
+            entity.ToTable(TableNames.BillingPeriod);
+            entity.Property(period => period.BillingPeriod).HasMaxLength(7).IsRequired();
+            entity.Property(period => period.PricePerEmployee).HasColumnType("decimal(18,2)");
+            entity.Property(period => period.AmountDue).HasColumnType("decimal(18,2)");
+            entity.HasIndex(period => new { period.CompanyId, period.BillingPeriod }).IsUnique();
+            entity.HasOne(period => period.Company)
+                .WithMany()
+                .HasForeignKey(period => period.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(period => period.Subscription)
+                .WithMany(subscription => subscription.BillingPeriods)
+                .HasForeignKey(period => period.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(period =>
+                _tenant.IsSuperadmin || period.CompanyId == _tenant.CompanyId);
         });
 
         builder.Entity<AuditLog>(entity =>

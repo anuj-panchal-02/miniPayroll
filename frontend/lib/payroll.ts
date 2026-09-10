@@ -27,6 +27,27 @@ export function formatRupees(value: number): string {
   return `₹${value.toLocaleString("en-IN")}`;
 }
 
+export function billingFormula(
+  billableEmployees: number,
+  pricePerEmployee: number,
+  amountDue: number,
+): string {
+  return `${billableEmployees} × ${formatRupees(pricePerEmployee)} = ${formatRupees(amountDue)}`;
+}
+
+export function formatDueDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString("en-IN", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function runStatusLabel(status: PayrollRunStatus): string {
   switch (status) {
     case PayrollRunStatus.Draft:

@@ -162,6 +162,51 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.ToTable("mp_TblAuditLog", (string)null);
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.BillingPeriodSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AmountDue")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BillableEmployees")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BillableSource")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BillingPeriod")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("DueDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("PricePerEmployee")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("Prorated")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("CompanyId", "BillingPeriod")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblBillingPeriod", (string)null);
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Bonus", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1134,6 +1179,25 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.BillingPeriodSnapshot", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Subscription", "Subscription")
+                        .WithMany("BillingPeriods")
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Subscription");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Bonus", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
@@ -1423,6 +1487,8 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Subscription", b =>
                 {
+                    b.Navigation("BillingPeriods");
+
                     b.Navigation("Payments");
                 });
 #pragma warning restore 612, 618
