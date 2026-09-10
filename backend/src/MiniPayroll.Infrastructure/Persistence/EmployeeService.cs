@@ -181,7 +181,12 @@ public sealed class EmployeeService(
 
         employee.Status = EmployeeStatus.Active;
         employee.DraftStep = null;
-        if (!EmployeeRules.IsValid(employee))
+        if (!EmployeeRules.IsValid(employee)
+            || !await LocationCatalogLookups.HasActivePairAsync(
+                db,
+                employee.State,
+                employee.City,
+                cancellationToken))
         {
             return new EmployeeResult(EmployeeStatusCode.InvalidInput);
         }
@@ -288,7 +293,12 @@ public sealed class EmployeeService(
         employee.Status = nextStatus;
         employee.DraftStep = null;
 
-        if (!EmployeeRules.IsValid(employee))
+        if (!EmployeeRules.IsValid(employee)
+            || !await LocationCatalogLookups.HasActivePairAsync(
+                db,
+                employee.State,
+                employee.City,
+                cancellationToken))
         {
             employee.Status = previousStatus;
             employee.DraftStep = previousDraftStep;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { listEmployees, type EmployeeListState } from "@/lib/api";
+import { Alert } from "@/components/ui/Alert";
 
 export default function CompanyDashboardPage() {
   const [state, setState] = useState<EmployeeListState | null>(null);
@@ -41,13 +42,11 @@ export default function CompanyDashboardPage() {
             : "Your company workspace after setup."}
         </p>
       </header>
-      {error ? (
-        <p className="sa-alert" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <p>
-        <Link href="/app/employees">View employees</Link>
+      <Alert>{error || null}</Alert>
+      <p className="sa-dashboard-actions">
+        <Link href="/app/employees" className="sa-compose__secondary">
+          View employees
+        </Link>
       </p>
     </main>
   );

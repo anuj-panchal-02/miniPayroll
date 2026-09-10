@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Infrastructure.Identity;
 
@@ -12,7 +13,7 @@ public sealed class JwtTokenService(IConfiguration configuration)
     public string CreateToken(ApplicationUser user, IList<string> roles)
     {
         var jwt = configuration.GetSection("Jwt");
-        var key = jwt["Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+        var key = JwtSigningKeyRules.Require(jwt["Key"]);
         var issuer = jwt["Issuer"] ?? "miniPayroll";
         var audience = jwt["Audience"] ?? "miniPayroll";
         var expiryMinutes = int.TryParse(jwt["ExpiryMinutes"], out var minutes) ? minutes : 480;

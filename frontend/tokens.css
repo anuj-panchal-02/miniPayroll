@@ -1,7 +1,7 @@
-/* Hallmark · component: button · genre: modern-minimal · theme: Coral
- * states: default · hover · focus · active · disabled · loading · error · success
- * contrast: pass (ink 22% on paper 97% · focus coral on paper)
- * Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4
+/* Hallmark · genre: modern-minimal · theme: Coral (accent retuned green) · design-system: design.md · designed-as-app
+ * states: default · hover · focus · active · inactive · disabled · loading · error · success
+ * contrast: pass (ink 20% on paper 97% · focus green 48% on paper · accent border green 58% on paper-2)
+ * Hallmark · pre-emit critique: P5 H5 E4 S4 R5 V4
  */
 
 :root {
@@ -14,13 +14,16 @@
   --color-muted: oklch(42% 0.014 55);
   --color-ink-2: oklch(32% 0.016 50);
   --color-ink: oklch(20% 0.016 48);
-  --color-accent: oklch(58% 0.155 32);
-  --color-accent-ink: oklch(98.5% 0.01 80);
-  --color-focus: oklch(50% 0.17 32);
+  --color-accent: oklch(58% 0.16 150);
+  --color-accent-ink: oklch(98.5% 0.01 150);
+  --color-accent-soft: oklch(94% 0.04 150);
+  --color-focus: oklch(48% 0.15 150);
   --color-error: oklch(52% 0.18 25);
   --color-error-ink: oklch(98.5% 0.01 80);
+  --color-error-soft: oklch(94% 0.04 25);
   --color-success: oklch(46% 0.11 150);
   --color-success-ink: oklch(98.5% 0.01 150);
+  --color-success-soft: oklch(94% 0.03 150);
 
   --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -45,12 +48,48 @@
 
   --radius-pill: 999px;
   --radius-input: 8px;
+  --radius-circle: 50%;
+
+  --control-height: 2.75rem;
+  --control-height-touch: 3rem;
+  --control-height-field: 2.75rem;
+  --control-height-field-touch: 3rem;
+  --field-label-stack: calc(var(--text-xs) * 1.2 + var(--space-2xs));
+  --control-icon-slot: 2.25rem;
+  --meter-height: 3px;
+  --field-halo-width: 3px;
+  --hit-area-expand: 0.5rem;
+  --outline-width: 2px;
+  --outline-offset-control: 1px;
+  --outline-offset-action: 2px;
+  --opacity-disabled: 0.55;
+
+  --content-form: 22rem;
+  --content-narrow: 48rem;
+  --content-shell: 72rem;
+  --sidebar-width: 14rem;
+  --nav-height: 4.5rem;
+  --logo-height-nav: 2.25rem;
+  --logo-height-auth: 4.5rem;
+  --step-badge-size: 2rem;
 
   --page-gutter: clamp(1rem, 4vw, 2.5rem);
+
+  --shadow-whisper: 0 1px 2px oklch(20% 0.016 48 / 0.05);
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-press: 100ms;
   --dur-hover: 180ms;
+  --dur-short: 220ms;
+  --dur-micro: 120ms;
 }

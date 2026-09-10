@@ -81,6 +81,9 @@ describe("SuperadminShell", () => {
     await waitFor(() => {
       expect(screen.getByText("Protected content")).toBeTruthy();
     });
+    expect(screen.getByRole("navigation", { name: "Superadmin" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "States" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Cities" })).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: /company/i })).toBeNull();
     expect(screen.queryByText(/coming soon/i)).toBeNull();
 
@@ -93,6 +96,33 @@ describe("SuperadminShell", () => {
     );
 
     expect(screen.queryByText("Protected content")).toBeNull();
+  });
+
+  it("hides the platform masters nav for company admin", async () => {
+    mocks.pathname = "/app";
+    mocks.getMe.mockResolvedValue({
+      roles: ["CompanyAdmin"],
+      mustChangePassword: false,
+      isSetupComplete: true,
+      setupStep: CompanySetupStep.Complete,
+    });
+
+    render(
+      <SuperadminShell
+        role="Company Admin"
+        homeHref="/app"
+        requiredRole="CompanyAdmin"
+      >
+        <p>Protected content</p>
+      </SuperadminShell>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Protected content")).toBeTruthy();
+    });
+    expect(screen.queryByRole("navigation", { name: "Superadmin" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "States" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Cities" })).toBeNull();
   });
 
   it("does not commit stale children before guard effects run", async () => {

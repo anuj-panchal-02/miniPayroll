@@ -3,6 +3,11 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { FieldGroup } from "@/components/ui/FieldGroup";
+import { FileField } from "@/components/ui/FileField";
+import { LocationFields } from "@/components/LocationFields";
 import {
   getCompanySetup,
   updateCompanyDetails,
@@ -38,22 +43,6 @@ const FIELD_ORDER: CompanySetupField[] = [
   "postalCode",
 ];
 
-const FIELD_CONFIG: Array<{
-  name: CompanySetupField;
-  label: string;
-  type?: string;
-  autoComplete: string;
-}> = [
-  { name: "name", label: "Company name", autoComplete: "organization" },
-  { name: "contactEmail", label: "Contact email", type: "email", autoComplete: "email" },
-  { name: "contactPhone", label: "Phone", type: "tel", autoComplete: "tel" },
-  { name: "addressLine1", label: "Address line 1", autoComplete: "address-line1" },
-  { name: "addressLine2", label: "Address line 2 (optional)", autoComplete: "address-line2" },
-  { name: "city", label: "City", autoComplete: "address-level2" },
-  { name: "state", label: "State", autoComplete: "address-level1" },
-  { name: "postalCode", label: "Postal code", autoComplete: "postal-code" },
-];
-
 export default function CompanySetupPage() {
   const router = useRouter();
   const [values, setValues] = useState(EMPTY_DETAILS);
@@ -66,7 +55,7 @@ export default function CompanySetupPage() {
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const fieldRefs = useRef<Partial<Record<CompanySetupField, HTMLInputElement | null>>>({});
+  const fieldRefs = useRef<Partial<Record<CompanySetupField, HTMLElement | null>>>({});
   const logoRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(false);
   const submissionRef = useRef(0);
@@ -186,6 +175,48 @@ export default function CompanySetupPage() {
     }
   }
 
+  function updateField(name: CompanySetupField, value: string) {
+    setValues((current) => ({ ...current, [name]: value }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
+  }
+
+  function blurField(name: CompanySetupField) {
+    const message = companySetupErrors(values)[name];
+    if (!message) return;
+    setErrors((current) => ({ ...current, [name]: message }));
+  }
+
+  function renderField(
+    name: CompanySetupField,
+    label: string,
+    extra?: { type?: string; className?: string },
+  ) {
+    return (
+      <Field
+        id={`company-${name}`}
+        label={label}
+        error={errors[name]}
+        className={extra?.className}
+      >
+        <input
+          ref={(element) => {
+            fieldRefs.current[name] = element;
+          }}
+          className="mp-input"
+          name={name}
+          type={extra?.type ?? "text"}
+          value={values[name]}
+          onChange={(event) => updateField(name, event.target.value)}
+          onBlur={() => blurField(name)}
+        />
+      </Field>
+    );
+  }
+
   return (
     <SetupWizardShell
       currentStep={1}
@@ -195,69 +226,54 @@ export default function CompanySetupPage() {
       {loading ? <p className="setup-loading" role="status">Loading company details…</p> : null}
       {loadError ? <p className="setup-alert" role="alert">{loadError}</p> : null}
       {!loading && !loadError ? (
-        <form className="setup-form" noValidate onSubmit={submit}>
-          <div className="setup-form__grid">
-            {FIELD_CONFIG.map(({ name, label, type = "text", autoComplete }) => (
-              <div
-                className={`setup-field${name.startsWith("address") ? " setup-field--wide" : ""}`}
-                key={name}
-              >
-                <label htmlFor={`company-${name}`}>{label}</label>
-                <input
-                  ref={(element) => {
-                    fieldRefs.current[name] = element;
-                  }}
-                  id={`company-${name}`}
-                  name={name}
-                  type={type}
-                  autoComplete={autoComplete}
-                  value={values[name]}
-                  aria-invalid={Boolean(errors[name])}
-                  aria-describedby={errors[name] ? `company-${name}-error` : undefined}
-                  onChange={(event) => {
-                    setValues((current) => ({ ...current, [name]: event.target.value }));
-                    setErrors((current) => {
-                      const next = { ...current };
-                      delete next[name];
-                      return next;
-                    });
-                  }}
-                />
-                {errors[name] ? (
-                  <p id={`company-${name}-error`} className="setup-field__error">
-                    {errors[name]}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
+        <form className="setup-form" noValidate autoComplete="off" onSubmit={submit}>
+          <FieldGroup title="Company">
+            {renderField("name", "Company name")}
+            {renderField("contactEmail", "Contact email", { type: "email" })}
+            {renderField("contactPhone", "Phone", { type: "tel" })}
+          </FieldGroup>
 
-          <div className="setup-logo">
-            <div>
-              <label htmlFor="company-logo">Company logo</label>
-              <p>PNG, JPEG, or WebP. Maximum 2 MB.</p>
-              <input
-                ref={logoRef}
-                id="company-logo"
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                aria-invalid={Boolean(logoError)}
-                aria-describedby={logoError ? "company-logo-error" : undefined}
-                onChange={(event) => selectLogo(event.target.files?.[0] ?? null)}
-              />
-              {logoError ? (
-                <p id="company-logo-error" className="setup-field__error">
-                  {logoError}
-                </p>
-              ) : null}
-            </div>
-            {previewUrl || logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img className="setup-logo__preview" src={previewUrl ?? logoUrl ?? ""} alt="Company logo preview" />
-            ) : (
-              <div className="setup-logo__placeholder" aria-hidden="true">Logo</div>
-            )}
-          </div>
+          <FieldGroup title="Address">
+            {renderField("addressLine1", "Address line 1", {
+              className: "setup-field--wide",
+            })}
+            {renderField("addressLine2", "Address line 2 (optional)", {
+              className: "setup-field--wide",
+            })}
+            <LocationFields
+              state={values.state}
+              city={values.city}
+              stateError={errors.state}
+              cityError={errors.city}
+              stateRef={(node) => {
+                fieldRefs.current.state = node;
+              }}
+              cityRef={(node) => {
+                fieldRefs.current.city = node;
+              }}
+              onStateChange={(next) => updateField("state", next)}
+              onCityChange={(next) => updateField("city", next)}
+            />
+            {renderField("postalCode", "Postal code")}
+          </FieldGroup>
+
+          <FileField
+            id="company-logo"
+            label="Company logo"
+            hint="PNG, JPEG, or WebP. Maximum 2 MB."
+            error={logoError || null}
+            inputRef={logoRef}
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => selectLogo(event.target.files?.[0] ?? null)}
+            preview={
+              previewUrl || logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="setup-logo__preview" src={previewUrl ?? logoUrl ?? ""} alt="Company logo preview" />
+              ) : (
+                <div className="setup-logo__placeholder" aria-hidden="true">Logo</div>
+              )
+            }
+          />
 
           {FIELD_ORDER.some((field) => Boolean(errors[field])) || logoError ? (
             <p className="setup-alert" role="alert">
@@ -268,9 +284,9 @@ export default function CompanySetupPage() {
           {submitError ? <p className="setup-alert" role="alert">{submitError}</p> : null}
 
           <div className="setup-actions">
-            <button className="setup-button" type="submit" disabled={saving} aria-busy={saving}>
-              {saving ? "Saving…" : "Save and continue"}
-            </button>
+            <Button type="submit" loading={saving} loadingLabel="Saving…">
+              Save and continue
+            </Button>
           </div>
         </form>
       ) : null}

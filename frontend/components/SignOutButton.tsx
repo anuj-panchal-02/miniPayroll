@@ -1,6 +1,7 @@
 "use client";
 
-import { MouseEvent, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { Dialog } from "@/components/ui/Dialog";
 import "./SignOutButton.css";
 
 export type SignOutPreviewState =
@@ -83,12 +84,6 @@ export function SignOutButton({ onSignOut, previewState }: SignOutButtonProps) {
     openConfirm();
   }
 
-  function handleBackdropClick(event: MouseEvent<HTMLDialogElement>) {
-    if (event.target === event.currentTarget) {
-      closeConfirm();
-    }
-  }
-
   function handleConfirm() {
     closeConfirm();
     void performSignOut();
@@ -115,34 +110,26 @@ export function SignOutButton({ onSignOut, previewState }: SignOutButtonProps) {
       </button>
 
       {previewState ? null : (
-        <dialog
+        <Dialog
           ref={dialogRef}
           className="sign-out-dialog"
-          aria-labelledby={titleId}
-          aria-describedby={copyId}
-          onClick={handleBackdropClick}
+          title="Sign out"
+          description="You will need to sign in again."
+          titleId={titleId}
+          descriptionId={copyId}
+          onBackdropClick={closeConfirm}
         >
-          <form method="dialog" className="sign-out-dialog__body">
-            <h2 id={titleId} className="sign-out-dialog__title">
-              Sign out
-            </h2>
-            <p id={copyId} className="sign-out-dialog__copy">
-              You will need to sign in again.
-            </p>
-            <div className="sign-out-dialog__actions">
-              <button
-                type="button"
-                className="sign-out-dialog__confirm"
-                onClick={handleConfirm}
-              >
-                Sign out
-              </button>
-              <button type="submit" className="sign-out-dialog__cancel">
-                Cancel
-              </button>
-            </div>
-          </form>
-        </dialog>
+          <button
+            type="button"
+            className="sign-out-dialog__confirm"
+            onClick={handleConfirm}
+          >
+            Sign out
+          </button>
+          <button type="submit" className="sign-out-dialog__cancel">
+            Cancel
+          </button>
+        </Dialog>
       )}
     </>
   );

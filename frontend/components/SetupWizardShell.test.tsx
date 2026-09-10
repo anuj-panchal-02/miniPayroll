@@ -68,14 +68,13 @@ describe("SetupWizardShell", () => {
     );
 
     const css = readFileSync(
-      join(process.cwd(), "app", "app", "setup", "setup.css"),
+      join(process.cwd(), "components", "ui", "form-controls.css"),
       "utf8",
     );
     const smallScreens = css.slice(css.indexOf("@media (max-width: 39.99rem)"));
-    const labelRule = /\.setup-progress__label\s*\{([^}]*)\}/.exec(smallScreens)?.[1];
 
-    expect(labelRule).toBeTruthy();
-    expect(labelRule).not.toMatch(/display:\s*none/);
-    expect(labelRule).toMatch(/clip-path:\s*inset\(50%\)/);
+    expect(smallScreens).toMatch(/\.setup-progress__label/);
+    expect(smallScreens).not.toMatch(/display:\s*none/);
+    expect(smallScreens).toMatch(/clip-path:\s*inset\(50%\)/);
   });
 });

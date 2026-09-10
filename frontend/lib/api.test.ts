@@ -6,7 +6,12 @@ import {
   getCompanySetup,
   getEmployee,
   getMe,
+  getPlatformLimits,
   listEmployees,
+  listPlatformCities,
+  listPlatformStates,
+  createPlatformState,
+  createPlatformCity,
   login,
   safeApiAssetUrl,
   updateCompanyDetails,
@@ -162,6 +167,68 @@ describe("setup API", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(requestInit().body).toBeUndefined();
+  });
+});
+
+describe("platform API", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  it("loads employee limits from /api/platform", async () => {
+    mockResponse({
+      minEmployeeLimit: 1,
+      hardEmployeeCap: 50,
+      defaultEmployeeLimit: 50,
+      defaultPlanName: "Basic",
+      currencyCode: "INR",
+    });
+
+    const limits = await getPlatformLimits();
+
+    expect(limits.hardEmployeeCap).toBe(50);
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/platform`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("lists active states and cities for a state", async () => {
+    mockResponse([]);
+    await listPlatformStates();
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/platform/states`,
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    mockResponse([]);
+    await listPlatformCities("st-mh", true);
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/platform/cities?stateId=st-mh&includeInactive=true`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("creates a state and a city", async () => {
+    mockResponse({ id: "st-ka", name: "Karnataka", code: "KA" });
+    await createPlatformState({ name: "Karnataka", code: "KA" });
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/platform/states`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Karnataka", code: "KA" }),
+      }),
+    );
+
+    mockResponse({ id: "ct-blr", name: "Bengaluru" });
+    await createPlatformCity({ stateId: "st-ka", name: "Bengaluru" });
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/platform/cities`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ stateId: "st-ka", name: "Bengaluru" }),
+      }),
+    );
   });
 });
 

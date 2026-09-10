@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-08-29",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Consolidate the miniPayroll interaction layer onto one Hallmark-locked form system across auth, Superadmin, setup, and employee workbench pages",
+    "scope": "app"
+  },
+  {
     "date": "2026-08-21",
     "macrostructure": "none",
     "theme": "Coral",

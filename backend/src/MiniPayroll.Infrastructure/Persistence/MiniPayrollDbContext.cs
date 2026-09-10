@@ -34,6 +34,16 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<SalaryComponent> SalaryComponents => Set<SalaryComponent>();
     public DbSet<SalaryStructure> SalaryStructures => Set<SalaryStructure>();
     public DbSet<EmployeeSalaryComponent> EmployeeSalaryComponents => Set<EmployeeSalaryComponent>();
+    public DbSet<PlatformState> PlatformStates => Set<PlatformState>();
+    public DbSet<PlatformCity> PlatformCities => Set<PlatformCity>();
+    public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();
+    public DbSet<MonthlyAttendance> MonthlyAttendance => Set<MonthlyAttendance>();
+    public DbSet<Overtime> Overtime => Set<Overtime>();
+    public DbSet<Bonus> Bonuses => Set<Bonus>();
+    public DbSet<Deduction> Deductions => Set<Deduction>();
+    public DbSet<PayrollEmployee> PayrollEmployees => Set<PayrollEmployee>();
+    public DbSet<PayrollEarning> PayrollEarnings => Set<PayrollEarning>();
+    public DbSet<PayrollDeduction> PayrollDeductions => Set<PayrollDeduction>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -215,6 +225,173 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .WithMany()
                 .HasForeignKey(component => component.SalaryComponentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<PlatformState>(entity =>
+        {
+            entity.ToTable(TableNames.PlatformState);
+            entity.Property(state => state.Name).HasMaxLength(100).IsRequired();
+            entity.Property(state => state.Code).HasMaxLength(3).IsRequired();
+            entity.HasIndex(state => state.Name).IsUnique();
+            entity.HasIndex(state => state.Code).IsUnique();
+        });
+
+        builder.Entity<PlatformCity>(entity =>
+        {
+            entity.ToTable(TableNames.PlatformCity);
+            entity.Property(city => city.Name).HasMaxLength(100).IsRequired();
+            entity.HasIndex(city => new { city.StateId, city.Name }).IsUnique();
+            entity.HasOne(city => city.State)
+                .WithMany(state => state.Cities)
+                .HasForeignKey(city => city.StateId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<PayrollRun>(entity =>
+        {
+            entity.ToTable(TableNames.PayrollRun);
+            entity.Property(run => run.RowVersion).IsRowVersion();
+            // Only one non-reversed run per company per period (PRD §20).
+            entity.HasIndex(run => new { run.CompanyId, run.Year, run.Month })
+                .IsUnique()
+                .HasFilter($"[Status] <> {(int)PayrollRunStatus.Reversed}");
+            entity.HasOne(run => run.Company)
+                .WithMany()
+                .HasForeignKey(run => run.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(run =>
+                _tenant.IsSuperadmin || run.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<MonthlyAttendance>(entity =>
+        {
+            entity.ToTable(TableNames.MonthlyAttendance);
+            entity.Property(attendance => attendance.WorkingDays).HasColumnType("decimal(5,1)");
+            entity.Property(attendance => attendance.Present).HasColumnType("decimal(5,1)");
+            entity.Property(attendance => attendance.PaidLeave).HasColumnType("decimal(5,1)");
+            entity.Property(attendance => attendance.UnpaidLeave).HasColumnType("decimal(5,1)");
+            entity.HasIndex(attendance => new { attendance.PayrollRunId, attendance.EmployeeId })
+                .IsUnique();
+            entity.HasOne(attendance => attendance.PayrollRun)
+                .WithMany(run => run.Attendance)
+                .HasForeignKey(attendance => attendance.PayrollRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(attendance => attendance.Employee)
+                .WithMany()
+                .HasForeignKey(attendance => attendance.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(attendance =>
+                _tenant.IsSuperadmin || attendance.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<Overtime>(entity =>
+        {
+            entity.ToTable(TableNames.Overtime);
+            entity.Property(overtime => overtime.Hours).HasColumnType("decimal(6,2)");
+            entity.Property(overtime => overtime.Rate).HasColumnType("decimal(18,2)");
+            entity.Property(overtime => overtime.Notes).HasMaxLength(500);
+            entity.HasIndex(overtime => new { overtime.PayrollRunId, overtime.EmployeeId });
+            entity.HasOne(overtime => overtime.PayrollRun)
+                .WithMany(run => run.Overtime)
+                .HasForeignKey(overtime => overtime.PayrollRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(overtime => overtime.Employee)
+                .WithMany()
+                .HasForeignKey(overtime => overtime.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(overtime =>
+                _tenant.IsSuperadmin || overtime.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<Bonus>(entity =>
+        {
+            entity.ToTable(TableNames.Bonus);
+            entity.Property(bonus => bonus.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(bonus => bonus.Notes).HasMaxLength(500);
+            entity.HasIndex(bonus => new { bonus.PayrollRunId, bonus.EmployeeId });
+            entity.HasOne(bonus => bonus.PayrollRun)
+                .WithMany(run => run.Bonuses)
+                .HasForeignKey(bonus => bonus.PayrollRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(bonus => bonus.Employee)
+                .WithMany()
+                .HasForeignKey(bonus => bonus.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(bonus =>
+                _tenant.IsSuperadmin || bonus.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<Deduction>(entity =>
+        {
+            entity.ToTable(TableNames.Deduction);
+            entity.Property(deduction => deduction.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(deduction => deduction.Notes).HasMaxLength(500);
+            entity.HasIndex(deduction => new { deduction.PayrollRunId, deduction.EmployeeId });
+            entity.HasOne(deduction => deduction.PayrollRun)
+                .WithMany(run => run.Deductions)
+                .HasForeignKey(deduction => deduction.PayrollRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(deduction => deduction.Employee)
+                .WithMany()
+                .HasForeignKey(deduction => deduction.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(deduction =>
+                _tenant.IsSuperadmin || deduction.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<PayrollEmployee>(entity =>
+        {
+            entity.ToTable(TableNames.PayrollEmployee);
+            entity.Property(result => result.EmployeeCode).HasMaxLength(32).IsRequired();
+            entity.Property(result => result.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(result => result.DailyRate).HasColumnType("decimal(18,6)");
+            entity.Property(result => result.GrossEarnings).HasColumnType("decimal(18,2)");
+            entity.Property(result => result.TotalDeductions).HasColumnType("decimal(18,2)");
+            entity.Property(result => result.NetSalary).HasColumnType("decimal(18,2)");
+            entity.Property(result => result.Warnings).HasMaxLength(2000);
+            entity.Property(result => result.Errors).HasMaxLength(2000);
+            entity.HasIndex(result => new { result.PayrollRunId, result.EmployeeId })
+                .IsUnique();
+            entity.HasOne(result => result.PayrollRun)
+                .WithMany(run => run.Results)
+                .HasForeignKey(result => result.PayrollRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(result => result.Employee)
+                .WithMany()
+                .HasForeignKey(result => result.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(result =>
+                _tenant.IsSuperadmin || result.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<PayrollEarning>(entity =>
+        {
+            entity.ToTable(TableNames.PayrollEarning);
+            entity.Property(line => line.Name).HasMaxLength(100).IsRequired();
+            entity.Property(line => line.Amount).HasColumnType("decimal(18,2)");
+            entity.HasIndex(line => new { line.PayrollEmployeeId, line.SortOrder })
+                .IsUnique();
+            entity.HasOne(line => line.PayrollEmployee)
+                .WithMany(result => result.Earnings)
+                .HasForeignKey(line => line.PayrollEmployeeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(line =>
+                _tenant.IsSuperadmin || line.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<PayrollDeduction>(entity =>
+        {
+            entity.ToTable(TableNames.PayrollDeduction);
+            entity.Property(line => line.Name).HasMaxLength(100).IsRequired();
+            entity.Property(line => line.Amount).HasColumnType("decimal(18,2)");
+            entity.HasIndex(line => new { line.PayrollEmployeeId, line.SortOrder })
+                .IsUnique();
+            entity.HasOne(line => line.PayrollEmployee)
+                .WithMany(result => result.Deductions)
+                .HasForeignKey(line => line.PayrollEmployeeId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(line =>
+                _tenant.IsSuperadmin || line.CompanyId == _tenant.CompanyId);
         });
     }
 }

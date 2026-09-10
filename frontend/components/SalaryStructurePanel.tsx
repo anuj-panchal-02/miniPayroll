@@ -16,6 +16,8 @@ import {
   type SalaryStructureComponentDetail,
   type SalaryStructureDetail,
 } from "@/lib/api";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
 
 export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail }) {
   const [structures, setStructures] = useState<SalaryStructureDetail[]>([]);
@@ -99,16 +101,12 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
           </p>
         </div>
         {editor || loading || error ? null : (
-          <button type="button" className="sa-compose__submit" onClick={startRevision}>
+          <Button type="button" onClick={startRevision}>
             {structures.length ? "Add salary revision" : "Add salary structure"}
-          </button>
+          </Button>
         )}
       </header>
-      {error ? (
-        <p className="sa-alert" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <Alert>{error || null}</Alert>
       {loading ? (
         <p className="sa-salary-history__status" role="status">
           Loading salary history…
@@ -137,18 +135,17 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
             }}
           />
           <div className="sa-compose__actions">
-            <button
+            <Button
               type="button"
-              className="sa-compose__submit"
-              disabled={saving}
-              aria-busy={saving}
+              loading={saving}
+              loadingLabel="Saving…"
               onClick={() => void saveRevision()}
             >
-              {saving ? "Saving…" : "Save salary revision"}
-            </button>
-            <button type="button" className="sa-compose__secondary" disabled={saving} onClick={() => setEditor(null)}>
+              Save salary revision
+            </Button>
+            <Button type="button" variant="secondary" disabled={saving} onClick={() => setEditor(null)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

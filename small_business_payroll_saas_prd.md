@@ -1,13 +1,17 @@
 # PRD: miniPayroll
 
 **Product Name:** miniPayroll  
-**Document Version:** 1.2  
+**Document Version:** 1.3  
 **Product Stage:** MVP  
-**Target Market:** Small businesses with 1–9 salaried employees  
+**Target Market:** Small businesses with 1–50 salaried employees  
 **Primary Market:** India  
 **Currency:** INR only (MVP)  
 **Primary Business Model:** SaaS subscription charged per billable employee  
 **Primary SaaS Owner:** Superadmin-controlled onboarding and plan management
+
+### Changelog (v1.2 → v1.3)
+
+- Raised the platform employee cap to **50** per company (default limit 50). Min, default, and hard cap live in one backend constant (`PlatformLimits`) and are exposed at `GET /api/platform` so the cap can be increased later without hunting magic numbers.
 
 ### Changelog (v1.1 → v1.2)
 
@@ -24,7 +28,7 @@
 - Added payroll reversal (correction path) and salary disbursement tracking (Paid/Unpaid per employee).
 - Removed `Reviewed` as a persisted payroll state. States are now Draft → Calculated → Finalized (→ Reversed).
 - Fixed contradictions: single Basic plan at launch (Pro removed from all MVP examples), INR-only currency, hardcoded Paid/Unpaid leave (removed `TblLeaveType` from MVP model), incentives folded into bonus types, company details entered once by the Company Admin.
-- Set a hard MVP employee cap of 20 per company (default limit 9).
+- Set a hard MVP employee cap of 50 per company (default limit 50).
 - Removed restaurants/cafes from primary MVP customers (daily-wage model not supported in MVP).
 - Consolidated the five monthly-input screens into a single Monthly Inputs screen. MVP screen count reduced.
 - Replaced EF DB-First/EDMX with EF Core. Added DPDP Act, encryption-at-rest for bank details, Superadmin MFA, password policy, lockout, and break-glass support access requirements.
@@ -48,7 +52,7 @@ The product is intentionally payroll-first rather than a full HRMS.
 
 # 2. Problem Statement
 
-Businesses with fewer than 10 employees often calculate salaries manually using spreadsheets, calculators, attendance records and informal notes. Every payroll cycle may require calculations for paid leave, unpaid absence, overtime, bonuses, advances and deductions.
+Businesses with 1–50 employees often calculate salaries manually using spreadsheets, calculators, attendance records and informal notes. Every payroll cycle may require calculations for paid leave, unpaid absence, overtime, bonuses, advances and deductions.
 
 Existing payroll and HRMS products are often designed for larger organizations and can introduce unnecessary complexity, configuration and cost for very small businesses.
 
@@ -60,7 +64,7 @@ Existing payroll and HRMS products are often designed for larger organizations a
 
 # 3. Product Vision
 
-Build miniPayroll as the simplest payroll SaaS for businesses with fewer than 10 employees, while providing a centrally managed SaaS platform that supports multiple companies, employee-based billing and controlled onboarding.
+Build miniPayroll as the simplest payroll SaaS for businesses with up to 50 employees, while providing a centrally managed SaaS platform that supports multiple companies, employee-based billing and controlled onboarding.
 
 The product should make payroll feel like a short monthly task rather than an accounting project.
 
@@ -99,7 +103,7 @@ Company admins should be able to:
 
 ## Primary Customer
 
-Businesses with 1–9 **monthly-salaried** employees such as:
+Businesses with 1–50 **monthly-salaried** employees such as:
 
 - Retail shops
 - Small agencies
@@ -311,8 +315,8 @@ Because the service is charged per employee, employee limits must be enforced.
 
 ### Limits
 
-- **Default employee limit per company: 9** (matches the target segment).
-- **Hard platform cap in MVP: 20 employees per company.** The Superadmin can raise a company's limit up to 20 but not beyond. This keeps the product honest about the segment its UX is designed for; larger tenants are a roadmap decision, not a support ticket.
+- **Default employee limit per company: 50.** Superadmin can set a lower company limit at onboarding.
+- **Hard platform cap: 50 employees per company**, defined in one place (`PlatformLimits.HardEmployeeCap`) and returned by `GET /api/platform`. Raise that constant (and the frontend fallback) when the product should support more people. The Superadmin can set a company's limit anywhere from 1 up to this cap.
 
 Attempting to create an employee beyond the company's limit displays:
 
@@ -927,7 +931,7 @@ The five monthly-input areas are **one screen** with an employee-per-row grid, n
 **FR-009** Superadmin must be able to create a company (name and contact only).
 **FR-010** Superadmin must be able to create exactly one Company Admin account per company.
 **FR-011** Superadmin must be able to assign the plan.
-**FR-012** Superadmin must be able to set or change employee limits, up to the platform cap of 20.
+**FR-012** Superadmin must be able to set or change employee limits, up to the platform cap of 50.
 **FR-013** Superadmin must be able to activate or suspend companies.
 **FR-014** Company Admin must be able to complete company setup, including logo upload, in a first-login wizard.
 **FR-015** A suspended company must retain read access to history and payslips but must be blocked from creating or finalizing payroll runs and from adding or editing employees.
@@ -1169,7 +1173,7 @@ The product handles salary and financial information, so tenant isolation and au
 
 ### Performance
 
-For a company with fewer than 10 employees, payroll calculation must complete in under 2 seconds; typical page loads under 1 second under expected operating conditions.
+For a company at the platform employee cap, payroll calculation must complete in under 2 seconds; typical page loads under 1 second under expected operating conditions.
 
 ### Availability
 
@@ -1181,7 +1185,7 @@ A new Company Admin should be able to complete initial setup without training, i
 
 ### Scalability
 
-The architecture should support many small companies even though each individual customer has fewer than 10 employees.
+The architecture should support many small companies even though each individual customer is capped at the platform employee limit.
 
 ### Maintainability
 
@@ -1312,7 +1316,7 @@ View Payroll History
 The system must also demonstrate that:
 
 - Tenant isolation works (a Company A token cannot read Company B data).
-- Employee limits are enforced, and cannot be set above the platform cap of 20.
+- Employee limits are enforced, and cannot be set above the platform cap of 50.
 - Subscription amount reflects the billable-count rule of Section 8.1 (including the deactivate-after-payroll case).
 - Finalized payroll does not change after a later salary change.
 - A prorated calculation is correct for one mid-month joiner and one mid-month leaver.
@@ -1334,7 +1338,7 @@ Target: less than 15 minutes for initial setup for a typical small company.
 
 ## Monthly Payroll Time
 
-Target: less than 5 minutes for a company with 1–9 employees once setup is complete.
+Target: less than 5 minutes for a company with 1–50 employees once setup is complete.
 
 ## Payroll Completion Rate
 
@@ -1364,7 +1368,7 @@ All metrics above are computed from the analytics events required by FR-044.
 - Superadmin (with MFA)
 - Company creation and activation
 - Company Admin login, forced password change, password reset
-- Single Basic plan with per-employee pricing and limits (cap 20)
+- Single Basic plan with per-employee pricing and limits (cap 50)
 - Company setup wizard
 - Employee management (incl. joining/exit dates, encrypted bank details)
 - Salary structures with recurring components, incl. statutory deduction lines (manual amounts)

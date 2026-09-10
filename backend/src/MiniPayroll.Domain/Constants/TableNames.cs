@@ -21,11 +21,24 @@ public static class TableNames
     public const string SalaryComponent = "mp_TblSalaryComponent";
     public const string SalaryStructure = "mp_TblSalaryStructure";
     public const string EmployeeSalaryComponent = "mp_TblEmployeeSalaryComponent";
+    public const string PlatformState = "mp_TblPlatformState";
+    public const string PlatformCity = "mp_TblPlatformCity";
+
+    public const string PayrollRun = "mp_TblPayrollRun";
+    public const string MonthlyAttendance = "mp_TblMonthlyAttendance";
+    public const string Overtime = "mp_TblOvertime";
+    public const string Bonus = "mp_TblBonus";
+    public const string Deduction = "mp_TblDeduction";
+    public const string PayrollEmployee = "mp_TblPayrollEmployee";
+    public const string PayrollEarning = "mp_TblPayrollEarning";
+    public const string PayrollDeduction = "mp_TblPayrollDeduction";
 
     public static readonly IReadOnlyList<string> All =
     [
         User, Role, UserRole, UserClaim, RoleClaim, UserLogin, UserToken,
         Company, Plan, Subscription, Payment, AuditLog, Employee, SalaryComponent,
-        SalaryStructure, EmployeeSalaryComponent
+        SalaryStructure, EmployeeSalaryComponent, PlatformState, PlatformCity,
+        PayrollRun, MonthlyAttendance, Overtime, Bonus, Deduction,
+        PayrollEmployee, PayrollEarning, PayrollDeduction
     ];
 }

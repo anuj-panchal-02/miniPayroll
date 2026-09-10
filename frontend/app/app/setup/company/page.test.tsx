@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   getCompanySetup: vi.fn(),
   uploadCompanyLogo: vi.fn(),
   updateCompanyDetails: vi.fn(),
+  listPlatformStates: vi.fn(),
+  listPlatformCities: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -20,6 +22,8 @@ vi.mock("@/lib/api", () => ({
   getCompanySetup: mocks.getCompanySetup,
   uploadCompanyLogo: mocks.uploadCompanyLogo,
   updateCompanyDetails: mocks.updateCompanyDetails,
+  listPlatformStates: mocks.listPlatformStates,
+  listPlatformCities: mocks.listPlatformCities,
 }));
 
 vi.mock("@/components/SetupWizardShell", () => ({
@@ -66,6 +70,12 @@ describe("CompanySetupPage", () => {
     mocks.updateCompanyDetails
       .mockReset()
       .mockResolvedValue({ ...setup, setupStep: CompanySetupStep.PayrollSettings });
+    mocks.listPlatformStates.mockReset().mockResolvedValue([
+      { id: "st-mh", name: "Maharashtra", code: "MH", isActive: true, sortOrder: 0 },
+    ]);
+    mocks.listPlatformCities.mockReset().mockResolvedValue([
+      { id: "ct-pune", stateId: "st-mh", name: "Pune", isActive: true, sortOrder: 0 },
+    ]);
   });
 
   it("loads and prefills saved company details", async () => {
@@ -122,6 +132,32 @@ describe("CompanySetupPage", () => {
     expect(await screen.findByText("Logo upload failed.")).toBeTruthy();
     expect(mocks.updateCompanyDetails).not.toHaveBeenCalled();
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("posts selected state and city names", async () => {
+    mocks.getCompanySetup.mockResolvedValueOnce({
+      ...setup,
+      city: "",
+      state: "",
+      logoUrl: "http://localhost:5238/uploads/logo.png",
+    });
+    render(<CompanySetupPage />);
+    await screen.findByDisplayValue("Acme Ltd");
+
+    await waitFor(() => expect(mocks.listPlatformStates).toHaveBeenCalled());
+    fireEvent.click(screen.getByLabelText(/^state$/i));
+    fireEvent.click(await screen.findByRole("option", { name: "Maharashtra" }));
+    await waitFor(() => expect(mocks.listPlatformCities).toHaveBeenCalledWith("st-mh"));
+    fireEvent.click(screen.getByLabelText(/^city$/i));
+    fireEvent.click(await screen.findByRole("option", { name: "Pune" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
+
+    await waitFor(() => {
+      expect(mocks.updateCompanyDetails).toHaveBeenCalledWith(
+        expect.objectContaining({ city: "Pune", state: "Maharashtra" }),
+      );
+    });
   });
 
   it("saves existing-logo details without uploading again", async () => {

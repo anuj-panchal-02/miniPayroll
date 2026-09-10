@@ -41,7 +41,9 @@ describe("CompanyAdminShell", () => {
     expect(screen.getByRole("link", { name: "Employees" }).getAttribute("aria-current")).toBe(
       "page",
     );
-    expect(screen.getByText(/payroll · coming soon/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Payroll" })).toBeTruthy();
+    expect(screen.queryByText(/payroll · coming soon/i)).toBeNull();
+    expect(screen.getByText(/settings · coming soon/i)).toBeTruthy();
     expect(screen.getByText("Workspace")).toBeTruthy();
   });
 });

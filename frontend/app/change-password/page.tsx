@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { PasswordField } from "@/components/ui/PasswordField";
 import {
   MeResponse,
   changePassword,
@@ -13,6 +16,7 @@ import {
 } from "@/lib/api";
 import { homePath } from "@/lib/setup";
 import {
+  PASSWORD_RULE_MESSAGE,
   confirmPasswordError,
   currentPasswordError,
   newPasswordError,
@@ -160,83 +164,52 @@ export default function ChangePasswordPage() {
             onSubmit={onSubmit}
             aria-labelledby="change-password-title"
           >
-            <div className="login-field">
-              <label htmlFor="current-password">Current password</label>
-              <input
-                ref={currentRef}
-                id="current-password"
-                name="currentPassword"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                onBlur={() => markTouched("currentPassword")}
-                autoComplete="current-password"
-                disabled={busy}
-                aria-required="true"
-                aria-invalid={shownCurrentError ? true : undefined}
-                aria-describedby={
-                  shownCurrentError ? "current-password-error" : undefined
-                }
-              />
-              <p id="current-password-error" className="login-field__error" role="alert">
-                {shownCurrentError}
-              </p>
-            </div>
-            <div className="login-field">
-              <label htmlFor="new-password">New password</label>
-              <input
-                ref={newRef}
-                id="new-password"
-                name="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                onBlur={() => markTouched("newPassword")}
-                autoComplete="new-password"
-                disabled={busy}
-                aria-required="true"
-                aria-invalid={shownNewError ? true : undefined}
-                aria-describedby={shownNewError ? "new-password-error" : undefined}
-              />
-              <p id="new-password-error" className="login-field__error" role="alert">
-                {shownNewError}
-              </p>
-            </div>
-            <div className="login-field">
-              <label htmlFor="confirm-password">Confirm password</label>
-              <input
-                ref={confirmRef}
-                id="confirm-password"
-                name="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                onBlur={() => markTouched("confirmPassword")}
-                autoComplete="new-password"
-                disabled={busy}
-                aria-required="true"
-                aria-invalid={shownConfirmError ? true : undefined}
-                aria-describedby={
-                  shownConfirmError ? "confirm-password-error" : undefined
-                }
-              />
-              <p id="confirm-password-error" className="login-field__error" role="alert">
-                {shownConfirmError}
-              </p>
-            </div>
-
-            <p className="login-alert" role="alert">
-              {error}
-            </p>
-
-            <button
-              type="submit"
-              className="login-submit"
+            <PasswordField
+              id="current-password"
+              label="Current password"
+              name="currentPassword"
+              inputRef={currentRef}
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              onBlur={() => markTouched("currentPassword")}
+              autoComplete="current-password"
               disabled={busy}
-              aria-busy={busy}
-            >
-              {busy ? "Saving" : "Change password"}
-            </button>
+              required
+              error={shownCurrentError}
+            />
+            <PasswordField
+              id="new-password"
+              label="New password"
+              name="newPassword"
+              inputRef={newRef}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              onBlur={() => markTouched("newPassword")}
+              autoComplete="new-password"
+              disabled={busy}
+              required
+              hint={PASSWORD_RULE_MESSAGE}
+              error={shownNewError}
+            />
+            <PasswordField
+              id="confirm-password"
+              label="Confirm password"
+              name="confirmPassword"
+              inputRef={confirmRef}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              onBlur={() => markTouched("confirmPassword")}
+              autoComplete="new-password"
+              disabled={busy}
+              required
+              error={shownConfirmError}
+            />
+
+            <Alert>{error}</Alert>
+
+            <Button type="submit" loading={busy} loadingLabel="Saving">
+              Change password
+            </Button>
           </form>
         </div>
       </div>

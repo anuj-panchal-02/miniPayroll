@@ -1,6 +1,7 @@
 "use client";
 
 import { SuperadminShell } from "@/components/SuperadminShell";
+import { Stepper } from "@/components/ui/Stepper";
 import "@/app/app/setup/setup.css";
 
 type SetupWizardShellProps = {
@@ -26,38 +27,12 @@ export function SetupWizardShell({
       allowIncompleteSetup
     >
       <main className="setup-shell">
-        <nav className="setup-progress" aria-label="Setup progress">
-          <ol>
-            {STEPS.map((step, index) => {
-              const stepNumber = index + 1;
-              const state =
-                stepNumber < currentStep
-                  ? "complete"
-                  : stepNumber === currentStep
-                    ? "current"
-                    : "upcoming";
-              return (
-                <li key={step} data-state={state}>
-                  <span
-                    className="setup-progress__number"
-                    aria-hidden="true"
-                  >
-                    {stepNumber}
-                  </span>
-                  <span>
-                    <span
-                      className="setup-progress__count"
-                      aria-current={stepNumber === currentStep ? "step" : undefined}
-                    >
-                      Step {stepNumber} of {STEPS.length}
-                    </span>
-                    <span className="setup-progress__label">{step}</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
+        <Stepper
+          className="setup-progress"
+          label="Setup progress"
+          currentStep={currentStep}
+          steps={STEPS}
+        />
 
         <section className="setup-content">
           <header className="setup-heading">

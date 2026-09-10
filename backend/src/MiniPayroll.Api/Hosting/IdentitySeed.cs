@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Infrastructure.Identity;
@@ -33,19 +34,30 @@ public static class IdentitySeed
                 Id = Guid.NewGuid(),
                 Name = PlatformLimits.DefaultPlanName,
                 PricePerEmployee = PlatformLimits.DefaultPricePerEmployee,
-                DefaultEmployeeLimit = PlatformLimits.HardEmployeeCap,
+                DefaultEmployeeLimit = PlatformLimits.DefaultEmployeeLimit,
                 IsPublic = true
             });
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        await LocationSeed.EnsureSeededAsync(db, cancellationToken);
+
         var email = configuration["Seed:SuperadminEmail"] ?? "superadmin@minipayroll.local";
-        var password = configuration["Seed:SuperadminPassword"] ?? "ChangeMe_Superadmin1!";
 
         if (await users.FindByEmailAsync(email) is not null)
         {
             return;
         }
+
+        var environment = services.GetRequiredService<IHostEnvironment>();
+        var allowBootstrap = configuration.GetValue("Seed:AllowBootstrap", false);
+        if (!SuperadminSeedRules.MayBootstrap(environment.IsDevelopment(), allowBootstrap))
+        {
+            throw new InvalidOperationException(
+                "Superadmin bootstrap is disabled. Set Seed:AllowBootstrap=true and Seed:SuperadminPassword.");
+        }
+
+        var password = SuperadminSeedRules.RequirePassword(configuration["Seed:SuperadminPassword"]);
 
         var superadmin = new ApplicationUser
         {

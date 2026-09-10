@@ -1,4 +1,4 @@
-import { HARD_EMPLOYEE_CAP } from "@/lib/platform";
+import { HARD_EMPLOYEE_CAP, MIN_EMPLOYEE_LIMIT } from "@/lib/platform";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,14 +30,20 @@ export function emailError(
   return null;
 }
 
-export function employeeLimitError(raw: string): string | null {
-  const message = `Employee limit must be between 1 and ${HARD_EMPLOYEE_CAP}.`;
+export function employeeLimitError(
+  raw: string,
+  range: { min: number; max: number } = {
+    min: MIN_EMPLOYEE_LIMIT,
+    max: HARD_EMPLOYEE_CAP,
+  },
+): string | null {
+  const message = `Employee limit must be between ${range.min} and ${range.max}.`;
   const trimmed = raw.trim();
   if (!trimmed) {
     return message;
   }
   const n = Number(trimmed);
-  if (!Number.isInteger(n) || n < 1 || n > HARD_EMPLOYEE_CAP) {
+  if (!Number.isInteger(n) || n < range.min || n > range.max) {
     return message;
   }
   return null;
@@ -50,18 +56,64 @@ export function currentPasswordError(value: string): string | null {
   return null;
 }
 
+export const PASSWORD_MIN_LENGTH = 10;
+
+export const PASSWORD_RULE_MESSAGE =
+  "Use at least 10 characters with upper and lower case, a number, and a symbol.";
+
+/** The four character classes plus the length gate that `newPasswordError` enforces. */
+function passwordChecks(value: string) {
+  return {
+    longEnough: value.length >= PASSWORD_MIN_LENGTH,
+    classes: [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((pattern) => pattern.test(value))
+      .length,
+  };
+}
+
 export function newPasswordError(value: string): string | null {
   if (!value) {
     return "Enter a new password.";
   }
-  const hasLower = /[a-z]/.test(value);
-  const hasUpper = /[A-Z]/.test(value);
-  const hasDigit = /\d/.test(value);
-  const hasSymbol = /[^A-Za-z0-9]/.test(value);
-  if (value.length < 10 || !hasLower || !hasUpper || !hasDigit || !hasSymbol) {
-    return "Use at least 10 characters with upper and lower case, a number, and a symbol.";
+  const { longEnough, classes } = passwordChecks(value);
+  if (!longEnough || classes < 4) {
+    return PASSWORD_RULE_MESSAGE;
   }
   return null;
+}
+
+export type PasswordStrengthTone = "error" | "neutral" | "success";
+
+export type PasswordStrength = {
+  /** 0 to PASSWORD_STRENGTH_MAX, drives the meter fill width. */
+  score: number;
+  tone: PasswordStrengthTone;
+  label: string;
+  advice: string | null;
+};
+
+export const PASSWORD_STRENGTH_MAX = 4;
+
+/**
+ * Rates a password against the same gates as `newPasswordError`, so the meter can
+ * never call a password strong that the validator would reject.
+ */
+export function passwordStrength(value: string): PasswordStrength {
+  if (!value) {
+    return { score: 0, tone: "error", label: "Password too weak", advice: PASSWORD_RULE_MESSAGE };
+  }
+
+  const { longEnough, classes } = passwordChecks(value);
+  // Length is the gate that separates strong from merely varied, so a short
+  // password can never climb past the middle of the meter.
+  const score = longEnough ? classes : Math.min(classes, 2);
+
+  if (longEnough && classes === PASSWORD_STRENGTH_MAX) {
+    return { score, tone: "success", label: "Password strong", advice: null };
+  }
+  if (score === 3) {
+    return { score, tone: "neutral", label: "Password could be stronger", advice: PASSWORD_RULE_MESSAGE };
+  }
+  return { score, tone: "error", label: "Password too weak", advice: PASSWORD_RULE_MESSAGE };
 }
 
 export function confirmPasswordError(value: string, newPassword: string): string | null {

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getEmployee: vi.fn(),
   updateEmployee: vi.fn(),
   listSalaryStructures: vi.fn(),
+  listPlatformStates: vi.fn(),
+  listPlatformCities: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -23,6 +25,8 @@ vi.mock("@/lib/api", () => ({
   getEmployee: mocks.getEmployee,
   updateEmployee: mocks.updateEmployee,
   listSalaryStructures: mocks.listSalaryStructures,
+  listPlatformStates: mocks.listPlatformStates,
+  listPlatformCities: mocks.listPlatformCities,
 }));
 
 const employee = {
@@ -67,6 +71,12 @@ describe("EditEmployeePage", () => {
     mocks.updateEmployee.mockReset();
     mocks.listSalaryStructures.mockReset();
     mocks.listSalaryStructures.mockResolvedValue([]);
+    mocks.listPlatformStates.mockReset().mockResolvedValue([
+      { id: "st-mh", name: "Maharashtra", code: "MH", isActive: true, sortOrder: 0 },
+    ]);
+    mocks.listPlatformCities.mockReset().mockResolvedValue([
+      { id: "ct-pune", stateId: "st-mh", name: "Pune", isActive: true, sortOrder: 0 },
+    ]);
   });
 
   it("updates an employee and returns to the list", async () => {
@@ -86,7 +96,12 @@ describe("EditEmployeePage", () => {
     await vi.waitFor(() => {
       expect(mocks.updateEmployee).toHaveBeenCalledWith(
         "abc",
-        expect.objectContaining({ fullName: "Ada Byron", saveAsDraft: false }),
+        expect.objectContaining({
+          fullName: "Ada Byron",
+          saveAsDraft: false,
+          city: "Pune",
+          state: "Maharashtra",
+        }),
       );
     });
     expect(mocks.push).toHaveBeenCalledWith("/app/employees");

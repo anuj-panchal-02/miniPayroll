@@ -28,6 +28,7 @@ Already implemented:
 - [x] Encrypted bank account and IFSC storage
 - [x] Effective-dated salary structures
 - [x] Backend and frontend unit tests for existing features
+- [x] JWT and Superadmin seed secrets loaded from user-secrets / environment variables
 
 ---
 
@@ -36,8 +37,8 @@ Already implemented:
 Priority: P0  
 Goal: Remove contradictions before building payroll and billing rules.
 
-- [ ] Decide whether the platform employee cap is 20 or 50.
-- [ ] Set the default company employee limit to the agreed value (PRD currently says 9).
+- [x] Decide whether the platform employee cap is 20 or 50.
+- [x] Set the default company employee limit to 50 (same as the hard cap; Superadmin may set 1–50 per company).
 - [ ] Confirm pricing: per active employee, minimum charge, taxes, and rounding.
 - [ ] Confirm subscription states and allowed behavior for each:
   - Pending
@@ -67,12 +68,12 @@ Goal: Make the foundation safe before adding real payroll or customer data.
 
 ### Secrets and credentials
 
-- [ ] Remove the JWT signing key and Superadmin password from tracked configuration.
-- [ ] Load secrets from environment variables or a managed secret store.
-- [ ] Require an explicit, secure production bootstrap process for the first Superadmin.
-- [ ] Remove default credentials from the production frontend build.
-- [ ] Stop returning temporary passwords in API responses.
-- [ ] Stop writing temporary passwords to application logs.
+- [x] Remove the JWT signing key and Superadmin password from tracked configuration.
+- [x] Load secrets from environment variables or a managed secret store.
+- [x] Require an explicit, secure production bootstrap process for the first Superadmin.
+- [x] Remove default credentials from the production frontend build.
+- [x] Stop returning temporary passwords in API responses.
+- [x] Stop writing temporary passwords to application logs.
 - [ ] Integrate secure one-time account invitation delivery.
 
 ### Authentication and sessions

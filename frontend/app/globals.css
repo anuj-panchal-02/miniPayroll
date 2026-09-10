@@ -1,9 +1,15 @@
 @import "tailwindcss";
 @import "../tokens.css";
+@import "../components/ui/form-controls.css";
+
+/* Hallmark · genre: modern-minimal · design-system: design.md · designed-as-app
+ * Hallmark · pre-emit critique: P5 H5 E5 S4 R5 V4
+ */
 
 :root {
   --background: var(--color-paper);
   --foreground: var(--color-ink);
+  color-scheme: light;
 }
 
 @theme inline {
@@ -22,4 +28,66 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  padding-inline: max(0px, env(safe-area-inset-left)) max(0px, env(safe-area-inset-right));
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-accent) 22%, var(--color-paper));
+  color: var(--color-ink);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--outline-width) solid var(--color-focus);
+  outline-offset: var(--outline-offset-action);
+}
+
+.mp-field__well :focus-visible {
+  outline: none;
+}
+
+.tabular-nums,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (pointer: coarse) {
+  .mp-btn {
+    min-height: var(--control-height-touch);
+  }
+
+  .mp-field__well {
+    min-height: var(--control-height-field-touch);
+  }
+
+  .mp-password__toggle {
+    min-width: var(--control-height-touch);
+  }
+
+  .mp-select-option {
+    min-height: var(--control-height-touch);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 150ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+  }
 }

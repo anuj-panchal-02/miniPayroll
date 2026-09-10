@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { HARD_EMPLOYEE_CAP, MIN_EMPLOYEE_LIMIT } from "./platform";
 import {
+  PASSWORD_STRENGTH_MAX,
   companySetupErrors,
   employeeDraftErrors,
   employeeErrors,
+  employeeLimitError,
   logoFileError,
+  newPasswordError,
+  passwordStrength,
   weeklyOffDaysError,
   workingDaysError,
 } from "./validation";
@@ -85,6 +90,62 @@ describe("payroll validation", () => {
   it("requires at least one weekly off day", () => {
     expect(weeklyOffDaysError([])).toBe("Select at least one weekly off day.");
     expect(weeklyOffDaysError(["Sunday"])).toBeNull();
+  });
+});
+
+describe("password strength", () => {
+  it("only calls a password strong when newPasswordError accepts it", () => {
+    const strong = "Design.dey123!";
+    expect(newPasswordError(strong)).toBeNull();
+
+    const rated = passwordStrength(strong);
+    expect(rated.tone).toBe("success");
+    expect(rated.score).toBe(PASSWORD_STRENGTH_MAX);
+    expect(rated.label).toBe("Password strong");
+    expect(rated.advice).toBeNull();
+  });
+
+  it("caps a short password below the top of the meter even with every character class", () => {
+    const short = "Aa1!";
+    expect(newPasswordError(short)).toBeTruthy();
+    expect(passwordStrength(short).score).toBe(2);
+    expect(passwordStrength(short).tone).toBe("error");
+  });
+
+  it("rates a long password missing one character class as improvable, not strong", () => {
+    const rated = passwordStrength("Designdey123");
+    expect(rated.score).toBe(3);
+    expect(rated.tone).toBe("neutral");
+    expect(rated.advice).toBeTruthy();
+  });
+
+  it("treats an empty password as the weakest state", () => {
+    const rated = passwordStrength("");
+    expect(rated.score).toBe(0);
+    expect(rated.tone).toBe("error");
+  });
+});
+
+describe("employee limit validation", () => {
+  it("accepts the configured min and hard cap", () => {
+    expect(employeeLimitError(String(MIN_EMPLOYEE_LIMIT))).toBeNull();
+    expect(employeeLimitError(String(HARD_EMPLOYEE_CAP))).toBeNull();
+  });
+
+  it("rejects values outside the configured range", () => {
+    expect(employeeLimitError(String(MIN_EMPLOYEE_LIMIT - 1))).toBe(
+      `Employee limit must be between ${MIN_EMPLOYEE_LIMIT} and ${HARD_EMPLOYEE_CAP}.`,
+    );
+    expect(employeeLimitError(String(HARD_EMPLOYEE_CAP + 1))).toBe(
+      `Employee limit must be between ${MIN_EMPLOYEE_LIMIT} and ${HARD_EMPLOYEE_CAP}.`,
+    );
+  });
+
+  it("uses a caller-supplied range so a higher platform cap does not require rewriting this check", () => {
+    expect(employeeLimitError("10", { min: 1, max: 10 })).toBeNull();
+    expect(employeeLimitError("11", { min: 1, max: 10 })).toBe(
+      "Employee limit must be between 1 and 10.",
+    );
   });
 });
 

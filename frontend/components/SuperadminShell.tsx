@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
+import { SuperadminNav } from "@/components/SuperadminNav";
 import { getMe, getToken, setToken } from "@/lib/api";
 import {
   SUPERADMIN_ROLE,
@@ -106,6 +107,8 @@ export function SuperadminShell({
     );
   }
 
+  const showPlatformNav = requiredRole === SUPERADMIN_ROLE;
+
   return (
     <div className="sa">
       <header className="sa-nav">
@@ -122,7 +125,14 @@ export function SuperadminShell({
           }}
         />
       </header>
-      {children}
+      {showPlatformNav ? (
+        <div className="sa-layout">
+          <SuperadminNav pathname={pathname} />
+          {children}
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }

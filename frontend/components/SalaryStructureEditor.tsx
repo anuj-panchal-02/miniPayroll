@@ -5,6 +5,9 @@ import {
   SalaryComponentValueType,
   type SalaryStructureInput,
 } from "@/lib/api";
+import { Field } from "@/components/ui/Field";
+import { DateField } from "@/components/ui/DateField";
+import { Select } from "@/components/ui/Select";
 
 type ComponentDraft = {
   key: string;
@@ -138,24 +141,17 @@ export function SalaryStructureEditor({
 
   return (
     <section className="sa-compose__salary" aria-label="Salary structure">
-      <label className="sa-field">
-        Effective from
-        <input
-          type="date"
-          min={joiningDate || undefined}
+      <Field
+        id="salary-effective-from"
+        label="Effective from"
+        error={dateError || null}
+      >
+        <DateField
           value={value.effectiveFrom}
-          onChange={(event) => onChange({ ...value, effectiveFrom: event.target.value })}
-          aria-invalid={dateError ? true : undefined}
-          aria-describedby={dateError ? "salary-date-error" : undefined}
+          min={joiningDate || undefined}
+          onChange={(effectiveFrom) => onChange({ ...value, effectiveFrom })}
         />
-        <span
-          id="salary-date-error"
-          className="sa-field__error"
-          role={dateError ? "alert" : undefined}
-        >
-          {dateError}
-        </span>
-      </label>
+      </Field>
       <p className="sa-muted">Recurring lines only. One-time changes are added when payroll is run.</p>
       <div className="sa-preset-actions" aria-label="Add standard salary component">
         {PRESETS.filter((preset) => !presetAdded(preset)).map((preset) => (
@@ -174,68 +170,64 @@ export function SalaryStructureEditor({
       </div>
       {value.components.map((component, index) => {
         const basic = component.name.trim().toLowerCase() === "basic salary";
-        const amountInvalid = Boolean(valueError) && index === value.components.length - 1;
+        const percent = component.valueType === SalaryComponentValueType.PercentageOfBasic;
+        const rowError = rowMessage(component, Boolean(valueError), index === value.components.length - 1 ? valueError : "");
         return (
           <div className="sa-salary-fields" key={component.key}>
-            <label className="sa-field">
-              Name
+            <Field id={`salary-name-${component.key}`} label="Name">
               <input
+                className="mp-input"
                 value={component.name}
                 readOnly={basic}
                 onChange={(event) => update(index, { name: event.target.value })}
               />
-              <span className="sa-field__error" aria-hidden="true" />
-            </label>
-            <label className="sa-field">
-              Type
-              <select
-                value={component.type}
+            </Field>
+            <Field id={`salary-type-${component.key}`} label="Type">
+              <Select
+                value={String(component.type)}
                 disabled={basic}
-                onChange={(event) => update(index, { type: Number(event.target.value) as SalaryComponentType })}
-              >
-                <option value={SalaryComponentType.Earning}>Earning</option>
-                <option value={SalaryComponentType.Deduction}>Deduction</option>
-              </select>
-              <span className="sa-field__error" aria-hidden="true" />
-            </label>
-            <label className="sa-field">
-              Value type
-              <select
-                value={component.valueType}
+                onChange={(next) => update(index, { type: Number(next) as SalaryComponentType })}
+                options={[
+                  { value: String(SalaryComponentType.Earning), label: "Earning" },
+                  { value: String(SalaryComponentType.Deduction), label: "Deduction" },
+                ]}
+              />
+            </Field>
+            <Field id={`salary-value-type-${component.key}`} label="Value type">
+              <Select
+                value={String(component.valueType)}
                 disabled={basic}
-                onChange={(event) => update(index, {
-                  valueType: Number(event.target.value) as SalaryComponentValueType,
-                })}
-              >
-                <option value={SalaryComponentValueType.FixedAmount}>Fixed amount (₹)</option>
-                <option value={SalaryComponentValueType.PercentageOfBasic}>% of Basic Salary</option>
-              </select>
-              <span className="sa-field__error" aria-hidden="true" />
-            </label>
-            <label className="sa-field">
-              Amount
+                onChange={(next) =>
+                  update(index, { valueType: Number(next) as SalaryComponentValueType })
+                }
+                options={[
+                  { value: String(SalaryComponentValueType.FixedAmount), label: "Fixed amount (₹)" },
+                  { value: String(SalaryComponentValueType.PercentageOfBasic), label: "% of Basic Salary" },
+                ]}
+              />
+            </Field>
+            <Field
+              id={`salary-amount-${component.key}`}
+              label="Amount"
+              affix={percent ? "%" : "₹"}
+              error={rowError || null}
+            >
               <input
+                className="mp-input"
                 type="number"
                 min="0.01"
                 step="0.01"
                 placeholder="25000"
                 value={component.value}
+                data-numeric
                 onChange={(event) => update(index, { value: event.target.value })}
-                aria-invalid={amountInvalid ? true : undefined}
-                aria-describedby={amountInvalid ? "salary-amount-error" : undefined}
               />
-              <span
-                id={amountInvalid ? "salary-amount-error" : undefined}
-                className="sa-field__error"
-                role={amountInvalid ? "alert" : undefined}
-              >
-                {amountInvalid ? valueError : ""}
-              </span>
-            </label>
+            </Field>
             {!basic ? (
               <button
                 type="button"
                 className="sa-compose__remove"
+                aria-label={`Remove ${component.name || "component"}`}
                 onClick={() => onChange({
                   ...value,
                   components: value.components.filter((_, current) => current !== index),
@@ -249,6 +241,20 @@ export function SalaryStructureEditor({
       })}
     </section>
   );
+}
+
+function rowMessage(component: ComponentDraft, show: boolean, fallback: string): string {
+  if (!show) return "";
+  const name = component.name.trim();
+  const value = Number(component.value);
+  if (!name || name.length > 100) return "Enter a component name.";
+  if (!Number.isFinite(value) || value <= 0) {
+    return fallback || "Every salary component needs a name and a positive value.";
+  }
+  if (component.valueType === SalaryComponentValueType.PercentageOfBasic && value > 100) {
+    return fallback || "Every salary component needs a name and a positive value.";
+  }
+  return fallback;
 }
 
 function newComponent(name: string, type: SalaryComponentType): ComponentDraft {

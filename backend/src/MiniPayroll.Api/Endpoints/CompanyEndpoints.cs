@@ -119,7 +119,6 @@ public static class CompanyEndpoints
         Guid id,
         CreateAdminRequest request,
         CompanyAdminService admins,
-        ILoggerFactory loggerFactory,
         ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
@@ -132,13 +131,7 @@ public static class CompanyEndpoints
 
         if (result.Status == CompanyAdminCreateStatus.Created && result.Response is { } created)
         {
-            loggerFactory.CreateLogger("MiniPayroll.Email")
-                .LogInformation(
-                    "Credential delivery stub for {Email}. Temporary password: {Password}. Replace with transactional email.",
-                    created.Email,
-                    created.TemporaryPassword);
-
-            return Results.Ok(new CreateAdminResponse(created.UserId, created.Email, created.TemporaryPassword));
+            return Results.Ok(new CreateAdminResponse(created.UserId, created.Email));
         }
 
         return result.Status switch
@@ -148,6 +141,8 @@ public static class CompanyEndpoints
                 new { error = "This company already has a Company Admin." }),
             CompanyAdminCreateStatus.EmailTaken => Results.Conflict(
                 new { error = "A user with this email already exists." }),
+            CompanyAdminCreateStatus.PasswordRequired => Results.BadRequest(
+                new { error = "Temporary password is required." }),
             CompanyAdminCreateStatus.IdentityFailed => Results.BadRequest(new { errors = result.Errors }),
             _ => Results.BadRequest(new { error = "Could not create Company Admin." })
         };
@@ -278,9 +273,9 @@ public static class CompanyEndpoints
 
     public sealed record CreateAdminRequest(
         [Required, EmailAddress] string Email,
-        string? TemporaryPassword);
+        [Required] string TemporaryPassword);
 
-    public sealed record CreateAdminResponse(Guid UserId, string Email, string TemporaryPassword);
+    public sealed record CreateAdminResponse(Guid UserId, string Email);
 
     public sealed record CompanyListItem(
         Guid Id,

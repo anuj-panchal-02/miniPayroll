@@ -1,6 +1,6 @@
 # miniPayroll
 
-Multi-tenant payroll SaaS for small businesses in India (1–9 salaried employees). This repository is scaffolded from the MVP PRD: Next.js frontend, .NET Web API, SQL Server, EF Core.
+Multi-tenant payroll SaaS for small businesses in India (1–50 salaried employees; the cap is a single constant so it can be raised later). This repository is scaffolded from the MVP PRD: Next.js frontend, .NET Web API, SQL Server, EF Core.
 
 ## Stack
 
@@ -57,7 +57,16 @@ dotnet run --project src/MiniPayroll.Api --launch-profile http
 On first Development run the API applies migrations and seeds:
 
 - Basic plan (₹49 / employee, Superadmin sets the limit, cap 50)
-- Superadmin `superadmin@minipayroll.local` / `ChangeMe_Superadmin1!`
+- Superadmin `superadmin@minipayroll.local` if `Seed:SuperadminPassword` is set (user-secrets or env)
+
+From `backend/src/MiniPayroll.Api`:
+
+```bash
+dotnet user-secrets set "Jwt:Key" "<at least 32 characters>"
+dotnet user-secrets set "Seed:SuperadminPassword" "<Identity-valid password>"
+```
+
+Production Superadmin bootstrap also requires `Seed:AllowBootstrap=true`. See `.env.example` for environment variable names.
 
 API: `http://localhost:5238`  
 Health: `GET /health`
@@ -111,6 +120,8 @@ Same Company Admin + completed-password gate as setup.
 | `PATCH` | `/api/employees/{id}` | Update employee |
 
 Bank account numbers and IFSC codes are encrypted at rest with ASP.NET Data Protection (`dataprotection-keys/` is gitignored). List responses mask the account as `****1234`. The Active headcount cannot exceed the company `EmployeeLimit` (platform cap 50). Incomplete employees can be stored as `Draft` (`saveAsDraft: true`); drafts do not consume an Active seat.
+
+To support more than 50 employees later, raise `HardEmployeeCap` in `backend/src/MiniPayroll.Domain/Constants/PlatformLimits.cs` (the default company limit follows it unless you set `DefaultEmployeeLimit` separately). Keep the fallback in `frontend/lib/platform.ts` in sync; Superadmin screens also load live values from `GET /api/platform`.
 
 ### Salary structure routes
 

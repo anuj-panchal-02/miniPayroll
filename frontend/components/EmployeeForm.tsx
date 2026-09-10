@@ -10,6 +10,14 @@ import {
   toSalaryStructureInput,
   type SalaryStructureFields,
 } from "@/components/SalaryStructureEditor";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { FieldGroup } from "@/components/ui/FieldGroup";
+import { DateField } from "@/components/ui/DateField";
+import { Select } from "@/components/ui/Select";
+import { LocationFields } from "@/components/LocationFields";
+import { Stepper } from "@/components/ui/Stepper";
 import {
   BANK_FIELDS,
   employeeBankErrors,
@@ -76,7 +84,7 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState("");
   const [formStatus, setFormStatus] = useState("");
-  const refs = useRef<Partial<Record<EmployeeField, HTMLInputElement | null>>>({});
+  const refs = useRef<Partial<Record<EmployeeField, HTMLElement | null>>>({});
 
   async function save(kind: "draft" | "complete") {
     const nextErrors =
@@ -152,29 +160,34 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
 
   function field(name: EmployeeField, label: string, type = "text") {
     const message = errors[name];
+    if (type === "date") {
+      return (
+        <Field id={name} label={label} error={message}>
+          <DateField
+            inputRef={(node) => {
+              refs.current[name] = node;
+            }}
+            name={name}
+            value={values[name]}
+            onChange={(next) => updateField(name, next)}
+          />
+        </Field>
+      );
+    }
     return (
-      <label className="sa-field">
-        {label}
+      <Field id={name} label={label} error={message}>
         <input
           ref={(node) => {
             refs.current[name] = node;
           }}
+          className="mp-input"
           name={name}
           type={type}
           value={values[name]}
           placeholder={PLACEHOLDERS[name]}
           onChange={(event) => updateField(name, event.target.value)}
-          aria-invalid={message ? true : undefined}
-          aria-describedby={message ? `${name}-error` : undefined}
         />
-        <span
-          id={`${name}-error`}
-          className="sa-field__error"
-          role={message ? "alert" : undefined}
-        >
-          {message}
-        </span>
-      </label>
+      </Field>
     );
   }
 
@@ -182,91 +195,93 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
     <form
       className="sa-compose"
       noValidate
+      autoComplete="off"
       onSubmit={(event) => {
         event.preventDefault();
       }}
     >
-      <nav className="sa-progress" aria-label="Employee details">
-        <ol>
-          {steps.map((label, index) => {
-            const stepNumber = index + 1;
-            const state =
-              stepNumber < step ? "complete" : stepNumber === step ? "current" : "upcoming";
-            return (
-              <li key={label} data-state={state}>
-                <span className="sa-progress__number" aria-hidden="true">
-                  {stepNumber}
-                </span>
-                <span>
-                  <span
-                    className="sa-progress__count"
-                    aria-current={stepNumber === step ? "step" : undefined}
-                  >
-                    Step {stepNumber} of {steps.length}
-                  </span>
-                  <span className="sa-progress__label">{label}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
-      {formError ? (
-        <p className="sa-alert" role="alert">
-          {formError}
-        </p>
-      ) : null}
-      {formStatus ? (
-        <p className="sa-alert" role="status">
-          {formStatus}
-        </p>
-      ) : null}
+      <Stepper
+        className="sa-progress"
+        label="Employee details"
+        currentStep={step}
+        steps={steps}
+      />
+      <Alert>{formError || null}</Alert>
+      <Alert tone="success">{formStatus || null}</Alert>
       {step === 1 ? (
         <>
-          {field("employeeCode", "Employee ID")}
-          {field("fullName", "Full name")}
-          {field("email", "Email", "email")}
-          {field("phone", "Phone")}
-          {field("dateOfBirth", "Date of birth (optional)", "date")}
-          {field("addressLine1", "Address line 1")}
-          {field("addressLine2", "Address line 2 (optional)")}
-          {field("city", "City")}
-          {field("state", "State")}
-          {field("postalCode", "Postal code")}
-          {field("designation", "Designation")}
-          {field("department", "Department (optional)")}
-          <p className="sa-field">
-            Employment type
-            <input value="Full-time monthly salaried" readOnly />
-            <span className="sa-field__error" aria-hidden="true" />
-          </p>
-          {field("joiningDate", "Joining date", "date")}
-          {field("exitDate", "Exit date (optional)", "date")}
-          {employee && employee.status !== Status.Draft ? (
-            <label className="sa-field">
-              Status
-              <select
-                value={status}
-                onChange={(event) => setStatus(Number(event.target.value) as EmployeeStatus)}
-              >
-                <option value={Status.Active}>Active</option>
-                <option value={Status.Inactive}>Inactive</option>
-              </select>
-              <span className="sa-field__error" aria-hidden="true" />
-            </label>
-          ) : null}
+          <FieldGroup title="Identity">
+            {field("employeeCode", "Employee ID")}
+            {field("fullName", "Full name")}
+            {field("email", "Email", "email")}
+            {field("phone", "Phone")}
+          </FieldGroup>
+          <FieldGroup title="Address">
+            {field("addressLine1", "Address line 1")}
+            <LocationFields
+              state={values.state}
+              city={values.city}
+              stateError={errors.state}
+              cityError={errors.city}
+              stateRef={(node) => {
+                refs.current.state = node;
+              }}
+              cityRef={(node) => {
+                refs.current.city = node;
+              }}
+              onStateChange={(next) => updateField("state", next)}
+              onCityChange={(next) => updateField("city", next)}
+            />
+            {field("postalCode", "Postal code")}
+          </FieldGroup>
+          <FieldGroup title="Employment">
+            {field("designation", "Designation")}
+            <Field id="employment-type" label="Employment type" previewState="disabled">
+              <input className="mp-input" value="Full-time monthly salaried" disabled />
+            </Field>
+            {field("joiningDate", "Joining date", "date")}
+            {employee && employee.status !== Status.Draft ? (
+              <Field id="status" label="Status">
+                <Select
+                  value={String(status)}
+                  onChange={(next) => setStatus(Number(next) as EmployeeStatus)}
+                  options={[
+                    { value: String(Status.Active), label: "Active" },
+                    { value: String(Status.Inactive), label: "Inactive" },
+                  ]}
+                />
+              </Field>
+            ) : null}
+          </FieldGroup>
+          <details className="mp-disclose sa-compose__span">
+            <summary>Optional details</summary>
+            <div className="mp-disclose__body">
+              {field("dateOfBirth", "Date of birth (optional)", "date")}
+              {field("addressLine2", "Address line 2 (optional)")}
+              {field("department", "Department (optional)")}
+              {field("exitDate", "Exit date (optional)", "date")}
+            </div>
+          </details>
         </>
       ) : null}
       {step === 2 ? (
-        <>
+        <FieldGroup title="Bank">
           {field("bankName", "Bank name")}
           {field("bankAccountNumber", "Bank account number")}
           {field("ifsc", "IFSC")}
-          {field("upiId", "UPI ID (optional)")}
-        </>
+          <details className="mp-disclose sa-compose__span">
+            <summary>Optional payment details</summary>
+            <div className="mp-disclose__body">{field("upiId", "UPI ID (optional)")}</div>
+          </details>
+        </FieldGroup>
       ) : null}
       {step === 3 ? (
-        <>{field("overtimeRate", "Overtime rate (optional)", "number")}</>
+        <FieldGroup
+          title="Payroll"
+          hint="Overtime is optional until you run payroll with extra hours."
+        >
+          {field("overtimeRate", "Overtime rate (optional)", "number")}
+        </FieldGroup>
       ) : null}
       {step === 4 ? (
         <SalaryStructureEditor
@@ -282,9 +297,9 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
       ) : null}
       <div className="sa-compose__actions">
         {step > 1 ? (
-          <button
+          <Button
             type="button"
-            className="sa-compose__secondary"
+            variant="secondary"
             disabled={pending}
             onClick={() => {
               setFormStatus("");
@@ -292,31 +307,31 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
             }}
           >
             Back
-          </button>
+          </Button>
         ) : null}
         {step < steps.length ? (
-          <button type="button" className="sa-compose__submit" disabled={pending} onClick={goNext}>
+          <Button type="button" disabled={pending} onClick={goNext}>
             Next
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             type="button"
-            className="sa-compose__submit"
-            disabled={pending}
+            loading={pending}
+            loadingLabel="Saving…"
             onClick={() => void save("complete")}
           >
-            {pending ? "Saving…" : submitLabel}
-          </button>
+            {submitLabel}
+          </Button>
         )}
         {allowDraft ? (
-          <button
+          <Button
             type="button"
-            className="sa-compose__secondary"
+            variant="secondary"
             disabled={pending}
             onClick={() => void save("draft")}
           >
             Save as draft
-          </button>
+          </Button>
         ) : null}
       </div>
     </form>

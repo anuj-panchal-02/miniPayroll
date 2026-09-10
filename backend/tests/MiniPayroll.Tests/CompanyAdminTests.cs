@@ -3,13 +3,14 @@ using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Tenancy;
-using MiniPayroll.Infrastructure.Identity;
 using MiniPayroll.Infrastructure.Persistence;
 
 namespace MiniPayroll.Tests;
 
 public class CompanyAdminTests
 {
+    private const string TemporaryPassword = "Tmp_TestAdmin1!";
+
     [Fact]
     public async Task Company_without_admin_reports_hasAdmin_false()
     {
@@ -39,7 +40,8 @@ public class CompanyAdminTests
         var created = await service.CreateAsync(
             companyId,
             "owner@abctraders.example",
-            actorUserId: Guid.NewGuid());
+            actorUserId: Guid.NewGuid(),
+            TemporaryPassword);
 
         Assert.Equal(CompanyAdminCreateStatus.Created, created.Status);
         Assert.NotNull(created.Response);
@@ -62,13 +64,67 @@ public class CompanyAdminTests
         db.Companies.Add(NewCompany(companyId, "ABC Traders"));
         await db.SaveChangesAsync();
 
-        var first = await service.CreateAsync(companyId, "owner@abctraders.example", Guid.NewGuid());
+        var first = await service.CreateAsync(
+            companyId,
+            "owner@abctraders.example",
+            Guid.NewGuid(),
+            TemporaryPassword);
         Assert.Equal(CompanyAdminCreateStatus.Created, first.Status);
 
-        var second = await service.CreateAsync(companyId, "other@abctraders.example", Guid.NewGuid());
+        var second = await service.CreateAsync(
+            companyId,
+            "other@abctraders.example",
+            Guid.NewGuid(),
+            TemporaryPassword);
 
         Assert.Equal(CompanyAdminCreateStatus.AlreadyHasAdmin, second.Status);
         Assert.Null(second.Response);
+    }
+
+    [Fact]
+    public async Task Create_does_not_echo_the_temporary_password()
+    {
+        var host = await IdentityTestHost.CreateAsync(nameof(Create_does_not_echo_the_temporary_password));
+        await using var scope = host.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<MiniPayrollDbContext>();
+        var service = scope.ServiceProvider.GetRequiredService<CompanyAdminService>();
+
+        var companyId = Guid.NewGuid();
+        db.Companies.Add(NewCompany(companyId, "ABC Traders"));
+        await db.SaveChangesAsync();
+
+        var created = await service.CreateAsync(
+            companyId,
+            "owner@abctraders.example",
+            Guid.NewGuid(),
+            TemporaryPassword);
+
+        Assert.Equal(CompanyAdminCreateStatus.Created, created.Status);
+        Assert.NotNull(created.Response);
+        Assert.Equal("owner@abctraders.example", created.Response.Email);
+        Assert.Null(created.Response.GetType().GetProperty("TemporaryPassword"));
+    }
+
+    [Fact]
+    public async Task Create_rejects_missing_temporary_password()
+    {
+        var host = await IdentityTestHost.CreateAsync(nameof(Create_rejects_missing_temporary_password));
+        await using var scope = host.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<MiniPayrollDbContext>();
+        var service = scope.ServiceProvider.GetRequiredService<CompanyAdminService>();
+
+        var companyId = Guid.NewGuid();
+        db.Companies.Add(NewCompany(companyId, "ABC Traders"));
+        await db.SaveChangesAsync();
+
+        var created = await service.CreateAsync(
+            companyId,
+            "owner@abctraders.example",
+            Guid.NewGuid(),
+            "  ");
+
+        Assert.Equal(CompanyAdminCreateStatus.PasswordRequired, created.Status);
+        Assert.Null(created.Response);
     }
 
     private static Company NewCompany(Guid id, string name) => new()

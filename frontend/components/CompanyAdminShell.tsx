@@ -7,9 +7,10 @@ import { SuperadminShell } from "@/components/SuperadminShell";
 const LINKS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/employees", label: "Employees" },
+  { href: "/app/payroll", label: "Payroll" },
 ] as const;
 
-const COMING_SOON = ["Payroll", "Settings"] as const;
+const COMING_SOON = ["Settings"] as const;
 
 type CompanyAdminShellProps = {
   children: React.ReactNode;

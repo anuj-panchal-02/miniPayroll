@@ -99,7 +99,12 @@ public sealed class CompanySetupService(
         };
         CompanySetupRules.NormalizeCompanyDetails(candidate);
 
-        if (!CompanySetupRules.HasValidCompanyDetails(candidate))
+        if (!CompanySetupRules.HasValidCompanyDetails(candidate)
+            || !await LocationCatalogLookups.HasActivePairAsync(
+                db,
+                candidate.State,
+                candidate.City,
+                cancellationToken))
         {
             return Result(CompanySetupStatus.InvalidInput, company);
         }
@@ -214,7 +219,12 @@ public sealed class CompanySetupService(
             return Result(CompanySetupStatus.InvalidStep, company);
         }
 
-        if (!CompanySetupRules.CanComplete(company))
+        if (!CompanySetupRules.CanComplete(company)
+            || !await LocationCatalogLookups.HasActivePairAsync(
+                db,
+                company.State,
+                company.City,
+                cancellationToken))
         {
             return Result(CompanySetupStatus.InvalidInput, company);
         }

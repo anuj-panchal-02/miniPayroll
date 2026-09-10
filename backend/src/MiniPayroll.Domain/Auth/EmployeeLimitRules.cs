@@ -5,8 +5,9 @@ namespace MiniPayroll.Domain.Auth;
 public static class EmployeeLimitRules
 {
     public static bool IsValid(int employeeLimit) =>
-        employeeLimit is >= 1 and <= PlatformLimits.HardEmployeeCap;
+        employeeLimit >= PlatformLimits.MinEmployeeLimit
+        && employeeLimit <= PlatformLimits.HardEmployeeCap;
 
     public static string InvalidMessage =>
-        $"Employee limit must be between 1 and {PlatformLimits.HardEmployeeCap}.";
+        $"Employee limit must be between {PlatformLimits.MinEmployeeLimit} and {PlatformLimits.HardEmployeeCap}.";
 }

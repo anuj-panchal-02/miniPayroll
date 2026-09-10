@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
+import { Button } from "@/components/ui/Button";
 import {
   completeCompanySetup,
   getCompanySetup,
@@ -168,15 +169,14 @@ export default function ReviewSetupPage() {
             </p>
           ) : null}
           <div className="setup-actions">
-            <button
-              className="setup-button"
+            <Button
               type="button"
-              disabled={completing}
-              aria-busy={completing}
+              loading={completing}
+              loadingLabel="Completing…"
               onClick={() => void completeSetup()}
             >
-              {completing ? "Completing…" : "Complete setup"}
-            </button>
+              Complete setup
+            </Button>
           </div>
         </div>
       ) : null}

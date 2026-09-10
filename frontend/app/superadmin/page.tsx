@@ -1,16 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CompanyListItem, getToken, listCompanies, setToken } from "@/lib/api";
 import { SuperadminShell } from "@/components/SuperadminShell";
+import { Alert } from "@/components/ui/Alert";
+import { ListPager, usePager } from "@/components/ui/ListPager";
+import { ListToolbar } from "@/components/ui/ListToolbar";
+import { pageSlice } from "@/lib/paging";
 
 export default function SuperadminPage() {
   const router = useRouter();
   const [companies, setCompanies] = useState<CompanyListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
 
   useEffect(() => {
     if (!getToken()) {
@@ -49,11 +55,32 @@ export default function SuperadminPage() {
     };
   }, [router]);
 
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return companies.filter((company) => {
+      const matchesStatus = status === "all" || company.status === status;
+      const matchesQuery =
+        !needle ||
+        company.name.toLowerCase().includes(needle) ||
+        company.contactEmail.toLowerCase().includes(needle);
+      return matchesStatus && matchesQuery;
+    });
+  }, [companies, query, status]);
+
+  const pager = usePager(filtered.length, `${query}|${status}`);
+  const visible = pageSlice(filtered, pager.page, pager.pageSize);
+
   const intro = loading
     ? "Loading companies on this platform."
     : companies.length === 0
       ? "None yet. Create one to start onboarding."
       : `${companies.length} on this platform.`;
+  const filtering = Boolean(query.trim()) || status !== "all";
+  const resultText = loading
+    ? "Loading companies."
+    : filtered.length === 1
+      ? "1 company"
+      : `${filtered.length} companies`;
 
   return (
     <SuperadminShell>
@@ -66,9 +93,32 @@ export default function SuperadminPage() {
           <p>{intro}</p>
         </header>
 
-        <p className="sa-alert" role="alert">
-          {error}
-        </p>
+        <Alert>{error}</Alert>
+
+        {!loading && companies.length > 0 ? (
+          <ListToolbar
+            searchId="company-search"
+            searchLabel="Search companies"
+            searchValue={query}
+            searchPlaceholder="Name or contact email"
+            onSearchChange={setQuery}
+            filterId="company-status"
+            filterLabel="Status"
+            filterValue={status}
+            filterOptions={[
+              { value: "all", label: "All statuses" },
+              { value: "Pending", label: "Pending" },
+              { value: "Active", label: "Active" },
+            ]}
+            onFilterChange={setStatus}
+            resultText={resultText}
+            showReset={filtering}
+            onReset={() => {
+              setQuery("");
+              setStatus("all");
+            }}
+          />
+        ) : null}
 
         {loading ? (
           <ol className="sa-index" aria-busy="true" aria-label="Loading companies">
@@ -82,7 +132,10 @@ export default function SuperadminPage() {
           </ol>
         ) : companies.length === 0 ? (
           <p className="sa-empty">No companies yet. Create one to start onboarding.</p>
+        ) : filtered.length === 0 ? (
+          <p className="sa-empty">No companies match this search.</p>
         ) : (
+          <>
           <ol className="sa-index">
             <li className="sa-index__legend" aria-hidden="true">
               <span>Company</span>
@@ -90,7 +143,7 @@ export default function SuperadminPage() {
               <span>Status</span>
               <span>Limit</span>
             </li>
-            {companies.map((company) => (
+            {visible.map((company) => (
               <li key={company.id}>
                 <Link href={`/superadmin/companies/${company.id}`} className="sa-index__row">
                   <span className="sa-index__name">{company.name}</span>
@@ -105,6 +158,15 @@ export default function SuperadminPage() {
               </li>
             ))}
           </ol>
+          <ListPager
+            id="companies"
+            page={pager.page}
+            pageSize={pager.pageSize}
+            total={filtered.length}
+            onPageChange={pager.setPage}
+            onPageSizeChange={pager.setPageSize}
+          />
+          </>
         )}
       </main>
     </SuperadminShell>

@@ -10,6 +10,7 @@ using MiniPayroll.Api.Auth;
 using MiniPayroll.Api.Endpoints;
 using MiniPayroll.Api.Hosting;
 using MiniPayroll.Api.Storage;
+using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Tenancy;
 using MiniPayroll.Infrastructure.Identity;
 using MiniPayroll.Infrastructure.Persistence;
@@ -22,6 +23,9 @@ builder.Services.AddScoped<CompanyAdminService>();
 builder.Services.AddScoped<CompanySetupService>();
 builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<SalaryStructureService>();
+builder.Services.AddScoped<PayrollCalculationService>();
+builder.Services.AddScoped<PayrollInputService>();
+builder.Services.AddScoped<LocationCatalogService>();
 builder.Services.AddScoped<CompanyLogoUploadCoordinator>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext, HttpTenantContext>();
@@ -76,7 +80,7 @@ builder.Services
     .AddDefaultTokenProviders();
 
 var jwt = builder.Configuration.GetSection("Jwt");
-var signingKey = jwt["Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+var signingKey = JwtSigningKeyRules.Require(jwt["Key"]);
 
 builder.Services
     .AddAuthentication(options =>
@@ -131,10 +135,13 @@ RequestPipeline.Configure(
     "Frontend");
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", product = "miniPayroll" }));
+app.MapPlatformEndpoints();
+app.MapLocationCatalogEndpoints();
 app.MapAuthEndpoints();
 app.MapCompanyEndpoints();
 app.MapCompanySetupEndpoints();
 app.MapEmployeeEndpoints();
 app.MapSalaryStructureEndpoints();
+app.MapPayrollEndpoints();
 
 app.Run();

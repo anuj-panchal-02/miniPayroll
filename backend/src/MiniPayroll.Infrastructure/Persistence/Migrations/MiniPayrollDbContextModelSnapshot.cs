@@ -162,6 +162,40 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.ToTable("mp_TblAuditLog", (string)null);
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Bonus", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId");
+
+                    b.ToTable("mp_TblBonus", (string)null);
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Company", b =>
                 {
                     b.Property<Guid>("Id")
@@ -241,6 +275,40 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.HasIndex("ContactEmail");
 
                     b.ToTable("mp_TblCompany", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Deduction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId");
+
+                    b.ToTable("mp_TblDeduction", (string)null);
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Employee", b =>
@@ -395,6 +463,380 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.ToTable("mp_TblEmployeeSalaryComponent", (string)null);
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.MonthlyAttendance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("PaidLeave")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Present")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<decimal>("UnpaidLeave")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<decimal>("WorkingDays")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblMonthlyAttendance", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Overtime", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Hours")
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("Rate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId");
+
+                    b.ToTable("mp_TblOvertime", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Payment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BillingPeriod")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("InvoiceGstReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("PaidOn")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PaymentMode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.ToTable("mp_TblPayment", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollDeduction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("PayrollEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayrollEmployeeId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPayrollDeduction", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollEarning", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("PayrollEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PayrollEmployeeId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPayrollEarning", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollEmployee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("DailyRate")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("DaysEmployed")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmployeeCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Errors")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("GrossEarnings")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("NetSalary")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalDeductions")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Warnings")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPayrollEmployee", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("CalculatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DailyRateMethod")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Year", "Month")
+                        .IsUnique()
+                        .HasFilter("[Status] <> 3");
+
+                    b.ToTable("mp_TblPayrollRun", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Plan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DefaultEmployeeLimit")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("PricePerEmployee")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPlan", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformCity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StateId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPlatformCity", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPlatformState", (string)null);
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.SalaryComponent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -452,81 +894,6 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("mp_TblSalaryStructure", (string)null);
-                });
-
-            modelBuilder.Entity("MiniPayroll.Domain.Entities.Payment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("BillingPeriod")
-                        .IsRequired()
-                        .HasMaxLength(7)
-                        .HasColumnType("nvarchar(7)");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("InvoiceGstReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset>("PaidOn")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("PaymentMode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTimeOffset>("RecordedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("RecordedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("SubscriptionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompanyId");
-
-                    b.HasIndex("SubscriptionId");
-
-                    b.ToTable("mp_TblPayment", (string)null);
-                });
-
-            modelBuilder.Entity("MiniPayroll.Domain.Entities.Plan", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("DefaultEmployeeLimit")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsPublic")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<decimal>("PricePerEmployee")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("mp_TblPlan", (string)null);
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Subscription", b =>
@@ -725,6 +1092,44 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Bonus", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("Bonuses")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Deduction", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("Deductions")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Employee", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
@@ -755,6 +1160,126 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("SalaryStructure");
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.MonthlyAttendance", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("Attendance")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Overtime", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("Overtime")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Payment", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Subscription", "Subscription")
+                        .WithMany("Payments")
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollDeduction", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollEmployee", "PayrollEmployee")
+                        .WithMany("Deductions")
+                        .HasForeignKey("PayrollEmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PayrollEmployee");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollEarning", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollEmployee", "PayrollEmployee")
+                        .WithMany("Earnings")
+                        .HasForeignKey("PayrollEmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PayrollEmployee");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollEmployee", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("Results")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollRun", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformCity", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.PlatformState", "State")
+                        .WithMany("Cities")
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("State");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.SalaryComponent", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
@@ -783,25 +1308,6 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("Employee");
-                });
-
-            modelBuilder.Entity("MiniPayroll.Domain.Entities.Payment", b =>
-                {
-                    b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
-                        .WithMany()
-                        .HasForeignKey("CompanyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MiniPayroll.Domain.Entities.Subscription", "Subscription")
-                        .WithMany("Payments")
-                        .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Company");
-
-                    b.Navigation("Subscription");
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Subscription", b =>
@@ -838,19 +1344,44 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("Subscription");
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollEmployee", b =>
+                {
+                    b.Navigation("Deductions");
+
+                    b.Navigation("Earnings");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollRun", b =>
+                {
+                    b.Navigation("Attendance");
+
+                    b.Navigation("Bonuses");
+
+                    b.Navigation("Deductions");
+
+                    b.Navigation("Overtime");
+
+                    b.Navigation("Results");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Plan", b =>
                 {
                     b.Navigation("Subscriptions");
                 });
 
-            modelBuilder.Entity("MiniPayroll.Domain.Entities.Subscription", b =>
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformState", b =>
                 {
-                    b.Navigation("Payments");
+                    b.Navigation("Cities");
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.SalaryStructure", b =>
                 {
                     b.Navigation("Components");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Subscription", b =>
+                {
+                    b.Navigation("Payments");
                 });
 #pragma warning restore 612, 618
         }

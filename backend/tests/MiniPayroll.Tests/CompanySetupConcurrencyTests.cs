@@ -129,6 +129,7 @@ public sealed class CompanySetupConcurrencyTests
     {
         await using var setup = TestDb.Create(NullTenantContext.Instance, database);
         setup.Companies.Add(company);
+        await TestLocations.SeedPuneMaharashtraAsync(setup);
         await setup.SaveChangesAsync();
     }
 

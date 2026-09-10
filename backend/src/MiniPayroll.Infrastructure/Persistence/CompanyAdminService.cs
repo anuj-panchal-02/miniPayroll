@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Infrastructure.Identity;
@@ -12,10 +13,11 @@ public enum CompanyAdminCreateStatus
     CompanyNotFound,
     AlreadyHasAdmin,
     EmailTaken,
-    IdentityFailed
+    IdentityFailed,
+    PasswordRequired
 }
 
-public sealed record CompanyAdminCreated(Guid UserId, string Email, string TemporaryPassword);
+public sealed record CompanyAdminCreated(Guid UserId, string Email);
 
 public sealed record CompanyAdminCreateResult(
     CompanyAdminCreateStatus Status,
@@ -31,7 +33,7 @@ public sealed class CompanyAdminService(
         Guid companyId,
         string email,
         Guid actorUserId,
-        string? temporaryPassword = null,
+        string temporaryPassword,
         CancellationToken cancellationToken = default)
     {
         var companyExists = await db.Companies.AnyAsync(c => c.Id == companyId, cancellationToken);
@@ -51,12 +53,17 @@ public sealed class CompanyAdminService(
             return new CompanyAdminCreateResult(CompanyAdminCreateStatus.EmailTaken, null, []);
         }
 
+        if (!TemporaryPasswordRules.IsProvided(temporaryPassword))
+        {
+            return new CompanyAdminCreateResult(CompanyAdminCreateStatus.PasswordRequired, null, []);
+        }
+
         if (!await roles.RoleExistsAsync(RoleNames.CompanyAdmin))
         {
             await roles.CreateAsync(new ApplicationRole(RoleNames.CompanyAdmin));
         }
 
-        var password = temporaryPassword ?? GenerateTemporaryPassword();
+        var password = temporaryPassword.Trim();
         var admin = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -92,10 +99,7 @@ public sealed class CompanyAdminService(
 
         return new CompanyAdminCreateResult(
             CompanyAdminCreateStatus.Created,
-            new CompanyAdminCreated(admin.Id, trimmed, password),
+            new CompanyAdminCreated(admin.Id, trimmed),
             []);
     }
-
-    private static string GenerateTemporaryPassword() =>
-        $"Tmp_{Guid.NewGuid():N}"[..14] + "Aa1!";
 }

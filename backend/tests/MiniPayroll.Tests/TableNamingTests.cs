@@ -41,5 +41,15 @@ public class TableNamingTests
         Assert.Contains(TableNames.SalaryComponent, tables);
         Assert.Contains(TableNames.SalaryStructure, tables);
         Assert.Contains(TableNames.EmployeeSalaryComponent, tables);
+        Assert.Contains(TableNames.PlatformState, tables);
+        Assert.Contains(TableNames.PlatformCity, tables);
+        Assert.Contains(TableNames.PayrollRun, tables);
+        Assert.Contains(TableNames.MonthlyAttendance, tables);
+        Assert.Contains(TableNames.Overtime, tables);
+        Assert.Contains(TableNames.Bonus, tables);
+        Assert.Contains(TableNames.Deduction, tables);
+        Assert.Contains(TableNames.PayrollEmployee, tables);
+        Assert.Contains(TableNames.PayrollEarning, tables);
+        Assert.Contains(TableNames.PayrollDeduction, tables);
     }
 }

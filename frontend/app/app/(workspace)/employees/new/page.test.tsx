@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
   createEmployee: vi.fn(),
+  listPlatformStates: vi.fn(),
+  listPlatformCities: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -19,9 +21,12 @@ vi.mock("@/lib/api", () => ({
   SalaryComponentType: { Earning: 0, Deduction: 1 },
   SalaryComponentValueType: { FixedAmount: 0, PercentageOfBasic: 1 },
   createEmployee: mocks.createEmployee,
+  listPlatformStates: mocks.listPlatformStates,
+  listPlatformCities: mocks.listPlatformCities,
 }));
 
-function fillPersonal() {
+async function fillPersonal() {
+  await vi.waitFor(() => expect(mocks.listPlatformStates).toHaveBeenCalled());
   fireEvent.change(screen.getByLabelText(/^employee id$/i), {
     target: { value: "EMP-01" },
   });
@@ -37,21 +42,20 @@ function fillPersonal() {
   fireEvent.change(screen.getByLabelText(/address line 1/i), {
     target: { value: "Main Road" },
   });
-  fireEvent.change(screen.getByLabelText(/^city$/i), {
-    target: { value: "Pune" },
-  });
-  fireEvent.change(screen.getByLabelText(/^state$/i), {
-    target: { value: "Maharashtra" },
-  });
+  fireEvent.click(screen.getByLabelText(/^state$/i));
+  fireEvent.click(await screen.findByRole("option", { name: "Maharashtra" }));
+  fireEvent.click(screen.getByLabelText(/^city$/i));
+  fireEvent.click(await screen.findByRole("option", { name: "Pune" }));
   fireEvent.change(screen.getByLabelText(/postal code/i), {
     target: { value: "411001" },
   });
   fireEvent.change(screen.getByLabelText(/^designation$/i), {
     target: { value: "Engineer" },
   });
-  fireEvent.change(screen.getByLabelText(/joining date/i), {
-    target: { value: "2026-01-15" },
-  });
+  fireEvent.change(
+    screen.getByLabelText(/joining date/i).parentElement?.querySelector(".mp-date-value") as HTMLInputElement,
+    { target: { value: "2026-01-15" } },
+  );
 }
 
 function fillBank() {
@@ -73,6 +77,12 @@ describe("NewEmployeePage", () => {
     mocks.push.mockReset();
     mocks.replace.mockReset();
     mocks.createEmployee.mockReset();
+    mocks.listPlatformStates.mockReset().mockResolvedValue([
+      { id: "st-mh", name: "Maharashtra", code: "MH", isActive: true, sortOrder: 0 },
+    ]);
+    mocks.listPlatformCities.mockReset().mockResolvedValue([
+      { id: "ct-pune", stateId: "st-mh", name: "Pune", isActive: true, sortOrder: 0 },
+    ]);
   });
 
   it("uses the circular back control aligned with the title", () => {
@@ -84,6 +94,7 @@ describe("NewEmployeePage", () => {
     expect(back.closest("header")?.className).toContain("sa-head--with-back");
     expect(screen.getByPlaceholderText("EMP-01")).toBeTruthy();
     expect(screen.getByPlaceholderText("Priya Sharma")).toBeTruthy();
+    expect(screen.getByLabelText(/employment type/i)).toHaveProperty("disabled", true);
   });
 
   it("blocks Next on empty personal details without calling the API", async () => {
@@ -122,10 +133,10 @@ describe("NewEmployeePage", () => {
     expect(mocks.replace).toHaveBeenCalledWith("/app/employees/draft-1");
   });
 
-  it("advances from bank details to payroll", () => {
+  it("advances from bank details to payroll", async () => {
     render(<NewEmployeePage />);
 
-    fillPersonal();
+    await fillPersonal();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     fillBank();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
@@ -137,7 +148,7 @@ describe("NewEmployeePage", () => {
     mocks.createEmployee.mockResolvedValue({ id: "draft-2" });
     render(<NewEmployeePage />);
 
-    fillPersonal();
+    await fillPersonal();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     fillBank();
     fireEvent.click(screen.getByRole("button", { name: /save as draft/i }));
@@ -158,7 +169,7 @@ describe("NewEmployeePage", () => {
     mocks.createEmployee.mockResolvedValue({ id: "1" });
     render(<NewEmployeePage />);
 
-    fillPersonal();
+    await fillPersonal();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     fillBank();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
@@ -181,16 +192,18 @@ describe("NewEmployeePage", () => {
         expect.objectContaining({
           employeeCode: "EMP-01",
           saveAsDraft: false,
+          city: "Pune",
+          state: "Maharashtra",
         }),
       );
     });
     expect(mocks.push).toHaveBeenCalledWith("/app/employees");
   });
 
-  it("adds a salary preset without repeating the step heading", () => {
+  it("adds a salary preset without repeating the step heading", async () => {
     render(<NewEmployeePage />);
 
-    fillPersonal();
+    await fillPersonal();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     fillBank();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));

@@ -179,6 +179,18 @@ public class CompanySetupServiceTests
         Assert.Equal(CompanySetupStep.CompanyDetails, persisted.SetupStep);
     }
 
+    [Fact]
+    public async Task Details_update_rejects_a_city_that_is_not_an_active_master()
+    {
+        var (db, service, _) = await CreateServiceAsync();
+        await using var ownedDb = db;
+
+        var result = await service.UpdateDetailsAsync(ValidDetails() with { City = "Mumbai" });
+
+        Assert.Equal(CompanySetupStatus.InvalidInput, result.Status);
+        Assert.Null((await db.Companies.SingleAsync()).City);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(32)]
@@ -359,6 +371,7 @@ public class CompanySetupServiceTests
     {
         await using var setup = TestDb.Create(NullTenantContext.Instance, database);
         setup.Companies.AddRange(companies);
+        await TestLocations.SeedPuneMaharashtraAsync(setup);
         await setup.SaveChangesAsync();
     }
 

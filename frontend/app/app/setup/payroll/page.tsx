@@ -3,6 +3,9 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
+import { Button } from "@/components/ui/Button";
+import { Choice } from "@/components/ui/Choice";
+import { Field } from "@/components/ui/Field";
 import {
   DailyRateMethod,
   getCompanySetup,
@@ -116,36 +119,37 @@ export default function PayrollSetupPage() {
       {loading ? <p className="setup-loading" role="status">Loading payroll settings…</p> : null}
       {loadError ? <p className="setup-alert" role="alert">{loadError}</p> : null}
       {!loading && !loadError ? (
-        <form className="setup-form" noValidate onSubmit={submit}>
-          <div className="setup-field">
-            <span className="setup-field__label">Payroll cycle</span>
-            <p className="setup-fixed-value">Monthly</p>
-            <p className="setup-field__hint">miniPayroll currently processes one payroll each month.</p>
-          </div>
+        <form className="setup-form" noValidate autoComplete="off" onSubmit={submit}>
+          <Field
+            id="payroll-cycle"
+            label="Payroll cycle"
+            hint="miniPayroll currently processes one payroll each month."
+          >
+            <input className="mp-input" value="Monthly" readOnly />
+          </Field>
 
-          <div className="setup-field">
-            <label htmlFor="working-days">Working days per month</label>
+          <Field
+            id="working-days"
+            label="Working days per month"
+            hint="Default: 26. Enter 1 to 31. Used when a month is paid on working days rather than calendar days."
+            error={workingDaysMessage || null}
+          >
             <input
               ref={workingDaysRef}
-              id="working-days"
+              className="mp-input"
               type="number"
               min="1"
               max="31"
               step="1"
               inputMode="numeric"
               value={workingDays}
-              aria-invalid={Boolean(workingDaysMessage)}
-              aria-describedby={workingDaysMessage ? "working-days-error" : "working-days-hint"}
               onChange={(event) => {
                 setWorkingDays(event.target.value);
                 setWorkingDaysMessage("");
               }}
+              onBlur={() => setWorkingDaysMessage(workingDaysError(workingDays) ?? "")}
             />
-            <p id="working-days-hint" className="setup-field__hint">Default: 26. Enter 1 to 31.</p>
-            {workingDaysMessage ? (
-              <p id="working-days-error" className="setup-field__error">{workingDaysMessage}</p>
-            ) : null}
-          </div>
+          </Field>
 
           <fieldset
             className="setup-fieldset"
@@ -154,27 +158,27 @@ export default function PayrollSetupPage() {
           >
             <legend>Weekly off days</legend>
             <p id="weekly-off-hint">Select one or more regular weekly holidays.</p>
-            <div className="setup-check-grid">
+            <div className="setup-check-grid mp-choice-grid">
               {DAYS.map((day, index) => (
-                <label key={day} className="setup-check">
-                  <input
-                    ref={index === 0 ? weeklyOffRef : undefined}
-                    type="checkbox"
-                    value={day}
-                    checked={weeklyOffDays.includes(day)}
-                    aria-invalid={Boolean(weeklyOffMessage)}
-                    aria-describedby={weeklyOffMessage ? "weekly-off-error" : "weekly-off-hint"}
-                    onChange={(event) => {
-                      setWeeklyOffDays((current) =>
-                        event.target.checked
-                          ? DAYS.filter((candidate) => current.includes(candidate) || candidate === day)
-                          : current.filter((candidate) => candidate !== day),
-                      );
-                      setWeeklyOffMessage("");
-                    }}
-                  />
-                  <span>{day}</span>
-                </label>
+                <Choice
+                  key={day}
+                  className="setup-check"
+                  type="checkbox"
+                  value={day}
+                  checked={weeklyOffDays.includes(day)}
+                  aria-invalid={Boolean(weeklyOffMessage)}
+                  aria-describedby={weeklyOffMessage ? "weekly-off-error" : "weekly-off-hint"}
+                  inputRef={index === 0 ? weeklyOffRef : undefined}
+                  label={day}
+                  onChange={(event) => {
+                    setWeeklyOffDays((current) =>
+                      event.target.checked
+                        ? DAYS.filter((candidate) => current.includes(candidate) || candidate === day)
+                        : current.filter((candidate) => candidate !== day),
+                    );
+                    setWeeklyOffMessage("");
+                  }}
+                />
               ))}
             </div>
             {weeklyOffMessage ? (
@@ -186,31 +190,36 @@ export default function PayrollSetupPage() {
 
           <fieldset className="setup-fieldset">
             <legend>Daily rate method</legend>
+            <p className="setup-field__hint">
+              This is how unpaid days convert a monthly salary into a daily amount.
+            </p>
             <div className="setup-rate-options">
-              <label className="setup-rate">
-                <input
-                  type="radio"
-                  name="dailyRateMethod"
-                  checked={dailyRateMethod === DailyRateMethod.CalendarDays}
-                  onChange={() => setDailyRateMethod(DailyRateMethod.CalendarDays)}
-                />
-                <span>
-                  <strong>Calendar days</strong>
-                  <small>Daily rate = monthly salary ÷ calendar days in that month.</small>
-                </span>
-              </label>
-              <label className="setup-rate">
-                <input
-                  type="radio"
-                  name="dailyRateMethod"
-                  checked={dailyRateMethod === DailyRateMethod.FixedThirty}
-                  onChange={() => setDailyRateMethod(DailyRateMethod.FixedThirty)}
-                />
-                <span>
-                  <strong>Fixed 30 days</strong>
-                  <small>Daily rate = monthly salary ÷ 30.</small>
-                </span>
-              </label>
+              <Choice
+                className="setup-rate"
+                type="radio"
+                name="dailyRateMethod"
+                checked={dailyRateMethod === DailyRateMethod.CalendarDays}
+                onChange={() => setDailyRateMethod(DailyRateMethod.CalendarDays)}
+                label={
+                  <span>
+                    <strong>Calendar days</strong>
+                    <small>Daily rate = monthly salary ÷ calendar days in that month.</small>
+                  </span>
+                }
+              />
+              <Choice
+                className="setup-rate"
+                type="radio"
+                name="dailyRateMethod"
+                checked={dailyRateMethod === DailyRateMethod.FixedThirty}
+                onChange={() => setDailyRateMethod(DailyRateMethod.FixedThirty)}
+                label={
+                  <span>
+                    <strong>Fixed 30 days</strong>
+                    <small>Daily rate = monthly salary ÷ 30.</small>
+                  </span>
+                }
+              />
             </div>
           </fieldset>
 
@@ -219,9 +228,9 @@ export default function PayrollSetupPage() {
           ) : null}
           {submitError ? <p className="setup-alert" role="alert">{submitError}</p> : null}
           <div className="setup-actions">
-            <button className="setup-button" type="submit" disabled={saving} aria-busy={saving}>
-              {saving ? "Saving…" : "Save and continue"}
-            </button>
+            <Button type="submit" loading={saving} loadingLabel="Saving…">
+              Save and continue
+            </Button>
           </div>
         </form>
       ) : null}

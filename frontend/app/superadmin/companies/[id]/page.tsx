@@ -1,19 +1,27 @@
 "use client";
 
-import { FormEvent, MouseEvent, useEffect, useId, useRef, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { SuperadminShell } from "@/components/SuperadminShell";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
+import { Field } from "@/components/ui/Field";
+import { FieldGroup } from "@/components/ui/FieldGroup";
+import { PasswordField } from "@/components/ui/PasswordField";
 import {
   CompanyDetail,
   CreateAdminResponse,
   activateCompany,
   createCompanyAdmin,
   getCompany,
+  getPlatformLimits,
   getToken,
   setToken,
   updateCompanyLimit,
 } from "@/lib/api";
+import { FALLBACK_PLATFORM_LIMITS } from "@/lib/platform";
 import { emailError, employeeLimitError } from "@/lib/validation";
 
 const ADMIN_EMAIL_MESSAGES = {
@@ -28,26 +36,37 @@ export default function CompanyDetailsPage() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const limitRef = useRef<HTMLInputElement>(null);
   const adminEmailRef = useRef<HTMLInputElement>(null);
+  const adminPasswordRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const copyId = useId();
 
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitSaved, setLimitSaved] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [activating, setActivating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState<CreateAdminResponse | null>(null);
-  const [copied, setCopied] = useState(false);
   const [employeeLimit, setEmployeeLimit] = useState("");
+  const [limits, setLimits] = useState(FALLBACK_PLATFORM_LIMITS);
   const [savingLimit, setSavingLimit] = useState(false);
   const [limitTouched, setLimitTouched] = useState(false);
   const [adminEmailTouched, setAdminEmailTouched] = useState(false);
+  const [adminPasswordTouched, setAdminPasswordTouched] = useState(false);
 
-  const limitFieldError = employeeLimitError(employeeLimit);
+  const limitFieldError = employeeLimitError(employeeLimit, {
+    min: limits.minEmployeeLimit,
+    max: limits.hardEmployeeCap,
+  });
   const adminEmailFieldError = emailError(adminEmail, ADMIN_EMAIL_MESSAGES);
+  const adminPasswordFieldError = adminPassword.trim()
+    ? null
+    : "Enter a temporary password.";
   const shownLimitError = limitTouched ? limitFieldError : null;
   const shownAdminEmailError = adminEmailTouched ? adminEmailFieldError : null;
+  const shownAdminPasswordError = adminPasswordTouched ? adminPasswordFieldError : null;
 
   useEffect(() => {
     if (!getToken()) {
@@ -58,10 +77,14 @@ export default function CompanyDetailsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const detail = await getCompany(id);
+        const [detail, loadedLimits] = await Promise.all([
+          getCompany(id),
+          getPlatformLimits().catch(() => FALLBACK_PLATFORM_LIMITS),
+        ]);
         if (cancelled) {
           return;
         }
+        setLimits(loadedLimits);
         setCompany(detail);
         setAdminEmail(detail.adminEmail ?? detail.contactEmail);
         setEmployeeLimit(String(detail.employeeLimit));
@@ -91,16 +114,21 @@ export default function CompanyDetailsPage() {
   async function onCreateAdmin(event: FormEvent) {
     event.preventDefault();
     setAdminEmailTouched(true);
+    setAdminPasswordTouched(true);
     if (adminEmailFieldError) {
       adminEmailRef.current?.focus();
       return;
     }
+    if (adminPasswordFieldError) {
+      adminPasswordRef.current?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
-    setCopied(false);
     try {
-      const created = await createCompanyAdmin(id, adminEmail);
+      const created = await createCompanyAdmin(id, adminEmail, adminPassword);
       setCredentials(created);
+      setAdminPassword("");
       setCompany((current) =>
         current
           ? { ...current, hasAdmin: true, adminEmail: created.email }
@@ -113,30 +141,12 @@ export default function CompanyDetailsPage() {
     }
   }
 
-  async function copyPassword() {
-    if (!credentials) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(credentials.temporaryPassword);
-      setCopied(true);
-    } catch {
-      setError("Could not copy the password. Select it and copy manually.");
-    }
-  }
-
   function openActivateConfirm() {
     dialogRef.current?.showModal();
   }
 
   function closeActivateConfirm() {
     dialogRef.current?.close();
-  }
-
-  function handleBackdropClick(event: MouseEvent<HTMLDialogElement>) {
-    if (event.target === event.currentTarget) {
-      closeActivateConfirm();
-    }
   }
 
   async function confirmActivate() {
@@ -160,6 +170,7 @@ export default function CompanyDetailsPage() {
   async function onSaveLimit(event: FormEvent) {
     event.preventDefault();
     setLimitTouched(true);
+    setLimitSaved(false);
     if (limitFieldError) {
       limitRef.current?.focus();
       return;
@@ -170,6 +181,7 @@ export default function CompanyDetailsPage() {
       const result = await updateCompanyLimit(id, Number(employeeLimit));
       setCompany(result);
       setEmployeeLimit(String(result.employeeLimit));
+      setLimitSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update employee limit");
       if (String(err).toLowerCase().includes("unauthorized")) {
@@ -244,134 +256,126 @@ export default function CompanyDetailsPage() {
               </div>
             </dl>
 
-            <form className="sa-compose sa-compose--single" noValidate onSubmit={onSaveLimit}>
-              <div className="sa-field">
-                <label htmlFor="employee-limit">Employee limit</label>
+            <form className="sa-compose sa-compose--single" noValidate autoComplete="off" onSubmit={onSaveLimit}>
+              <Field
+                id="employee-limit"
+                label="Employee limit"
+                hint={`Up to ${limits.hardEmployeeCap} employees.`}
+                error={shownLimitError}
+                required
+              >
                 <input
                   ref={limitRef}
-                  id="employee-limit"
+                  className="mp-input"
                   name="employeeLimit"
                   type="number"
+                  min={limits.minEmployeeLimit}
+                  max={limits.hardEmployeeCap}
                   value={employeeLimit}
-                  onChange={(e) => setEmployeeLimit(e.target.value)}
+                  onChange={(e) => {
+                    setEmployeeLimit(e.target.value);
+                    setLimitSaved(false);
+                  }}
                   onBlur={() => setLimitTouched(true)}
                   disabled={savingLimit}
-                  aria-required="true"
-                  aria-invalid={shownLimitError ? true : undefined}
-                  aria-describedby={shownLimitError ? "employee-limit-error" : undefined}
                 />
-                <p id="employee-limit-error" className="sa-field__error" role="alert">
-                  {shownLimitError}
-                </p>
-              </div>
-              <button
-                type="submit"
-                className="sa-compose__submit"
-                disabled={savingLimit}
-                aria-busy={savingLimit}
-              >
-                {savingLimit ? "Saving" : "Save"}
-              </button>
+              </Field>
+              <Button type="submit" loading={savingLimit} loadingLabel="Saving">
+                Save employee limit
+              </Button>
             </form>
+            <Alert tone="success">{limitSaved ? "Employee limit saved." : null}</Alert>
 
             {credentials ? (
               <section className="sa-secret" aria-live="polite">
-                <h2>Temporary password</h2>
+                <h2>Company Admin created</h2>
                 <p>
-                  Shown once. Give it to {credentials.email}. They must change it
-                  at first login.
+                  Company Admin created for {credentials.email}. Share the
+                  password you entered out of band. They must change it at first
+                  login.
                 </p>
-                <p className="sa-secret__value">{credentials.temporaryPassword}</p>
-                <button type="button" className="sa-copy" onClick={() => void copyPassword()}>
-                  {copied ? "Copied" : "Copy"}
-                </button>
               </section>
             ) : company.hasAdmin ? null : (
-              <form className="sa-compose sa-compose--single" noValidate onSubmit={onCreateAdmin}>
-                <div className="sa-field">
-                  <label htmlFor="admin-email">Admin email</label>
-                  <input
-                    ref={adminEmailRef}
+              <form className="sa-compose sa-compose--single" noValidate autoComplete="off" onSubmit={onCreateAdmin}>
+                <FieldGroup title="Company Admin" className="sa-compose__span">
+                  <Field
                     id="admin-email"
-                    name="email"
-                    type="email"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    onBlur={() => setAdminEmailTouched(true)}
+                    label="Admin email"
+                    error={shownAdminEmailError}
+                    required
+                  >
+                    <input
+                      ref={adminEmailRef}
+                      className="mp-input"
+                      name="email"
+                      type="email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      onBlur={() => setAdminEmailTouched(true)}
+                      disabled={busy}
+                    />
+                  </Field>
+                  <PasswordField
+                    id="admin-password"
+                    label="Temporary password"
+                    name="temporaryPassword"
+                    inputRef={adminPasswordRef}
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    onBlur={() => setAdminPasswordTouched(true)}
                     disabled={busy}
-                    autoComplete="email"
-                    aria-required="true"
-                    aria-invalid={shownAdminEmailError ? true : undefined}
-                    aria-describedby={
-                      shownAdminEmailError ? "admin-email-error" : undefined
-                    }
+                    autoComplete="new-password"
+                    required
+                    hint="Type a temporary password to share out of band. It is never shown again."
+                    error={shownAdminPasswordError}
                   />
-                  <p id="admin-email-error" className="sa-field__error" role="alert">
-                    {shownAdminEmailError}
-                  </p>
-                </div>
-                <button
-                  type="submit"
-                  className="sa-compose__submit"
-                  disabled={busy}
-                  aria-busy={busy}
-                >
-                  {busy ? "Creating" : "Create admin"}
-                </button>
+                </FieldGroup>
+                <Button type="submit" loading={busy} loadingLabel="Creating">
+                  Create admin
+                </Button>
               </form>
             )}
 
             {canActivate ? (
               <>
                 <div className="sa-activate">
-                  <button
+                  <Button
                     type="button"
-                    className="sa-compose__submit"
-                    disabled={activating}
-                    aria-busy={activating}
+                    loading={activating}
+                    loadingLabel="Activating"
                     aria-haspopup="dialog"
                     onClick={openActivateConfirm}
                   >
-                    {activating ? "Activating" : "Activate"}
-                  </button>
+                    Activate company
+                  </Button>
                 </div>
 
-                <dialog
+                <Dialog
                   ref={dialogRef}
                   className="sa-dialog"
-                  aria-labelledby={titleId}
-                  aria-describedby={copyId}
-                  onClick={handleBackdropClick}
+                  title="Activate company"
+                  description="This starts the billing period. The Company Admin can then sign in."
+                  titleId={titleId}
+                  descriptionId={copyId}
+                  onBackdropClick={closeActivateConfirm}
                 >
-                  <form method="dialog" className="sa-dialog__body">
-                    <h2 id={titleId} className="sa-dialog__title">
-                      Activate company
-                    </h2>
-                    <p id={copyId} className="sa-dialog__copy">
-                      This starts the billing period. The Company Admin can then sign in.
-                    </p>
-                    <div className="sa-dialog__actions">
-                      <button
-                        type="button"
-                        className="sa-dialog__confirm"
-                        onClick={() => void confirmActivate()}
-                      >
-                        Activate
-                      </button>
-                      <button type="submit" className="sa-dialog__cancel">
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </dialog>
+                  <button
+                    type="button"
+                    className="sa-dialog__confirm"
+                    onClick={() => void confirmActivate()}
+                  >
+                    Activate
+                  </button>
+                  <button type="submit" className="sa-dialog__cancel">
+                    Cancel
+                  </button>
+                </Dialog>
               </>
             ) : null}
           </>
         ) : null}
 
-        <p className="sa-alert" role="alert">
-          {error}
-        </p>
+        <Alert>{error}</Alert>
       </main>
     </SuperadminShell>
   );

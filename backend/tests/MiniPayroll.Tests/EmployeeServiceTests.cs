@@ -28,6 +28,18 @@ public class EmployeeServiceTests
     }
 
     [Fact]
+    public async Task Create_rejects_a_city_that_is_not_an_active_master()
+    {
+        var (db, service, _) = await CreateServiceAsync();
+        await using var owned = db;
+
+        var result = await service.CreateAsync(ValidInput("EMP-01") with { City = "Mumbai" });
+
+        Assert.Equal(EmployeeStatusCode.InvalidInput, result.Status);
+        Assert.Equal(0, await db.Employees.CountAsync());
+    }
+
+    [Fact]
     public async Task List_omits_full_account_and_ifsc()
     {
         var (db, service, _) = await CreateServiceAsync();
@@ -299,6 +311,7 @@ public class EmployeeServiceTests
         await using var setup = TestDb.Create(NullTenantContext.Instance, database);
         setup.Plans.Add(plan);
         setup.Companies.Add(company);
+        await TestLocations.SeedPuneMaharashtraAsync(setup);
         await setup.SaveChangesAsync();
         return company;
     }

@@ -3,19 +3,47 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/BrandLogo";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { login, setToken } from "@/lib/api";
 import { homePath } from "@/lib/setup";
+import { emailError } from "@/lib/validation";
 import "./login.css";
+
+const EMAIL_MESSAGES = {
+  empty: "Enter your email.",
+  invalid: "Enter a valid email.",
+};
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("superadmin@minipayroll.local");
-  const [password, setPassword] = useState("ChangeMe_Superadmin1!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const emailFieldError = emailError(email, EMAIL_MESSAGES);
+  const passwordFieldError = password ? null : "Enter your password.";
+  const shownEmailError = emailTouched ? emailFieldError : null;
+  const shownPasswordError = passwordTouched ? passwordFieldError : null;
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    setEmailTouched(true);
+    setPasswordTouched(true);
+    if (emailFieldError) {
+      document.getElementById("login-email")?.focus();
+      return;
+    }
+    if (passwordFieldError) {
+      document.getElementById("login-password")?.focus();
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
@@ -23,7 +51,7 @@ export default function LoginPage() {
       setToken(result.token);
       router.replace(homePath(result));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed");
+      setError(err instanceof Error ? err.message : "Sign in failed. Check your email and password.");
       setBusy(false);
     }
   }
@@ -39,52 +67,46 @@ export default function LoginPage() {
       <div className="login-panel">
         <form
           className="login-form"
+          noValidate
           onSubmit={onSubmit}
           aria-labelledby="login-title"
         >
-          <div className="login-field">
-            <label htmlFor="login-email">Email</label>
+          <Field
+            id="login-email"
+            label="Email"
+            error={shownEmailError}
+            required
+          >
             <input
-              id="login-email"
+              className="mp-input"
               name="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
+              onBlur={() => setEmailTouched(true)}
               autoComplete="username"
-              required
               disabled={busy}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? "login-error" : undefined}
             />
-          </div>
+          </Field>
 
-          <div className="login-field">
-            <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              disabled={busy}
-              aria-invalid={error ? true : undefined}
-            />
-          </div>
-
-          <p className="login-alert" id="login-error" role="alert">
-            {error}
-          </p>
-
-          <button
-            type="submit"
-            className="login-submit"
+          <PasswordField
+            id="login-password"
+            label="Password"
+            name="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            onBlur={() => setPasswordTouched(true)}
+            autoComplete="current-password"
+            required
             disabled={busy}
-            aria-busy={busy}
-          >
-            {busy ? "Signing in" : "Sign in"}
-          </button>
+            error={shownPasswordError}
+          />
+
+          <Alert>{error}</Alert>
+
+          <Button type="submit" loading={busy} loadingLabel="Signing in">
+            Sign in
+          </Button>
         </form>
       </div>
     </main>

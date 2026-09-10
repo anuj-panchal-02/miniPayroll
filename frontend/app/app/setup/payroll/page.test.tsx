@@ -58,7 +58,9 @@ describe("PayrollSetupPage", () => {
     render(<PayrollSetupPage />);
 
     expect(await screen.findByDisplayValue("26")).toBeTruthy();
-    expect(screen.getByText("Monthly")).toBeTruthy();
+    const cycle = screen.getByLabelText("Payroll cycle") as HTMLInputElement;
+    expect(cycle.value).toBe("Monthly");
+    expect(cycle.readOnly).toBe(true);
     expect((screen.getByLabelText("Sunday") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/monthly salary.*calendar days/i)).toBeTruthy();
     expect(screen.getByText(/monthly salary.*30/i)).toBeTruthy();
