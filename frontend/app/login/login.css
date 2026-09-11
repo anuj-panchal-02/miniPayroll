@@ -29,7 +29,7 @@
   font-size: var(--text-xl);
   font-weight: 600;
   font-style: normal;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-display);
   line-height: 1.15;
   overflow-wrap: anywhere;
   min-width: 0;
@@ -37,7 +37,7 @@
 
 .login-intro p:last-child {
   margin: 0;
-  max-width: 22rem;
+  max-width: var(--content-form);
   color: var(--color-ink-2);
   font-size: var(--text-sm);
   line-height: 1.5;
@@ -54,14 +54,14 @@
 .login-form {
   display: grid;
   gap: var(--space-md);
-  width: min(22rem, 100%);
+  width: min(var(--content-form), 100%);
   min-width: 0;
 }
 
 .login-stack {
   display: grid;
   gap: var(--space-md);
-  width: min(22rem, 100%);
+  width: min(var(--content-form), 100%);
   min-width: 0;
 }
 
@@ -84,7 +84,7 @@
   }
 
   .login-intro h1 {
-    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    font-size: clamp(var(--text-xl), 3vw, 2.5rem);
   }
 
   .login-panel {

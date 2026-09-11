@@ -40,6 +40,12 @@ public sealed record EmployeeInput(
     string? Ifsc,
     string? UpiId,
     decimal? OvertimeRate,
+    Gender? Gender = null,
+    bool? PfCovered = null,
+    bool? EsiCovered = null,
+    string? Uan = null,
+    string? PfNumber = null,
+    string? EsiNumber = null,
     bool SaveAsDraft = false,
     int? DraftStep = null,
     SalaryStructureInput? SalaryStructure = null);
@@ -78,7 +84,13 @@ public sealed record EmployeeDetail(
     string MaskedAccountNumber,
     string Ifsc,
     string? UpiId,
-    decimal? OvertimeRate);
+    decimal? OvertimeRate,
+    Gender? Gender,
+    bool PfCovered,
+    bool EsiCovered,
+    string? Uan,
+    string? PfNumber,
+    string? EsiNumber);
 
 public sealed record EmployeeListState(
     IReadOnlyList<EmployeeListItem> Employees,
@@ -158,6 +170,15 @@ public sealed class EmployeeService(
             CreatedAt = DateTimeOffset.UtcNow
         }, input);
         employee.EmploymentType = EmploymentType.FullTimeMonthly;
+
+        if (input?.PfCovered is null)
+        {
+            employee.PfCovered = context.Company.PfApplicable;
+        }
+        if (input?.EsiCovered is null)
+        {
+            employee.EsiCovered = context.Company.EsiApplicable;
+        }
 
         if (input?.SaveAsDraft == true)
         {
@@ -398,6 +419,12 @@ public sealed class EmployeeService(
         employee.Ifsc = input?.Ifsc ?? string.Empty;
         employee.UpiId = input?.UpiId;
         employee.OvertimeRate = input?.OvertimeRate;
+        employee.Gender = input?.Gender;
+        employee.PfCovered = input?.PfCovered ?? employee.PfCovered;
+        employee.EsiCovered = input?.EsiCovered ?? employee.EsiCovered;
+        employee.Uan = input?.Uan;
+        employee.PfNumber = input?.PfNumber;
+        employee.EsiNumber = input?.EsiNumber;
         EmployeeRules.Normalize(employee);
         return employee;
     }
@@ -449,5 +476,11 @@ public sealed class EmployeeService(
         EmployeeRules.MaskAccountNumber(employee.BankAccountNumber),
         employee.Ifsc,
         employee.UpiId,
-        employee.OvertimeRate);
+        employee.OvertimeRate,
+        employee.Gender,
+        employee.PfCovered,
+        employee.EsiCovered,
+        employee.Uan,
+        employee.PfNumber,
+        employee.EsiNumber);
 }

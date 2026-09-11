@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "@/components/Toast";
 import CreateCompanyPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -20,10 +21,6 @@ vi.mock("@/lib/api", () => ({
   getToken: mocks.getToken,
   getPlatformLimits: mocks.getPlatformLimits,
   createCompany: mocks.createCompany,
-}));
-
-vi.mock("@/components/SuperadminShell", () => ({
-  SuperadminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 describe("CreateCompanyPage", () => {
@@ -47,7 +44,11 @@ describe("CreateCompanyPage", () => {
   });
 
   it("blocks invalid names and focuses the first field", async () => {
-    render(<CreateCompanyPage />);
+    render(
+      <ToastProvider>
+        <CreateCompanyPage />
+      </ToastProvider>,
+    );
     const name = await screen.findByLabelText("Company name");
     fireEvent.click(screen.getByRole("button", { name: "Create company" }));
     expect(document.activeElement).toBe(name);
@@ -56,7 +57,11 @@ describe("CreateCompanyPage", () => {
   });
 
   it("rejects limits above the platform cap", async () => {
-    render(<CreateCompanyPage />);
+    render(
+      <ToastProvider>
+        <CreateCompanyPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Company name");
     fireEvent.change(screen.getByLabelText("Company name"), {
       target: { value: "ABC Traders" },
@@ -73,7 +78,11 @@ describe("CreateCompanyPage", () => {
   });
 
   it("creates a company and opens the detail page", async () => {
-    render(<CreateCompanyPage />);
+    render(
+      <ToastProvider>
+        <CreateCompanyPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Company name");
     fireEvent.change(screen.getByLabelText("Company name"), {
       target: { value: "ABC Traders" },
@@ -95,7 +104,11 @@ describe("CreateCompanyPage", () => {
 
   it("shows a loading label while creating", async () => {
     mocks.createCompany.mockImplementation(() => new Promise(() => undefined));
-    render(<CreateCompanyPage />);
+    render(
+      <ToastProvider>
+        <CreateCompanyPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Company name");
     fireEvent.change(screen.getByLabelText("Company name"), {
       target: { value: "ABC Traders" },
@@ -109,7 +122,11 @@ describe("CreateCompanyPage", () => {
 
   it("surfaces create failures", async () => {
     mocks.createCompany.mockRejectedValue(new Error("A company with this email already exists."));
-    render(<CreateCompanyPage />);
+    render(
+      <ToastProvider>
+        <CreateCompanyPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Company name");
     fireEvent.change(screen.getByLabelText("Company name"), {
       target: { value: "ABC Traders" },

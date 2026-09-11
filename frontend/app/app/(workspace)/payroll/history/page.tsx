@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
 import { ListPager, usePager } from "@/components/ui/ListPager";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatRupees, periodLabel, runStatusLabel } from "@/lib/payroll";
 import { pageSlice } from "@/lib/paging";
 
@@ -75,9 +76,11 @@ export default function PayrollHistoryPage() {
       </header>
       <Alert>{error || null}</Alert>
       {loading ? (
-        <p className="sa-empty" role="status">
-          Loading history…
-        </p>
+        <div className="sa-master-wrap" role="status">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="mt-2 h-14 w-full" />
+          <Skeleton className="mt-2 h-14 w-full" />
+        </div>
       ) : runs.length === 0 ? (
         <p className="sa-empty">No payroll runs yet.</p>
       ) : (

@@ -3,8 +3,7 @@
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { SuperadminShell } from "@/components/SuperadminShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -23,7 +22,6 @@ import {
   getCompany,
   getCompanyBilling,
   getPlatformLimits,
-  getToken,
   listCompanyPayrollRuns,
   recordCompanyPayment,
   reversePayrollRun,
@@ -124,11 +122,6 @@ export default function CompanyDetailsPage() {
   }
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
     async function load() {
       try {
@@ -326,8 +319,7 @@ export default function CompanyDetailsPage() {
       : "This company was not found.";
 
   return (
-    <SuperadminShell>
-      <main className="sa-shell">
+    <main className="sa-shell">
         <header className="sa-head sa-head--with-back">
           <Link href="/superadmin" className="sa-back" aria-label="Companies">
             <svg className="sa-back__icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -345,7 +337,6 @@ export default function CompanyDetailsPage() {
           <p>{subhead}</p>
         </header>
         <Alert>{error}</Alert>
-        <ToastOutlet toast={toast} />
 
         {company ? (
           <>
@@ -672,7 +663,6 @@ export default function CompanyDetailsPage() {
             />
           </FieldGroup>
         ) : null}
-      </main>
-    </SuperadminShell>
+    </main>
   );
 }

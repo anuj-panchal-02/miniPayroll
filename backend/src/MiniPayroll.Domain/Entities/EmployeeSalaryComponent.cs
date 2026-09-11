@@ -1,4 +1,5 @@
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll.Statutory;
 
 namespace MiniPayroll.Domain.Entities;
 
@@ -12,6 +13,7 @@ public class EmployeeSalaryComponent
     public SalaryComponentValueType ValueType { get; set; }
     public decimal Value { get; set; }
     public int SortOrder { get; set; }
+    public SalaryComponentKind Kind { get; set; } = SalaryComponentKind.OtherEarning;
 
     public SalaryStructure SalaryStructure { get; set; } = null!;
     public SalaryComponent SalaryComponent { get; set; } = null!;

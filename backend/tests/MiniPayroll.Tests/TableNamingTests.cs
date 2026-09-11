@@ -52,5 +52,6 @@ public class TableNamingTests
         Assert.Contains(TableNames.PayrollEmployee, tables);
         Assert.Contains(TableNames.PayrollEarning, tables);
         Assert.Contains(TableNames.PayrollDeduction, tables);
+        Assert.Contains(TableNames.PayrollStatutoryOverride, tables);
     }
 }

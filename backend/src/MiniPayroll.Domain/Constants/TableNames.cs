@@ -33,6 +33,7 @@ public static class TableNames
     public const string PayrollEmployee = "mp_TblPayrollEmployee";
     public const string PayrollEarning = "mp_TblPayrollEarning";
     public const string PayrollDeduction = "mp_TblPayrollDeduction";
+    public const string PayrollStatutoryOverride = "mp_TblPayrollStatutoryOverride";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -40,6 +41,6 @@ public static class TableNames
         Company, Plan, Subscription, Payment, BillingPeriod, AuditLog, Employee, SalaryComponent,
         SalaryStructure, EmployeeSalaryComponent, PlatformState, PlatformCity,
         PayrollRun, MonthlyAttendance, Overtime, Bonus, Deduction,
-        PayrollEmployee, PayrollEarning, PayrollDeduction
+        PayrollEmployee, PayrollEarning, PayrollDeduction, PayrollStatutoryOverride
     ];
 }

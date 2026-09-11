@@ -1,25 +1,22 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { SuperadminShell } from "@/components/SuperadminShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
 import { ListPager, usePager } from "@/components/ui/ListPager";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { pageSlice } from "@/lib/paging";
 import {
   createPlatformState,
-  getToken,
   listPlatformStates,
   updatePlatformState,
   type PlatformStateItem,
 } from "@/lib/api";
 
 export default function PlatformStatesPage() {
-  const router = useRouter();
   const [states, setStates] = useState<PlatformStateItem[]>([]);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -32,11 +29,6 @@ export default function PlatformStatesPage() {
   const [editCode, setEditCode] = useState("");
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
     listPlatformStates(true)
       .then((items) => {
@@ -56,7 +48,7 @@ export default function PlatformStatesPage() {
     return () => {
       cancelled = true;
     };
-  }, [router.replace]);
+  }, []);
 
   async function onAdd(event: FormEvent) {
     event.preventDefault();
@@ -105,15 +97,13 @@ export default function PlatformStatesPage() {
   const visible = pageSlice(states, pager.page, pager.pageSize);
 
   return (
-    <SuperadminShell>
-      <main className="sa-shell">
+    <main className="sa-shell">
         <header className="sa-head">
           <h1>States</h1>
           <p>Canonical Indian states and union territories used on company and employee forms.</p>
         </header>
 
         <Alert>{error}</Alert>
-        <ToastOutlet toast={toast} />
 
         <form className="sa-compose" onSubmit={onAdd}>
           <FieldGroup title="Add a state" className="mp-group--inline">
@@ -138,9 +128,11 @@ export default function PlatformStatesPage() {
         </form>
 
         {loading ? (
-          <p className="sa-empty" role="status">
-            Loading states.
-          </p>
+          <div className="sa-master-wrap" role="status">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="mt-2 h-14 w-full" />
+            <Skeleton className="mt-2 h-14 w-full" />
+          </div>
         ) : (
           <>
           <div className="sa-master-wrap">
@@ -244,7 +236,6 @@ export default function PlatformStatesPage() {
           />
           </>
         )}
-      </main>
-    </SuperadminShell>
+    </main>
   );
 }

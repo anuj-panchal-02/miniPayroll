@@ -34,7 +34,13 @@ describe("EmployeesPage", () => {
     render(<EmployeesPage />);
 
     expect(await screen.findByText(/no employees yet/i)).toBeTruthy();
-    expect(screen.getByRole("link", { name: /add employee/i })).toBeTruthy();
+    const add = screen.getByRole("link", { name: /add employee/i });
+    expect(add.getAttribute("href")).toBe("/app/employees/new");
+    expect(add.closest("header")?.className).toContain("sa-head--with-back");
+    const snapshot = screen.getByRole("region", { name: /snapshot/i });
+    expect(snapshot.textContent).toMatch(/Headcount/);
+    expect(snapshot.textContent).toMatch(/Seats/);
+    expect(snapshot.textContent).toMatch(/Drafts/);
   });
 
   it("shows a load error", async () => {

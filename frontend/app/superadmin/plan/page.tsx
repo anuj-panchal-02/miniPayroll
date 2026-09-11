@@ -1,22 +1,19 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { SuperadminShell } from "@/components/SuperadminShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   getPlatformPlan,
-  getToken,
   updatePlatformPlan,
   type PlatformPlan,
 } from "@/lib/api";
 
 export default function PlanSettingsPage() {
-  const router = useRouter();
   const toast = useToast();
   const [plan, setPlan] = useState<PlatformPlan | null>(null);
   const [price, setPrice] = useState("");
@@ -25,11 +22,6 @@ export default function PlanSettingsPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
     getPlatformPlan()
       .then((loaded) => {
@@ -53,7 +45,7 @@ export default function PlanSettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   async function onSave(event: FormEvent) {
     event.preventDefault();
@@ -77,8 +69,7 @@ export default function PlanSettingsPage() {
   }
 
   return (
-    <SuperadminShell>
-      <main className="sa-shell">
+    <main className="sa-shell">
         <header className="sa-head">
           <h1>Plan</h1>
           <p>
@@ -88,11 +79,11 @@ export default function PlanSettingsPage() {
         </header>
 
         <Alert>{error}</Alert>
-        <ToastOutlet toast={toast} />
         {loading ? (
-          <p className="sa-empty" role="status">
-            Loading plan.
-          </p>
+          <div className="space-y-3 py-2" role="status">
+            <Skeleton className="h-10 w-full max-w-sm" />
+            <Skeleton className="h-11 w-32" />
+          </div>
         ) : (
           <form className="sa-compose" noValidate onSubmit={onSave}>
             <FieldGroup title={plan?.name ?? "Basic"} className="mp-group--inline-2">
@@ -121,7 +112,6 @@ export default function PlanSettingsPage() {
             </FieldGroup>
           </form>
         )}
-      </main>
-    </SuperadminShell>
+    </main>
   );
 }

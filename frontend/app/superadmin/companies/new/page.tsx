@@ -3,12 +3,11 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SuperadminShell } from "@/components/SuperadminShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
-import { createCompany, getPlatformLimits, getToken } from "@/lib/api";
+import { createCompany, getPlatformLimits } from "@/lib/api";
 import {
   DEFAULT_EMPLOYEE_LIMIT,
   DEFAULT_PLAN_NAME,
@@ -60,11 +59,6 @@ export default function CreateCompanyPage() {
   const shownLimitError = touched.employeeLimit ? limitFieldError : null;
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
     getPlatformLimits()
       .then((loaded) => {
@@ -85,7 +79,7 @@ export default function CreateCompanyPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   function markTouched(field: keyof CreateTouched) {
     setTouched((current) => ({ ...current, [field]: true }));
@@ -123,8 +117,7 @@ export default function CreateCompanyPage() {
   }
 
   return (
-    <SuperadminShell>
-      <main className="sa-shell">
+    <main className="sa-shell">
         <header className="sa-head sa-head--with-back">
           <Link href="/superadmin" className="sa-back" aria-label="Companies">
             <svg className="sa-back__icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -144,7 +137,6 @@ export default function CreateCompanyPage() {
             company details later.
           </p>
         </header>
-        <ToastOutlet toast={toast} />
 
         <form className="sa-compose" noValidate autoComplete="off" onSubmit={onCreate}>
           <FieldGroup title="Company" className="sa-compose__span">
@@ -213,7 +205,6 @@ export default function CreateCompanyPage() {
             Create company
           </Button>
         </form>
-      </main>
-    </SuperadminShell>
+    </main>
   );
 }

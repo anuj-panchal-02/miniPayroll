@@ -582,14 +582,18 @@ public sealed class PayrollInputService(
             .Select(line => new PayrollLineDetail(line.Name, line.Kind, line.Amount, line.SortOrder))
             .ToList(),
         row.Deductions.OrderBy(line => line.SortOrder)
-            .Select(line => new PayrollLineDetail(line.Name, line.Kind, line.Amount, line.SortOrder))
+            .Select(line => new PayrollLineDetail(
+                line.Name, line.Kind, line.Amount, line.SortOrder,
+                line.ComputedAmount, line.StatutoryKind))
             .ToList(),
         Split(row.Warnings),
         Split(row.Errors),
         row.PaymentStatus,
         row.PaymentMode,
         row.PaidOn,
-        row.PaymentReference);
+        row.PaymentReference,
+        row.EmployerPf,
+        row.EmployerEsi);
 
     private static IReadOnlyList<string> Split(string? joined) =>
         string.IsNullOrEmpty(joined) ? [] : joined.Split('\n');

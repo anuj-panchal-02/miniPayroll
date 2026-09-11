@@ -16,7 +16,10 @@ import {
   safeApiAssetUrl,
   updateCompanyDetails,
   updateEmployee,
+  updateCompletedPayrollSettings,
   updatePayrollSettings,
+  setStatutoryOverrides,
+  StatutoryKind,
   uploadCompanyLogo,
 } from "./api";
 import { CompanySetupStep } from "./setup";
@@ -128,12 +131,37 @@ describe("setup API", () => {
       dailyRateMethod: DailyRateMethod.FixedThirty,
       workingDaysPerMonth: 30,
       weeklyOffDays: ["Sunday"],
+      pfApplicable: true,
+      pfUseWageCeiling: true,
+      esiApplicable: true,
     };
 
     await updatePayrollSettings(input);
 
     expect(fetch).toHaveBeenCalledWith(
       `${API_URL}/api/company/setup/payroll-settings`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    );
+  });
+
+  it("updates completed payroll settings on the live company route", async () => {
+    mockResponse({ setupStep: "Complete" });
+    const input = {
+      dailyRateMethod: DailyRateMethod.CalendarDays,
+      workingDaysPerMonth: 26,
+      weeklyOffDays: ["Sunday"],
+      pfApplicable: true,
+      pfUseWageCeiling: false,
+      esiApplicable: true,
+    };
+
+    await updateCompletedPayrollSettings(input);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/company/payroll-settings`,
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify(input),
@@ -304,6 +332,27 @@ describe("employee API", () => {
     expect(fetch).toHaveBeenCalledWith(
       `${API_URL}/api/employees/abc`,
       expect.objectContaining({ method: "PATCH" }),
+    );
+  });
+});
+
+describe("payroll API", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  it("puts statutory overrides then lets the backend recalculate", async () => {
+    mockResponse({ id: "run-1", status: 1 });
+    const overrides = [{ kind: StatutoryKind.PfEmployee, amount: 0 }];
+
+    await setStatutoryOverrides("run-1", "emp-1", overrides);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/payroll/runs/run-1/employees/emp-1/statutory-overrides`,
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ overrides }),
+      }),
     );
   });
 });

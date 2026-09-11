@@ -9,8 +9,6 @@ import {
   type EmployeeListState,
 } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
-import { Badge } from "@/components/ui/Badge";
-import { FieldGroup } from "@/components/ui/FieldGroup";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   billingFormula,
@@ -72,25 +70,20 @@ export default function CompanyDashboardPage() {
   const now = new Date();
   const currentMonthName = now.toLocaleString("default", { month: "long" });
   const currentYear = now.getFullYear();
+  const calendarLabel = `${currentMonthName} ${currentYear}`;
 
-  // Seat metrics
   const activeCount = state?.activeCount ?? 0;
-  const employeeLimit = state?.employeeLimit ?? 50;
-  const seatPct = employeeLimit > 0 ? Math.min(100, Math.round((activeCount / employeeLimit) * 100)) : 0;
+  const employeeLimit = state?.employeeLimit ?? 0;
+  const seatsRemaining = Math.max(0, employeeLimit - activeCount);
   const draftCount = (state?.employees ?? []).filter((e) => e.status === 2).length;
 
   return (
     <main className="sa-shell">
       <header className="sa-head sa-head--with-back">
         <h1>Dashboard</h1>
-        <div className="flex items-center gap-2">
-          <Link href="/app/employees/new" className="sa-compose__submit">
-            + Add employee
-          </Link>
-          <Link href="/app/payroll" className="sa-compose__secondary">
-            Process payroll
-          </Link>
-        </div>
+        <Link href="/app/payroll/history" className="sa-compose__secondary">
+          History
+        </Link>
         <p>
           {state
             ? `${state.activeCount} of ${state.employeeLimit} active employee seats in use.`
@@ -101,9 +94,9 @@ export default function CompanyDashboardPage() {
       <Alert>{error || null}</Alert>
       <Alert>{banner}</Alert>
 
-      {loading ? (
-        <div className="space-y-4 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {loading && !state ? (
+        <div className="space-y-4 py-4" role="status">
+          <div className="mp-kpi-grid">
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
@@ -112,30 +105,23 @@ export default function CompanyDashboardPage() {
         </div>
       ) : (
         <>
-          {/* Actionable KPIs */}
-          <div className="mp-kpi-grid">
+          <div className="mp-kpi-grid" role="region" aria-label="Workspace snapshot">
             <div className="mp-kpi-card">
-              <span className="mp-kpi-card__label">Active Headcount</span>
+              <span className="mp-kpi-card__label">Headcount</span>
               <span className="mp-kpi-card__value">{activeCount}</span>
               <span className="mp-kpi-card__subtext">
-                {draftCount > 0 ? `${draftCount} drafts pending activation` : "All employees active"}
+                {draftCount > 0
+                  ? `${draftCount} ${draftCount === 1 ? "draft" : "drafts"} pending activation`
+                  : `${seatsRemaining} ${seatsRemaining === 1 ? "seat" : "seats"} remaining`}
               </span>
             </div>
-
             <div className="mp-kpi-card">
-              <span className="mp-kpi-card__label">Current Pay Period</span>
-              <span className="mp-kpi-card__value">
-                {currentMonthName} {currentYear}
-              </span>
-              <span className="mp-kpi-card__subtext">
-                <Link href="/app/payroll" className="text-accent underline font-medium">
-                  Open pay cycle →
-                </Link>
-              </span>
+              <span className="mp-kpi-card__label">Period</span>
+              <span className="mp-kpi-card__value">{calendarLabel}</span>
+              <span className="mp-kpi-card__subtext">Open calendar month</span>
             </div>
-
             <div className="mp-kpi-card">
-              <span className="mp-kpi-card__label">Subscription Plan</span>
+              <span className="mp-kpi-card__label">Plan</span>
               <span className="mp-kpi-card__value">{billing?.planName ?? "Basic"}</span>
               <span className="mp-kpi-card__subtext">
                 {current ? formatDueDate(current.dueDate) : "Next bill upcoming"}
@@ -143,38 +129,30 @@ export default function CompanyDashboardPage() {
             </div>
           </div>
 
-          {/* Seat Utilization Bar */}
-          {state ? (
-            <div className="mp-seat-meter mb-6">
-              <div className="mp-seat-meter__header">
-                <span className="mp-seat-meter__label">Seat Utilization</span>
-                <span className="mp-seat-meter__value">
-                  {activeCount} of {employeeLimit} seats ({seatPct}%)
-                </span>
-              </div>
-              <div className="mp-seat-meter__track">
-                <div
-                  className={`mp-seat-meter__fill ${
-                    seatPct >= 100
-                      ? "mp-seat-meter__fill--full"
-                      : seatPct >= 80
-                        ? "mp-seat-meter__fill--warning"
-                        : ""
-                  }`}
-                  style={{ width: `${seatPct}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>{employeeLimit - activeCount} seats remaining</span>
-                <span>Max platform limit: 50</span>
-              </div>
+          <section className="sa-payroll-card" aria-label={`${calendarLabel} workspace`}>
+            <h2 className="sa-payroll-card__title">{calendarLabel}</h2>
+            <p className="sa-payroll-card__lede">
+              Process this month's payroll, or add an employee to the roster.
+            </p>
+            <div className="sa-payroll-card__actions">
+              <Link href="/app/payroll" className="sa-compose__submit">
+                Process payroll
+              </Link>
+              <Link href="/app/employees/new" className="sa-compose__secondary">
+                Add employee
+              </Link>
             </div>
-          ) : null}
+          </section>
 
-          {/* Subscription Facts Group (Preserved for full compatibility) */}
           {current && billing ? (
-            <FieldGroup title="Subscription">
-              <dl className="sa-facts">
+            <section className="sa-payroll-card" aria-label="Subscription">
+              <h2 className="sa-payroll-card__title">Subscription</h2>
+              <p className="sa-payroll-card__lede">
+                {current.isEstimated
+                  ? "Estimated charges for this billing period."
+                  : "Invoiced charges for this billing period."}
+              </p>
+              <dl className="sa-billing-facts">
                 <div>
                   <dt>Plan</dt>
                   <dd>{billing.planName}</dd>
@@ -203,37 +181,16 @@ export default function CompanyDashboardPage() {
                   <dd>{formatDueDate(current.dueDate)}</dd>
                 </div>
                 <div>
-                  <dt>Paid / remaining</dt>
-                  <dd>
-                    {formatRupees(current.paidAmount)} / {formatRupees(current.remaining)}
-                  </dd>
+                  <dt>Paid</dt>
+                  <dd>{formatRupees(current.paidAmount)}</dd>
+                </div>
+                <div>
+                  <dt>Remaining</dt>
+                  <dd>{formatRupees(current.remaining)}</dd>
                 </div>
               </dl>
-            </FieldGroup>
+            </section>
           ) : null}
-
-          {/* Fast Navigation Grid */}
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link href="/app/employees" className="mp-nav-card">
-              <div>
-                <h3 className="mp-nav-card__title">Employee Directory</h3>
-                <p className="mp-nav-card__desc">
-                  Manage profiles, designations, and salary structures.
-                </p>
-              </div>
-              <span className="mp-nav-card__arrow" aria-hidden="true">→</span>
-            </Link>
-
-            <Link href="/app/payroll/history" className="mp-nav-card">
-              <div>
-                <h3 className="mp-nav-card__title">Payroll History & Payslips</h3>
-                <p className="mp-nav-card__desc">
-                  Download closed runs and employee payslip PDFs.
-                </p>
-              </div>
-              <span className="mp-nav-card__arrow" aria-hidden="true">→</span>
-            </Link>
-          </div>
         </>
       )}
     </main>

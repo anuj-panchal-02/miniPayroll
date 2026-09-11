@@ -110,21 +110,17 @@ public class PayrollCalculatorTests
     }
 
     [Fact]
-    public void Recurring_deductions_prorate_but_one_time_items_do_not()
+    public void Statutory_structure_amount_lines_are_ignored()
     {
         var structure = new List<PayrollStructureLine>(BasicPlusHra)
         {
             new("Provident Fund (PF)", SalaryComponentType.Deduction, SalaryComponentValueType.FixedAmount, 1800m, 2),
         };
-        var result = PayrollCalculator.Calculate(Input(
-            joining: new DateOnly(2026, 8, 16),
-            structure: structure,
-            deductions: [new PayrollAmountEntry("Salary advance recovery", 1000m)]));
+        var result = PayrollCalculator.Calculate(Input(structure: structure));
 
-        var pf = Assert.Single(result.Lines, line => line.Kind == PayrollLineKind.RecurringDeduction);
-        Assert.Equal(929m, pf.Amount); // 1800 × 16/31 = 929.03 → 929
-        var advance = Assert.Single(result.Lines, line => line.Kind == PayrollLineKind.OneTimeDeduction);
-        Assert.Equal(1000m, advance.Amount);
+        Assert.DoesNotContain(result.Lines, line => line.Kind == PayrollLineKind.RecurringDeduction);
+        Assert.Contains(PayrollCalculationMessages.IgnoredStatutoryStructure, result.Warnings);
+        Assert.Equal(28000m, result.NetSalary);
     }
 
     [Fact]

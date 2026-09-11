@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { PasswordField } from "@/components/ui/PasswordField";
@@ -208,7 +208,6 @@ export default function ChangePasswordPage() {
             />
 
             <Alert>{error}</Alert>
-            <ToastOutlet toast={toast} />
 
             <Button type="submit" loading={busy} loadingLabel="Saving">
               Change password

@@ -43,4 +43,18 @@ public static class IndianStateCatalog
         new("Lakshadweep", "LD"),
         new("Puducherry", "PY")
     ];
+
+    public static string? CodeFor(string? nameOrCode)
+    {
+        var value = nameOrCode?.Trim();
+        if (string.IsNullOrEmpty(value))
+        {
+            return null;
+        }
+
+        var match = All.FirstOrDefault(entry =>
+            entry.Name.Equals(value, StringComparison.OrdinalIgnoreCase)
+            || entry.Code.Equals(value, StringComparison.OrdinalIgnoreCase));
+        return string.IsNullOrEmpty(match.Code) ? null : match.Code;
+    }
 }

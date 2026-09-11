@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "@/components/Toast";
 import PlanSettingsPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -19,10 +20,6 @@ vi.mock("@/lib/api", () => ({
   getToken: mocks.getToken,
   getPlatformPlan: mocks.getPlatformPlan,
   updatePlatformPlan: mocks.updatePlatformPlan,
-}));
-
-vi.mock("@/components/SuperadminShell", () => ({
-  SuperadminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 describe("PlanSettingsPage", () => {
@@ -45,7 +42,11 @@ describe("PlanSettingsPage", () => {
       name: "Basic",
       pricePerEmployee: 59,
     });
-    render(<PlanSettingsPage />);
+    render(
+      <ToastProvider>
+        <PlanSettingsPage />
+      </ToastProvider>,
+    );
     const input = await screen.findByLabelText("Price per employee");
     fireEvent.change(input, { target: { value: "59" } });
     fireEvent.click(screen.getByRole("button", { name: "Save price" }));

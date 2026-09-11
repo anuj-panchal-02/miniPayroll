@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "@/components/Toast";
 import CompanyDetailsPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -42,10 +43,6 @@ vi.mock("@/lib/api", () => ({
   BillableSource: { FinalizedPayroll: 0, ActiveHeadcount: 1 },
   BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
   OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
-}));
-
-vi.mock("@/components/SuperadminShell", () => ({
-  SuperadminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 describe("CompanyDetailsPage", () => {
@@ -111,7 +108,11 @@ describe("CompanyDetailsPage", () => {
   });
 
   it("sends the Superadmin-typed password and does not display it", async () => {
-    render(<CompanyDetailsPage />);
+    render(
+      <ToastProvider>
+        <CompanyDetailsPage />
+      </ToastProvider>,
+    );
 
     const password = await screen.findByLabelText("Temporary password");
     fireEvent.change(password, { target: { value: "Tmp_TestAdmin1!" } });
@@ -133,7 +134,11 @@ describe("CompanyDetailsPage", () => {
   });
 
   it("saves a new employee limit", async () => {
-    render(<CompanyDetailsPage />);
+    render(
+      <ToastProvider>
+        <CompanyDetailsPage />
+      </ToastProvider>,
+    );
     const limit = await screen.findByLabelText("Employee limit");
     fireEvent.change(limit, { target: { value: "20" } });
     fireEvent.click(screen.getByRole("button", { name: "Save employee limit" }));
@@ -145,7 +150,11 @@ describe("CompanyDetailsPage", () => {
   });
 
   it("hides billing until the company is activated", async () => {
-    render(<CompanyDetailsPage />);
+    render(
+      <ToastProvider>
+        <CompanyDetailsPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Employee limit");
     expect(screen.queryByRole("heading", { name: "Billing" })).toBeNull();
   });
@@ -194,7 +203,11 @@ describe("CompanyDetailsPage", () => {
       periods: [{ ...august, paidAmount: 98, remaining: 0 }],
     });
 
-    render(<CompanyDetailsPage />);
+    render(
+      <ToastProvider>
+        <CompanyDetailsPage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByRole("heading", { name: "Billing" })).toBeTruthy();
     expect(screen.getByText("2 × ₹49 = ₹98")).toBeTruthy();

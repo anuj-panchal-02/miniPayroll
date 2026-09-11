@@ -3,6 +3,7 @@ using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Tenancy;
 using MiniPayroll.Infrastructure.Persistence;
+using UglyToad.PdfPig;
 
 namespace MiniPayroll.Tests;
 
@@ -38,6 +39,11 @@ public sealed class PayslipPdfServiceTests
         Assert.Equal(28000m, snapshot.NetSalary);
         Assert.Contains(snapshot.Earnings, line => line.Name == "Basic Salary" && line.Amount == 20000m);
         Assert.Contains("Twenty Eight thousand", MiniPayroll.Domain.Payroll.IndianRupeeWords.ToRupees(snapshot.NetSalary));
+        Assert.Contains(PayslipPdfService.BrandWatermark, PdfText(single.File.Content));
+        Assert.DoesNotContain("Employer PF", PdfText(single.File.Content));
+        Assert.Equal(31, snapshot.DaysEmployed);
+        Assert.Equal(0m, snapshot.EmployerPf);
+        Assert.Equal(0m, snapshot.EmployerEsi);
     }
 
     [Fact]
@@ -68,9 +74,141 @@ public sealed class PayslipPdfServiceTests
         await using var db = fixture.Db;
         var runId = (await fixture.Payroll.CreateRunAsync(Year, Month)).Run!.Id;
         var payslips = new PayrollPayslipService(db, fixture.Tenant, new PayslipPdfService());
+        var run = await db.PayrollRuns.FindAsync(runId);
 
+        Assert.Equal("1 Main Street, New Delhi, Delhi, 110001", run!.CompanyAddress);
+        Assert.Equal("MH/123", run.PfEstablishmentCode);
+        Assert.Equal("ESI-1", run.EsiCode);
         Assert.Equal(PayrollRunStatusCode.NotCalculated,
             (await payslips.GetCombinedAsync(runId, null)).Status);
+    }
+
+    [Fact]
+    public void FromRun_maps_company_address_codes_days_and_employer_costs()
+    {
+        var run = new PayrollRun
+        {
+            CompanyName = "Acme",
+            CompanyAddress = "1 Main Street, Pune, Maharashtra, 411001",
+            PfEstablishmentCode = "MH/123",
+            EsiCode = "ESI-1",
+            Year = Year,
+            Month = Month,
+            Status = PayrollRunStatus.Finalized
+        };
+        var row = new PayrollEmployee
+        {
+            FullName = "Ada Lovelace",
+            EmployeeCode = "EMP-01",
+            Designation = "Engineer",
+            DaysEmployed = 31,
+            GrossEarnings = 28000m,
+            TotalDeductions = 1800m,
+            NetSalary = 26200m,
+            EmployerPf = 1800m,
+            EmployerEsi = 585m
+        };
+
+        var snapshot = PayslipPdfService.FromRun(run, row, null);
+
+        Assert.Equal("1 Main Street, Pune, Maharashtra, 411001", snapshot.CompanyAddress);
+        Assert.Equal("MH/123", snapshot.PfEstablishmentCode);
+        Assert.Equal("ESI-1", snapshot.EsiCode);
+        Assert.Equal(31, snapshot.DaysEmployed);
+        Assert.Equal(1800m, snapshot.EmployerPf);
+        Assert.Equal(585m, snapshot.EmployerEsi);
+        Assert.False(snapshot.Reversed);
+    }
+
+    [Fact]
+    public void Render_embeds_minipayroll_watermark_on_every_slip()
+    {
+        var bytes = new PayslipPdfService().RenderCombined(
+        [
+            SampleSlip(reversed: false),
+            SampleSlip(reversed: false) with { EmployeeName = "Grace Hopper", EmployeeCode = "EMP-02" }
+        ]);
+        using var document = PdfDocument.Open(bytes);
+
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(bytes[..4]));
+        Assert.Equal(2, document.NumberOfPages);
+        foreach (var page in document.GetPages())
+        {
+            Assert.Contains(PayslipPdfService.BrandWatermark, PageText(page));
+            Assert.DoesNotContain(PayslipPdfService.ReversedWatermark, PageText(page));
+        }
+
+        var text = PdfText(bytes);
+        Assert.Contains("Employer PF", text);
+        Assert.Contains("This is a computer-generated payslip.", text);
+    }
+
+    [Fact]
+    public void Render_adds_reversed_overlay_on_top_of_brand_watermark()
+    {
+        var text = PdfText(new PayslipPdfService().Render(SampleSlip(reversed: true)));
+
+        Assert.Contains(PayslipPdfService.BrandWatermark, text);
+        Assert.Contains(PayslipPdfService.ReversedWatermark, text);
+    }
+
+    [Fact]
+    public void Render_omits_employer_section_when_costs_are_zero()
+    {
+        var text = PdfText(new PayslipPdfService().Render(SampleSlip(employerPf: 0m, employerEsi: 0m)));
+
+        Assert.DoesNotContain("Employer PF", text);
+        Assert.DoesNotContain("Employer ESI", text);
+        Assert.DoesNotContain("Employer contributions", text);
+    }
+
+    [Fact]
+    public async Task Finalize_freezes_company_address_and_codes()
+    {
+        var fixture = await FixtureAsync();
+        await using var db = fixture.Db;
+        var runId = await FinalizedRunAsync(fixture);
+
+        var run = await db.PayrollRuns.FindAsync(runId);
+        Assert.Equal("1 Main Street, New Delhi, Delhi, 110001", run!.CompanyAddress);
+        Assert.Equal("MH/123", run.PfEstablishmentCode);
+        Assert.Equal("ESI-1", run.EsiCode);
+
+        var company = await db.Companies.SingleAsync();
+        company.AddressLine1 = "Changed Road";
+        company.PfEstablishmentCode = "XX/999";
+        await db.SaveChangesAsync();
+
+        var row = db.PayrollEmployees
+            .Include(item => item.Earnings)
+            .Include(item => item.Deductions)
+            .Single(item => item.PayrollRunId == runId);
+        var snapshot = PayslipPdfService.FromRun((await db.PayrollRuns.FindAsync(runId))!, row, null);
+        var text = PdfText(new PayslipPdfService().Render(snapshot));
+
+        Assert.Equal("1 Main Street, New Delhi, Delhi, 110001", snapshot.CompanyAddress);
+        Assert.Equal("MH/123", snapshot.PfEstablishmentCode);
+        Assert.Contains("1 Main Street", text);
+        Assert.DoesNotContain("Changed Road", text);
+        Assert.DoesNotContain("XX/999", text);
+    }
+
+    [Fact]
+    public async Task Reversed_run_payslip_keeps_both_watermarks()
+    {
+        var fixture = await FixtureAsync();
+        await using var db = fixture.Db;
+        var runId = await FinalizedRunAsync(fixture);
+        var run = await db.PayrollRuns.FindAsync(runId);
+        run!.Status = PayrollRunStatus.Reversed;
+        await db.SaveChangesAsync();
+
+        var file = (await new PayrollPayslipService(db, fixture.Tenant, new PayslipPdfService())
+            .GetEmployeeAsync(runId, fixture.Employee.Id, null)).File!;
+        var text = PdfText(file.Content);
+
+        Assert.Contains(PayslipPdfService.BrandWatermark, text);
+        Assert.Contains(PayslipPdfService.ReversedWatermark, text);
     }
 
     private static async Task<Guid> FinalizedRunAsync(Fixture fixture)
@@ -106,9 +244,17 @@ public sealed class PayslipPdfServiceTests
             Id = Guid.NewGuid(),
             Name = "Acme",
             ContactEmail = $"{Guid.NewGuid():N}@example.com",
+            AddressLine1 = "1 Main Street",
+            City = "New Delhi",
+            State = "Delhi",
+            PostalCode = "110001",
+            PfEstablishmentCode = "MH/123",
+            EsiCode = "ESI-1",
             IsSetupComplete = true,
             SetupStep = CompanySetupStep.Complete,
             DailyRateMethod = DailyRateMethod.CalendarDays,
+            PfApplicable = false,
+            EsiApplicable = false,
             CreatedAt = DateTimeOffset.UtcNow
         };
         var plan = new Plan
@@ -194,4 +340,38 @@ public sealed class PayslipPdfServiceTests
         var db = TestDb.Create(tenant, database);
         return new Fixture(db, new PayrollCalculationService(db, tenant), company, employee, tenant);
     }
+
+    private static PayslipSnapshot SampleSlip(
+        bool reversed = false,
+        decimal employerPf = 1800m,
+        decimal employerEsi = 585m) => new(
+        "Acme",
+        null,
+        "1 Main Street, Pune, Maharashtra, 411001",
+        "MH/123",
+        "ESI-1",
+        "Ada Lovelace",
+        "EMP-01",
+        "Engineer",
+        31,
+        Year,
+        Month,
+        [new PayslipLineSnapshot("Basic Salary", 20000m)],
+        20000m,
+        [new PayslipLineSnapshot("Provident Fund (PF)", 1800m)],
+        1800m,
+        18200m,
+        employerPf,
+        employerEsi,
+        reversed,
+        "Payment status: Unpaid");
+
+    private static string PdfText(byte[] pdf)
+    {
+        using var document = PdfDocument.Open(pdf);
+        return string.Join('\n', document.GetPages().Select(PageText));
+    }
+
+    private static string PageText(UglyToad.PdfPig.Content.Page page) =>
+        string.Concat(page.Letters.Select(letter => letter.Value));
 }

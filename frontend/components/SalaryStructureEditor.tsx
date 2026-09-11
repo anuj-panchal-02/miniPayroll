@@ -5,10 +5,10 @@ import {
   SalaryComponentValueType,
   type SalaryStructureInput,
 } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
 import { Field } from "@/components/ui/Field";
 import { DateField } from "@/components/ui/DateField";
 import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
 import { formatRupees } from "@/lib/payroll";
 
 type ComponentDraft = {
@@ -25,13 +25,10 @@ export type SalaryStructureFields = {
 };
 
 const PRESETS: Array<{ name: string; type: SalaryComponentType }> = [
+  { name: "Dearness Allowance (DA)", type: SalaryComponentType.Earning },
   { name: "HRA", type: SalaryComponentType.Earning },
   { name: "Conveyance Allowance", type: SalaryComponentType.Earning },
   { name: "Special Allowance", type: SalaryComponentType.Earning },
-  { name: "Provident Fund (PF)", type: SalaryComponentType.Deduction },
-  { name: "ESI", type: SalaryComponentType.Deduction },
-  { name: "Professional Tax", type: SalaryComponentType.Deduction },
-  { name: "Labour Welfare Fund (LWF)", type: SalaryComponentType.Deduction },
 ];
 
 export function newSalaryStructureFields(effectiveFrom = ""): SalaryStructureFields {
@@ -98,7 +95,9 @@ export function salaryStructureError(fields: SalaryStructureFields, joiningDate:
     ) {
       return "Every salary component needs a name and a positive value.";
     }
-    if (usedNames.has(duplicateKey)) return "Each earning or deduction can be added only once.";
+    if (component.type !== SalaryComponentType.Earning) {
+      return "Salary structure only includes earnings. Statutory deductions are calculated at payroll.";
+    }
     usedNames.add(duplicateKey);
   }
   return null;
@@ -109,11 +108,6 @@ export function SalaryStructureEditor({
   onChange,
   joiningDate,
   error,
-}: {
-  value: SalaryStructureFields;
-  onChange: (value: SalaryStructureFields) => void;
-  joiningDate: string;
-  error?: string;
 }: {
   value: SalaryStructureFields;
   onChange: (value: SalaryStructureFields) => void;
@@ -182,32 +176,29 @@ export function SalaryStructureEditor({
         />
       </Field>
 
-      <p className="sa-muted">Recurring lines only. One-time changes are added when payroll is run.</p>
+      <p className="sa-muted">
+        Recurring earnings only. PF, ESI, professional tax, and LWF are calculated at payroll from
+        company settings. One-time changes are added when payroll is run.
+      </p>
 
-      {/* Live Take-Home Preview Card */}
-      <div className="mp-preview-card my-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <span className="text-xs font-mono uppercase text-muted-foreground block">Gross Monthly</span>
-            <span className="text-base font-semibold font-mono text-ink">{formatRupees(gross)}</span>
-          </div>
-          <div>
-            <span className="text-xs font-mono uppercase text-muted-foreground block">Total Deductions</span>
-            <span className="text-base font-semibold font-mono text-ink">{formatRupees(deductions)}</span>
-          </div>
-          <div>
-            <span className="text-xs font-mono uppercase text-muted-foreground block">Est. Take-Home</span>
-            <span className="text-lg font-bold font-mono text-accent">{formatRupees(netTakeHome)}</span>
-          </div>
+      <div className="mp-kpi-grid" role="region" aria-label="Salary snapshot">
+        <div className="mp-kpi-card">
+          <span className="mp-kpi-card__label">Gross</span>
+          <span className="mp-kpi-card__value">{formatRupees(gross)}</span>
+          <span className="mp-kpi-card__subtext">
+            {gross > 0 ? `Basic is ${basicRatio}% of gross` : "Monthly earnings"}
+          </span>
         </div>
-        {gross > 0 ? (
-          <div className="pt-2 border-t border-rule flex items-center justify-between text-xs text-muted-foreground">
-            <span>Basic is {basicRatio}% of gross salary</span>
-            <Badge tone={basicRatio >= 50 ? "success" : "neutral"} size="sm">
-              {basicRatio >= 50 ? "✓ ≥ 50% Wage Code Compliant" : "Standard"}
-            </Badge>
-          </div>
-        ) : null}
+        <div className="mp-kpi-card">
+          <span className="mp-kpi-card__label">Deductions</span>
+          <span className="mp-kpi-card__value">{formatRupees(deductions)}</span>
+          <span className="mp-kpi-card__subtext">Statutory lines are calculated later</span>
+        </div>
+        <div className="mp-kpi-card">
+          <span className="mp-kpi-card__label">Take-home</span>
+          <span className="mp-kpi-card__value">{formatRupees(netTakeHome)}</span>
+          <span className="mp-kpi-card__subtext">Gross minus deductions</span>
+        </div>
       </div>
 
       <div className="sa-preset-actions" aria-label="Add standard salary component">
@@ -218,11 +209,11 @@ export function SalaryStructureEditor({
             key={preset.name}
             onClick={() => add(preset.name, preset.type)}
           >
-            + {preset.name}
+            {preset.name}
           </button>
         ))}
         <button type="button" className="sa-compose__add" onClick={() => add()}>
-          + Custom line
+          Add custom line
         </button>
       </div>
 
@@ -252,7 +243,6 @@ export function SalaryStructureEditor({
                 onChange={(next) => update(index, { type: Number(next) as SalaryComponentType })}
                 options={[
                   { value: String(SalaryComponentType.Earning), label: "Earning" },
-                  { value: String(SalaryComponentType.Deduction), label: "Deduction" },
                 ]}
               />
             </Field>
@@ -287,9 +277,9 @@ export function SalaryStructureEditor({
               />
             </Field>
             {!basic ? (
-              <button
+              <Button
                 type="button"
-                className="sa-compose__remove"
+                variant="ghost"
                 aria-label={`Remove ${component.name || "component"}`}
                 onClick={() =>
                   onChange({
@@ -299,7 +289,7 @@ export function SalaryStructureEditor({
                 }
               >
                 Remove
-              </button>
+              </Button>
             ) : null}
           </div>
         );

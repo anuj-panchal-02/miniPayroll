@@ -18,8 +18,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api", () => ({
   EmployeeStatus: { Active: 0, Inactive: 1, Draft: 2 },
+  Gender: { Male: 0, Female: 1 },
   SalaryComponentType: { Earning: 0, Deduction: 1 },
   SalaryComponentValueType: { FixedAmount: 0, PercentageOfBasic: 1 },
+  BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
+  OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
   createEmployee: mocks.createEmployee,
   listPlatformStates: mocks.listPlatformStates,
   listPlatformCities: mocks.listPlatformCities,
@@ -39,6 +42,8 @@ async function fillPersonal() {
   fireEvent.change(screen.getByLabelText(/^phone$/i), {
     target: { value: "9876543210" },
   });
+  fireEvent.click(screen.getByLabelText(/^gender$/i));
+  fireEvent.click(await screen.findByRole("option", { name: "Male" }));
   fireEvent.change(screen.getByLabelText(/address line 1/i), {
     target: { value: "Main Road" },
   });
@@ -95,6 +100,11 @@ describe("NewEmployeePage", () => {
     expect(screen.getByPlaceholderText("EMP-01")).toBeTruthy();
     expect(screen.getByPlaceholderText("Priya Sharma")).toBeTruthy();
     expect(screen.getByLabelText(/employment type/i)).toHaveProperty("disabled", true);
+    const snapshot = screen.getByRole("region", { name: /snapshot/i });
+    expect(snapshot.textContent).toMatch(/Status/);
+    expect(snapshot.textContent).toMatch(/Name/);
+    expect(snapshot.textContent).toMatch(/Code/);
+    expect(snapshot.textContent).toMatch(/New/);
   });
 
   it("blocks Next on empty personal details without calling the API", async () => {
@@ -142,6 +152,9 @@ describe("NewEmployeePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
 
     expect(screen.getByLabelText(/overtime rate/i)).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /covered by provident fund/i })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /covered by esi/i })).toBeTruthy();
+    expect(screen.getByLabelText(/^uan/i)).toBeTruthy();
   });
 
   it("saves a draft from bank details", async () => {
@@ -176,8 +189,8 @@ describe("NewEmployeePage", () => {
     expect(screen.getByLabelText(/overtime rate/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     expect(screen.getByLabelText(/effective from/i)).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: /salary structure/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /\+ hra/i }));
+    expect(screen.getAllByRole("heading", { name: /^salary structure$/i })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: /^hra$/i }));
     expect(screen.getByDisplayValue("HRA")).toBeTruthy();
     fireEvent.change(screen.getAllByLabelText(/^amount$/i)[0], {
       target: { value: "25000" },
@@ -194,6 +207,9 @@ describe("NewEmployeePage", () => {
           saveAsDraft: false,
           city: "Pune",
           state: "Maharashtra",
+          gender: 0,
+          pfCovered: true,
+          esiCovered: true,
         }),
       );
     });
@@ -210,9 +226,11 @@ describe("NewEmployeePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
 
     expect(screen.getByLabelText(/effective from/i)).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: /salary structure/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /\+ hra/i }));
+    expect(screen.getAllByRole("heading", { name: /^salary structure$/i })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /dearness allowance/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /provident fund/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^hra$/i }));
     expect(screen.getByDisplayValue("HRA")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /\+ hra/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^hra$/i })).toBeNull();
   });
 });

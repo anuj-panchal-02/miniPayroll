@@ -3,6 +3,7 @@ using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll.Statutory;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
@@ -12,7 +13,8 @@ public sealed record SalaryStructureComponentInput(
     SalaryComponentType Type,
     SalaryComponentValueType ValueType,
     decimal Value,
-    int SortOrder);
+    int SortOrder,
+    SalaryComponentKind Kind = SalaryComponentKind.OtherEarning);
 
 public sealed record SalaryStructureInput(
     DateOnly? EffectiveFrom,
@@ -24,7 +26,8 @@ public sealed record SalaryStructureComponentDetail(
     SalaryComponentType Type,
     SalaryComponentValueType ValueType,
     decimal Value,
-    int SortOrder);
+    int SortOrder,
+    SalaryComponentKind Kind = SalaryComponentKind.OtherEarning);
 
 public sealed record SalaryStructureDetail(
     Guid Id,
@@ -59,8 +62,7 @@ public sealed class SalaryStructureService(
     public static readonly IReadOnlySet<string> StandardPresetNames = new HashSet<string>(
         StringComparer.OrdinalIgnoreCase)
     {
-        "Basic Salary", "HRA", "Conveyance Allowance", "Special Allowance",
-        "Provident Fund (PF)", "ESI", "Professional Tax", "Labour Welfare Fund (LWF)"
+        "Basic Salary", "Dearness Allowance (DA)", "HRA", "Conveyance Allowance", "Special Allowance"
     };
 
     public async Task<SalaryStructureResult> ListAsync(
@@ -198,6 +200,8 @@ public sealed class SalaryStructureService(
         {
             var name = component.Name?.Trim();
             if (string.IsNullOrWhiteSpace(name) || name.Length > 100 || component.Value <= 0
+                || component.Type != SalaryComponentType.Earning
+                || SalaryComponentKinds.IsStatutoryAmountName(name)
                 || (component.ValueType == SalaryComponentValueType.PercentageOfBasic
                     && component.Value > 100)
                 || component.SortOrder < 0 || !sortOrders.Add(component.SortOrder))
@@ -236,6 +240,9 @@ public sealed class SalaryStructureService(
         foreach (var inputComponent in input.Components!.OrderBy(component => component.SortOrder))
         {
             var name = inputComponent.Name!.Trim();
+            var kind = inputComponent.Kind == SalaryComponentKind.OtherEarning
+                ? SalaryComponentKinds.FromName(name)
+                : inputComponent.Kind;
             var component = await db.SalaryComponents.SingleOrDefaultAsync(
                 item => item.CompanyId == employee.CompanyId
                     && item.Name == name
@@ -263,7 +270,8 @@ public sealed class SalaryStructureService(
                 Type = inputComponent.Type,
                 ValueType = inputComponent.ValueType,
                 Value = decimal.Round(inputComponent.Value, 2, MidpointRounding.AwayFromZero),
-                SortOrder = inputComponent.SortOrder
+                SortOrder = inputComponent.SortOrder,
+                Kind = kind
             });
         }
 
@@ -321,7 +329,7 @@ public sealed class SalaryStructureService(
         var components = structure.Components.OrderBy(component => component.SortOrder)
             .Select(component => new SalaryStructureComponentDetail(
                 component.Id, component.Name, component.Type, component.ValueType,
-                component.Value, component.SortOrder))
+                component.Value, component.SortOrder, component.Kind))
             .ToList();
         var basicSalary = components.Single(component =>
             component.Name.Equals("Basic Salary", StringComparison.OrdinalIgnoreCase)).Value;

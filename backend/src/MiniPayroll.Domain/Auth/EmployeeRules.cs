@@ -23,6 +23,8 @@ public static class EmployeeRules
     public const int BankAccountMaxLength = 18;
     public const int IfscLength = 11;
     public const int UpiMaxLength = 100;
+    public const int UanLength = 12;
+    public const int StatutoryIdMaxLength = 50;
 
     private static readonly Regex EmployeeCodePattern = new(
         @"^[A-Za-z0-9-]+$",
@@ -51,6 +53,9 @@ public static class EmployeeRules
         employee.BankAccountNumber = DigitsOnly(employee.BankAccountNumber);
         employee.Ifsc = employee.Ifsc?.Trim().ToUpperInvariant() ?? string.Empty;
         employee.UpiId = TrimToNull(employee.UpiId);
+        employee.Uan = DigitsOnlyOrNull(employee.Uan);
+        employee.PfNumber = TrimToNull(employee.PfNumber);
+        employee.EsiNumber = TrimToNull(employee.EsiNumber);
         employee.EmploymentType = EmploymentType.FullTimeMonthly;
     }
 
@@ -77,7 +82,11 @@ public static class EmployeeRules
             && IsValidAccountNumber(employee.BankAccountNumber)
             && IfscPattern.IsMatch(employee.Ifsc)
             && IsOptionalWithinLimit(employee.UpiId, UpiMaxLength)
-            && (employee.OvertimeRate is null or >= 0);
+            && (employee.OvertimeRate is null or >= 0)
+            && employee.Gender is Gender.Male or Gender.Female
+            && IsOptionalUan(employee.Uan)
+            && IsOptionalWithinLimit(employee.PfNumber, StatutoryIdMaxLength)
+            && IsOptionalWithinLimit(employee.EsiNumber, StatutoryIdMaxLength);
     }
 
     public static bool IsValidDraft(Employee employee)
@@ -105,7 +114,10 @@ public static class EmployeeRules
             && (employee.JoiningDate is null
                 || employee.ExitDate is null
                 || employee.ExitDate >= employee.JoiningDate)
-            && (employee.OvertimeRate is null or >= 0);
+            && (employee.OvertimeRate is null or >= 0)
+            && IsOptionalUan(employee.Uan)
+            && IsOptionalWithinLimit(employee.PfNumber, StatutoryIdMaxLength)
+            && IsOptionalWithinLimit(employee.EsiNumber, StatutoryIdMaxLength);
     }
 
     public static int ClampDraftStep(int? step) =>
@@ -144,6 +156,15 @@ public static class EmployeeRules
 
     private static string DigitsOnly(string? value) =>
         new(value?.Where(char.IsDigit).ToArray() ?? []);
+
+    private static string? DigitsOnlyOrNull(string? value)
+    {
+        var digits = DigitsOnly(value);
+        return digits.Length == 0 ? null : digits;
+    }
+
+    private static bool IsOptionalUan(string? uan) =>
+        string.IsNullOrEmpty(uan) || (uan.Length == UanLength && uan.All(char.IsDigit));
 
     private static string? TrimToNull(string? value)
     {

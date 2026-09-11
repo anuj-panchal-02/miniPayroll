@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/BrandLogo";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { PasswordField } from "@/components/ui/PasswordField";
@@ -103,7 +103,6 @@ export default function LoginPage() {
             showStrength={false}
           />
 
-          <ToastOutlet toast={toast} />
 
           <Button type="submit" loading={busy} loadingLabel="Signing in">
             Sign in

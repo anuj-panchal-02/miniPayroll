@@ -3,11 +3,12 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
 import { FileField } from "@/components/ui/FileField";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { LocationFields } from "@/components/LocationFields";
 import {
   getCompanySetup,
@@ -224,7 +225,13 @@ export default function CompanySetupPage() {
       title="Company details"
       description="Add the legal and contact details used across payroll records."
     >
-      {loading ? <p className="setup-loading" role="status">Loading company details…</p> : null}
+      {loading ? (
+        <div className="space-y-3" role="status">
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-2/3" />
+        </div>
+      ) : null}
       {loadError ? <p className="setup-alert" role="alert">{loadError}</p> : null}
       {!loading && !loadError ? (
         <form className="setup-form" noValidate autoComplete="off" onSubmit={submit}>
@@ -282,7 +289,6 @@ export default function CompanySetupPage() {
               {errors[FIELD_ORDER.find((field) => errors[field]) ?? "name"] ?? logoError}
             </p>
           ) : null}
-          <ToastOutlet toast={toast} />
 
           <div className="setup-actions">
             <Button type="submit" loading={saving} loadingLabel="Saving…">

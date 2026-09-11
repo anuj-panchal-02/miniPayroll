@@ -39,6 +39,11 @@ const setup = {
   dailyRateMethod: "CalendarDays" as const,
   workingDaysPerMonth: 26,
   weeklyOffDays: ["Sunday"],
+  pfApplicable: true,
+  pfUseWageCeiling: true,
+  esiApplicable: true,
+  pfEstablishmentCode: null,
+  esiCode: null,
   setupStep: CompanySetupStep.PayrollSettings,
   isSetupComplete: false,
 };
@@ -64,6 +69,12 @@ describe("PayrollSetupPage", () => {
     expect((screen.getByLabelText("Sunday") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/monthly salary.*calendar days/i)).toBeTruthy();
     expect(screen.getByText(/monthly salary.*30/i)).toBeTruthy();
+    expect(screen.getByRole("group", { name: /statutory deductions/i })).toBeTruthy();
+    expect((screen.getByRole("checkbox", { name: /provident fund/i }) as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect((screen.getByRole("checkbox", { name: /esi/i }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/professional tax and lwf use the company state \(maharashtra\)/i)).toBeTruthy();
   });
 
   it("blocks invalid settings without making a request", async () => {
@@ -88,8 +99,31 @@ describe("PayrollSetupPage", () => {
         dailyRateMethod: 0,
         workingDaysPerMonth: 26,
         weeklyOffDays: ["Sunday"],
+        pfApplicable: true,
+        pfUseWageCeiling: true,
+        esiApplicable: true,
+        pfEstablishmentCode: null,
+        esiCode: null,
       });
       expect(mocks.push).toHaveBeenCalledWith("/app/setup/review");
+    });
+  });
+
+  it("saves statutory policy with PF uncapped", async () => {
+    render(<PayrollSetupPage />);
+    await screen.findByDisplayValue("26");
+    fireEvent.click(screen.getByRole("checkbox", { name: /cap pf wages/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
+
+    await waitFor(() => {
+      expect(mocks.updatePayrollSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pfApplicable: true,
+          pfUseWageCeiling: false,
+          esiApplicable: true,
+        }),
+      );
     });
   });
 

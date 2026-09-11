@@ -14,6 +14,7 @@ public static class CompanySetupRules
     public const int PostalCodeMaxLength = 20;
     public const int LogoPathMaxLength = 500;
     public const int WeeklyOffDaysMaxLength = 100;
+    public const int EstablishmentCodeMaxLength = 50;
 
     private static readonly string[] CanonicalDayNames =
     [
@@ -68,7 +69,9 @@ public static class CompanySetupRules
         ArgumentNullException.ThrowIfNull(company);
 
         if (company.WorkingDaysPerMonth is < 1 or > 31
-            || !Enum.IsDefined(company.DailyRateMethod))
+            || !Enum.IsDefined(company.DailyRateMethod)
+            || !IsOptionalWithinLimit(company.PfEstablishmentCode, EstablishmentCodeMaxLength)
+            || !IsOptionalWithinLimit(company.EsiCode, EstablishmentCodeMaxLength))
         {
             return false;
         }

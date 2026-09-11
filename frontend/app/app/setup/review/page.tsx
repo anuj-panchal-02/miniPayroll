@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   completeCompanySetup,
   getCompanySetup,
@@ -78,9 +79,10 @@ export default function ReviewSetupPage() {
       description="Confirm your company and payroll settings before opening the workspace."
     >
       {!setup && !loadError ? (
-        <p className="setup-loading" role="status">
-          Loading setup summary…
-        </p>
+        <div className="space-y-3" role="status">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       ) : null}
       {loadError ? (
         <p className="setup-alert" role="alert">
@@ -161,10 +163,27 @@ export default function ReviewSetupPage() {
                     : "Calendar days"}
                 </dd>
               </div>
+              <div>
+                <dt>Provident Fund</dt>
+                <dd>
+                  {setup.pfApplicable
+                    ? setup.pfUseWageCeiling
+                      ? "On, ₹15,000 wage ceiling"
+                      : "On, full Basic + DA"
+                    : "Off"}
+                </dd>
+              </div>
+              <div>
+                <dt>ESI</dt>
+                <dd>{setup.esiApplicable ? "On" : "Off"}</dd>
+              </div>
+              <div>
+                <dt>Professional tax / LWF</dt>
+                <dd>{setup.state ? `${setup.state} rules` : "From company state"}</dd>
+              </div>
             </dl>
           </section>
 
-          <ToastOutlet toast={toast} />
           <div className="setup-actions">
             <Button
               type="button"

@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import { useLayoutEffect } from "react";
 import {
   act,
   cleanup,
@@ -10,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanySetupStep } from "@/lib/setup";
+import { clearSession, loadSession } from "@/lib/session";
 import { SuperadminShell } from "./SuperadminShell";
 
 const mocks = vi.hoisted(() => ({
@@ -40,10 +40,25 @@ vi.mock("@/components/SignOutButton", () => ({
   SignOutButton: () => <button type="button">Sign out</button>,
 }));
 
+const superadmin = {
+  id: "user-1",
+  email: "root@example.com",
+  roles: ["Superadmin"],
+  companyId: null,
+  mustChangePassword: false,
+  twoFactorEnabled: false,
+  isSetupComplete: true,
+  setupStep: CompanySetupStep.Complete,
+};
+
 describe("SuperadminShell", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    clearSession();
+  });
 
   beforeEach(() => {
+    clearSession();
     mocks.pathname = "/superadmin";
     mocks.replace.mockReset();
     mocks.push.mockReset();
@@ -51,12 +66,7 @@ describe("SuperadminShell", () => {
     mocks.getToken.mockReset();
     mocks.setToken.mockReset();
     mocks.getToken.mockReturnValue("token");
-    mocks.getMe.mockResolvedValue({
-      roles: ["Superadmin"],
-      mustChangePassword: false,
-      isSetupComplete: true,
-      setupStep: CompanySetupStep.Complete,
-    });
+    mocks.getMe.mockResolvedValue(superadmin);
   });
 
   it("announces loading while protected access is being validated", () => {
@@ -69,10 +79,11 @@ describe("SuperadminShell", () => {
     );
 
     expect(screen.getByRole("status").textContent).toMatch(/validating access/i);
+    expect(screen.getByRole("navigation", { name: "Superadmin" })).toBeTruthy();
     expect(screen.queryByText("Protected content")).toBeNull();
   });
 
-  it("hides stale protected content while a changed route is revalidated", async () => {
+  it("keeps nav and children on a same-role path change without waiting on getMe", async () => {
     const view = render(
       <SuperadminShell>
         <p>Protected content</p>
@@ -84,8 +95,7 @@ describe("SuperadminShell", () => {
     expect(screen.getByRole("navigation", { name: "Superadmin" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "States" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Cities" })).toBeTruthy();
-    expect(screen.queryByRole("navigation", { name: /company/i })).toBeNull();
-    expect(screen.queryByText(/coming soon/i)).toBeNull();
+    expect(mocks.getMe).toHaveBeenCalledTimes(1);
 
     mocks.pathname = "/superadmin/companies/new";
     mocks.getMe.mockImplementationOnce(() => new Promise(() => undefined));
@@ -95,16 +105,17 @@ describe("SuperadminShell", () => {
       </SuperadminShell>,
     );
 
-    expect(screen.queryByText("Protected content")).toBeNull();
+    expect(screen.getByText("Protected content")).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Superadmin" })).toBeTruthy();
+    expect(mocks.getMe).toHaveBeenCalledTimes(1);
   });
 
   it("hides the platform masters nav for company admin", async () => {
     mocks.pathname = "/app";
     mocks.getMe.mockResolvedValue({
+      ...superadmin,
       roles: ["CompanyAdmin"],
-      mustChangePassword: false,
-      isSetupComplete: true,
-      setupStep: CompanySetupStep.Complete,
+      companyId: "co-1",
     });
 
     render(
@@ -125,61 +136,37 @@ describe("SuperadminShell", () => {
     expect(screen.queryByRole("link", { name: "Cities" })).toBeNull();
   });
 
-  it("does not commit stale children before guard effects run", async () => {
-    let staleContentCommitted = false;
-
-    function ProtectedContent() {
-      useLayoutEffect(() => {
-        if (mocks.pathname === "/superadmin/companies/new") {
-          staleContentCommitted = true;
-        }
-      });
-      return <p>Protected content</p>;
-    }
+  it("does not let an obsolete async response paint children after unmount", async () => {
+    let resolveMe!: (value: typeof superadmin) => void;
+    mocks.getMe.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMe = resolve;
+        }),
+    );
 
     const view = render(
       <SuperadminShell>
-        <ProtectedContent />
+        <p>Protected content</p>
       </SuperadminShell>,
     );
-    await waitFor(() => {
-      expect(screen.getByText("Protected content")).toBeTruthy();
+    view.unmount();
+
+    await act(async () => {
+      resolveMe(superadmin);
+      await Promise.resolve();
     });
-
-    mocks.pathname = "/superadmin/companies/new";
-    mocks.getMe.mockImplementationOnce(() => new Promise(() => undefined));
-    view.rerender(
-      <SuperadminShell>
-        <ProtectedContent />
-      </SuperadminShell>,
-    );
-
-    expect(staleContentCommitted).toBe(false);
     expect(screen.queryByText("Protected content")).toBeNull();
   });
 
-  it("does not let an obsolete async response validate the current guard", async () => {
-    const account = {
-      roles: ["Superadmin"],
-      mustChangePassword: false,
-      isSetupComplete: true,
-      setupStep: CompanySetupStep.Complete,
-    };
-    let resolveFirst!: (value: typeof account) => void;
-    let resolveSecond!: (value: typeof account) => void;
-    mocks.getMe
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveFirst = resolve;
-          }),
-      )
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSecond = resolve;
-          }),
-      );
+  it("applies the resolved session to the current path after a first-load race", async () => {
+    let resolveMe!: (value: typeof superadmin) => void;
+    mocks.getMe.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMe = resolve;
+        }),
+    );
 
     const view = render(
       <SuperadminShell>
@@ -193,16 +180,34 @@ describe("SuperadminShell", () => {
       </SuperadminShell>,
     );
 
-    await act(async () => {
-      resolveFirst(account);
-      await Promise.resolve();
-    });
     expect(screen.queryByText("Protected content")).toBeNull();
 
     await act(async () => {
-      resolveSecond(account);
+      resolveMe(superadmin);
       await Promise.resolve();
     });
     expect(screen.getByText("Protected content")).toBeTruthy();
+    expect(mocks.getMe).toHaveBeenCalledTimes(1);
+  });
+
+  it("redirects a cached session with the wrong role and does not paint children", async () => {
+    mocks.getMe.mockResolvedValue({
+      ...superadmin,
+      roles: ["CompanyAdmin"],
+      companyId: "co-1",
+    });
+    await loadSession();
+    mocks.pathname = "/superadmin";
+
+    render(
+      <SuperadminShell>
+        <p>Protected content</p>
+      </SuperadminShell>,
+    );
+
+    expect(screen.queryByText("Protected content")).toBeNull();
+    await waitFor(() => {
+      expect(mocks.replace).toHaveBeenCalledWith("/app");
+    });
   });
 });

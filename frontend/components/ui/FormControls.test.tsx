@@ -323,4 +323,21 @@ describe("form primitives", () => {
     expect(rule).toMatch(/position:\s*relative/);
     expect(rule).toMatch(/z-index:\s*var\(--z-dropdown\)/);
   });
+
+  it("keeps a textarea from stretching beside a table in a field group", () => {
+    const css = readFileSync(
+      join(process.cwd(), "components", "ui", "form-controls.css"),
+      "utf8",
+    );
+    const field = css.match(/\.mp-field\s*\{[^}]+\}/)?.[0];
+    const group = css.match(/\.mp-group\s*\{[^}]+\}/)?.[0];
+    expect(field).toMatch(/align-content:\s*start/);
+    expect(group).toMatch(/align-items:\s*start/);
+    expect(css).toMatch(
+      /\.mp-group\s*>\s*\.sa-master-wrap[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
+    );
+    expect(css).toMatch(
+      /\.mp-group\s*>\s*\.mp-field:has\(\.mp-textarea\)[\s\S]*?grid-column:\s*1\s*\/\s*-1/,
+    );
+  });
 });

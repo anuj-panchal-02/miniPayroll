@@ -297,6 +297,8 @@ public sealed class PayrollInputServiceTests
             IsSetupComplete = true,
             SetupStep = CompanySetupStep.Complete,
             DailyRateMethod = DailyRateMethod.CalendarDays,
+            PfApplicable = false,
+            EsiApplicable = false,
             WorkingDaysPerMonth = 26,
             CreatedAt = DateTimeOffset.UtcNow
         };

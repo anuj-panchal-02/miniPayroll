@@ -1,5 +1,68 @@
 [
   {
+    "date": "2026-09-11",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Salary revision: extras-style drawer, KPI preview, labelled rows",
+    "scope": "component"
+  },
+  {
+    "date": "2026-09-11",
+    "macrostructure": "Narrative Workflow",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Employee form: live Status/Name/Code, command card Next/Save",
+    "scope": "page"
+  },
+  {
+    "date": "2026-09-11",
+    "macrostructure": "Index-First",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Employees index: KPI facts, no seat bar, chip status, Add in header",
+    "scope": "page"
+  },
+  {
+    "date": "2026-09-11",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Dashboard: compact History, KPI facts, command card Process payroll",
+    "scope": "page"
+  },
+  {
+    "date": "2026-09-11",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Payroll review: compact History, KPI facts, command card Finalize",
+    "scope": "page"
+  },
+  {
+    "date": "2026-09-11",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Monthly inputs: compact Review, live KPIs, command card Save",
+    "scope": "page"
+  },
+  {
+    "date": "2026-09-11",
+    "macrostructure": "Workbench",
+    "theme": "Coral",
+    "enrichment": "none",
+    "nav": "N9",
+    "brief": "Payroll start: compact History, period KPIs, command card CTA",
+    "scope": "page"
+  },
+  {
     "date": "2026-09-10",
     "macrostructure": "Manifesto",
     "theme": "Coral",

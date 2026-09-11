@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CompanyListItem, getToken, listCompanies, setToken } from "@/lib/api";
-import { SuperadminShell } from "@/components/SuperadminShell";
+import { CompanyListItem, listCompanies, setToken } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
 import { ListPager, usePager } from "@/components/ui/ListPager";
 import { ListToolbar } from "@/components/ui/ListToolbar";
@@ -19,11 +18,6 @@ export default function SuperadminPage() {
   const [status, setStatus] = useState("all");
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
     async function load() {
       try {
@@ -83,8 +77,7 @@ export default function SuperadminPage() {
       : `${filtered.length} companies`;
 
   return (
-    <SuperadminShell>
-      <main className="sa-shell">
+    <main className="sa-shell">
         <header className="sa-head sa-head--with-back">
           <h1>Companies</h1>
           <Link href="/superadmin/companies/new" className="sa-compose__submit">
@@ -167,7 +160,6 @@ export default function SuperadminPage() {
           />
           </>
         )}
-      </main>
-    </SuperadminShell>
+    </main>
   );
 }

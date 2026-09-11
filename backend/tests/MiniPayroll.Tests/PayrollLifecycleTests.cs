@@ -157,6 +157,8 @@ public sealed class PayrollLifecycleTests
             IsSetupComplete = true,
             SetupStep = CompanySetupStep.Complete,
             DailyRateMethod = DailyRateMethod.CalendarDays,
+            PfApplicable = false,
+            EsiApplicable = false,
             CreatedAt = DateTimeOffset.UtcNow
         };
         var plan = new Plan

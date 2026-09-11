@@ -77,6 +77,23 @@ describe("MonthlyInputsPage", () => {
     render(<MonthlyInputsPage />);
 
     expect(await screen.findByText("Ada Lovelace")).toBeTruthy();
+
+    const review = screen.getByRole("link", { name: "Review" });
+    const back = screen.getByRole("link", { name: "Payroll" });
+    expect(review.getAttribute("href")).toBe("/app/payroll/2026/8/review");
+    expect(review.closest("header")?.className).toContain("sa-head--with-back");
+    expect(back.className).toContain("sa-back");
+    expect(
+      Boolean(review.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+    expect(screen.getByText("Status")).toBeTruthy();
+    expect(screen.getByText("Draft")).toBeTruthy();
+    expect(screen.getByText("Employees")).toBeTruthy();
+    expect(screen.getByText("Readiness")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Apply working days" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark all present" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Balance unpaid leave" })).toBeTruthy();
+
     fireEvent.change(screen.getByLabelText(/unpaid leave for ada lovelace/i), {
       target: { value: "1" },
     });

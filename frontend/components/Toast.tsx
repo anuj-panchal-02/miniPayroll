@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/shadcn/alert";
@@ -10,12 +19,22 @@ export const TOAST_DURATION_MS = 4000;
 
 export type ToastTone = "error" | "success";
 
+export type ToastApi = {
+  message: string | null;
+  tone: ToastTone;
+  showError: (next: string) => void;
+  showSuccess: (next: string) => void;
+  dismiss: () => void;
+};
+
 type ToastProps = {
   message: string | null;
   tone?: ToastTone;
   durationMs?: number;
   onDismiss: () => void;
 };
+
+const ToastContext = createContext<ToastApi | null>(null);
 
 export function Toast({
   message,
@@ -53,7 +72,7 @@ export function Toast({
   );
 }
 
-export function useToast() {
+function useToastController(): ToastApi {
   const [message, setMessage] = useState<string | null>(null);
   const [tone, setTone] = useState<ToastTone>("error");
 
@@ -71,9 +90,28 @@ export function useToast() {
     setMessage(null);
   }, []);
 
-  return { message, tone, showError, showSuccess, dismiss };
+  return useMemo(
+    () => ({ message, tone, showError, showSuccess, dismiss }),
+    [dismiss, message, showError, showSuccess, tone],
+  );
 }
 
-export function ToastOutlet({ toast }: { toast: ReturnType<typeof useToast> }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const toast = useToastController();
+  return (
+    <ToastContext.Provider value={toast}>
+      {children}
+      <Toast message={toast.message} tone={toast.tone} onDismiss={toast.dismiss} />
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast(): ToastApi {
+  const ctx = useContext(ToastContext);
+  const local = useToastController();
+  return ctx ?? local;
+}
+
+export function ToastOutlet({ toast }: { toast: ToastApi }) {
   return <Toast message={toast.message} tone={toast.tone} onDismiss={toast.dismiss} />;
 }

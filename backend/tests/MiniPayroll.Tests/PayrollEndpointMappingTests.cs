@@ -37,6 +37,7 @@ public sealed class PayrollEndpointMappingTests
         Assert.Contains("/api/payroll/runs/{runId:guid}/inputs", patterns);
         Assert.Contains("/api/payroll/runs/{runId:guid}/finalize", patterns);
         Assert.Contains("/api/payroll/runs/{runId:guid}/employees/{employeeId:guid}/payment", patterns);
+        Assert.Contains("/api/payroll/runs/{runId:guid}/employees/{employeeId:guid}/statutory-overrides", patterns);
         Assert.Contains("/api/payroll/runs/{runId:guid}/payslips", patterns);
         Assert.Contains("/api/payroll/runs/{runId:guid}/payslips/{employeeId:guid}", patterns);
         Assert.All(

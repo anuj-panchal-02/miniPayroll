@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
   SalaryStructureEditor,
   salaryStructureError,
@@ -16,9 +16,10 @@ import {
   type SalaryStructureComponentDetail,
   type SalaryStructureDetail,
 } from "@/lib/api";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail }) {
   const [structures, setStructures] = useState<SalaryStructureDetail[]>([]);
@@ -28,6 +29,28 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
   const [editor, setEditor] = useState<SalaryStructureFields | null>(null);
   const [editorError, setEditorError] = useState("");
   const [saving, setSaving] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const open = editor !== null;
+
+  useEffect(() => {
+    if (open) {
+      dialogRef.current?.showModal?.();
+    } else {
+      dialogRef.current?.close?.();
+    }
+  }, [open]);
+
+  function handleDiscard() {
+    if (saving) return;
+    setEditor(null);
+    setEditorError("");
+  }
+
+  function handleBackdropClick(event: MouseEvent<HTMLDialogElement>) {
+    if (event.target === event.currentTarget) {
+      handleDiscard();
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -96,27 +119,29 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
 
   return (
     <section className="sa-salary-history" aria-labelledby="salary-history-title">
-      <header className="sa-salary-history__intro">
-        <div className="sa-salary-history__copy">
-          <h2 id="salary-history-title">Salary structure</h2>
-          <p className="sa-muted">
-            Salary changes are saved as dated versions and do not overwrite history.
-          </p>
-        </div>
-        {editor || loading || error ? null : (
-          <Button type="button" onClick={startRevision}>
-            {structures.length ? "Add salary revision" : "Add salary structure"}
-          </Button>
-        )}
-      </header>
-      <Alert>{error || null}</Alert>
-      <ToastOutlet toast={toast} />
-      {loading ? (
-        <p className="sa-salary-history__status" role="status">
-          Loading salary history…
+      <section className="sa-payroll-card" aria-label="Salary structure">
+        <h2 id="salary-history-title" className="sa-payroll-card__title">
+          Salary structure
+        </h2>
+        <p className="sa-payroll-card__lede">
+          Salary changes are saved as dated versions and do not overwrite history.
         </p>
+        {loading || error ? null : (
+          <div className="sa-payroll-card__actions">
+            <Button type="button" onClick={startRevision}>
+              {structures.length ? "Add salary revision" : "Add salary structure"}
+            </Button>
+          </div>
+        )}
+      </section>
+      <Alert>{error || null}</Alert>
+      {loading ? (
+        <div className="space-y-3 py-2" role="status">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
       ) : null}
-      {!loading && !error && structures.length === 0 && !editor ? (
+      {!loading && !error && structures.length === 0 ? (
         <p className="sa-salary-history__status" role="status">
           No salary structure yet. Add one before this employee is included in payroll.
         </p>
@@ -127,18 +152,43 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
       {previous.map((structure) => (
         <SalaryLedger key={structure.id} structure={structure} />
       ))}
-      {editor ? (
-        <div className="sa-salary-history__editor">
-          <SalaryStructureEditor
-            value={editor}
-            joiningDate={employee.joiningDate ?? ""}
-            error={editorError}
-            onChange={(next) => {
-              setEditor(next);
-              setEditorError("");
-            }}
-          />
-          <div className="sa-compose__actions">
+      <dialog
+        ref={dialogRef}
+        className="mp-drawer"
+        hidden={!open}
+        onClick={handleBackdropClick}
+        onCancel={(event) => {
+          event.preventDefault();
+          handleDiscard();
+        }}
+      >
+        <div className="mp-drawer__inner">
+          <header className="mp-drawer__head">
+            <div>
+              <h2 className="mp-drawer__title">{employee.fullName}</h2>
+              <p className="mp-drawer__subtitle">{employee.employeeCode} · Salary revision</p>
+            </div>
+            <Button type="button" variant="ghost" onClick={handleDiscard} disabled={saving}>
+              Close
+            </Button>
+          </header>
+          <div className="mp-drawer__body">
+            {editor ? (
+              <SalaryStructureEditor
+                value={editor}
+                joiningDate={employee.joiningDate ?? ""}
+                error={editorError}
+                onChange={(next) => {
+                  setEditor(next);
+                  setEditorError("");
+                }}
+              />
+            ) : null}
+          </div>
+          <footer className="mp-drawer__foot">
+            <Button type="button" variant="secondary" disabled={saving} onClick={handleDiscard}>
+              Cancel
+            </Button>
             <Button
               type="button"
               loading={saving}
@@ -147,12 +197,9 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
             >
               Save salary revision
             </Button>
-            <Button type="button" variant="secondary" disabled={saving} onClick={() => setEditor(null)}>
-              Cancel
-            </Button>
-          </div>
+          </footer>
         </div>
-      ) : null}
+      </dialog>
     </section>
   );
 }

@@ -12,11 +12,14 @@ import {
   downloadPayrollPayslip,
   finalizePayroll,
   getPayrollPeriod,
+  setStatutoryOverrides,
   updatePayrollPayment,
   type PayrollEmployeeDetail,
+  type PayrollLineDetail,
   type PayrollPeriodDetail,
+  type StatutoryKind,
 } from "@/lib/api";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -25,7 +28,7 @@ import { DateField } from "@/components/ui/DateField";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatRupees, periodLabel, runStatusLabel } from "@/lib/payroll";
+import { formatRupees, periodLabel, runStatusLabel, statutoryAppliedLabel } from "@/lib/payroll";
 import { Button as UiButton } from "@/components/shadcn/button";
 import {
   Table,
@@ -191,19 +194,24 @@ export default function PayrollReviewPage() {
   return (
     <main className="sa-shell">
       <header className="sa-head sa-head--with-back">
-        <Link href={`/app/payroll/${year}/${month}`} className="sa-back" aria-label="Monthly inputs">
-          <svg className="sa-back__icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M19 12H5m7 7-7-7 7-7"
-            />
-          </svg>
-        </Link>
         <h1>Payroll review</h1>
+        <div className="sa-head__actions">
+          <Link href="/app/payroll/history" className="sa-compose__secondary">
+            History
+          </Link>
+          <Link href={`/app/payroll/${year}/${month}`} className="sa-back" aria-label="Monthly inputs">
+            <svg className="sa-back__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 12H5m7 7-7-7 7-7"
+              />
+            </svg>
+          </Link>
+        </div>
         <p>
           {periodLabel(year, month)}
           {period?.run ? ` · ${runStatusLabel(period.run.status)}` : ""}.
@@ -211,7 +219,6 @@ export default function PayrollReviewPage() {
       </header>
 
       <Alert>{error || null}</Alert>
-      <ToastOutlet toast={toast} />
 
       {stale ? (
         <Alert tone="status">
@@ -225,16 +232,15 @@ export default function PayrollReviewPage() {
         <Alert tone="status">This payroll run was reversed. Payslips stay available with a watermark.</Alert>
       ) : null}
 
-      {loading ? (
-        <div className="space-y-4 py-8">
-          <p className="sa-empty" role="status">
-            Loading review…
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
+      {loading && !period ? (
+        <div className="space-y-4 py-4" role="status">
+          <div className="mp-kpi-grid">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
           </div>
+          <Skeleton className="h-32 w-full" />
         </div>
       ) : !period?.run ? (
         <p className="sa-empty">
@@ -243,83 +249,75 @@ export default function PayrollReviewPage() {
         </p>
       ) : (
         <>
-          {/* Action Toolbar */}
-          <div className="sa-payroll-toolbar flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              onClick={() => void onCalculate()}
-              loading={busy}
-              loadingLabel="Calculating…"
-              disabled={locked}
-            >
-              {period.results.length > 0 ? "Recalculate" : "Calculate"}
-            </Button>
-            {canFinalize ? (
-              <Button type="button" onClick={() => setConfirmOpen(true)} disabled={busy}>
-                Finalize
-              </Button>
-            ) : null}
-            {canDownload ? (
-              <Button type="button" onClick={() => void onDownloadAll()} disabled={busy}>
-                Download all
-              </Button>
-            ) : null}
-            {locked ? (
-              <p className="mp-group__hint">Finalized and reversed runs cannot be recalculated.</p>
-            ) : null}
-            <Link href={`/app/payroll/${year}/${month}`} className="sa-compose__secondary">
-              Edit inputs
-            </Link>
-            <Link href="/app/payroll/history" className="sa-compose__secondary">
-              History
-            </Link>
-          </div>
-
-          {/* Reconciliation Metric Cards */}
           {period.totals ? (
-            <div className="mp-kpi-grid my-6">
+            <div className="mp-kpi-grid" role="region" aria-label={`${periodLabel(year, month)} snapshot`}>
               <div className="mp-kpi-card">
-                <span className="mp-kpi-card__label">Total Gross Pay</span>
+                <span className="mp-kpi-card__label">Gross</span>
                 <span className="mp-kpi-card__value">{formatRupees(period.totals.grossEarnings)}</span>
-                <span className="mp-kpi-card__subtext">Across all active employees</span>
+                <span className="mp-kpi-card__subtext">All employees this month</span>
               </div>
               <div className="mp-kpi-card">
-                <span className="mp-kpi-card__label">Total Deductions</span>
+                <span className="mp-kpi-card__label">Deductions</span>
                 <span className="mp-kpi-card__value">{formatRupees(period.totals.totalDeductions)}</span>
-                <span className="mp-kpi-card__subtext">Statutory & one-time deductions</span>
+                <span className="mp-kpi-card__subtext">Recurring and one-time</span>
               </div>
               <div className="mp-kpi-card">
-                <span className="mp-kpi-card__label">Net Payable</span>
-                <span className="mp-kpi-card__value text-accent font-bold">
-                  {formatRupees(period.totals.netSalary)}
-                </span>
-                <span className="mp-kpi-card__subtext">Disbursement amount</span>
+                <span className="mp-kpi-card__label">Net</span>
+                <span className="mp-kpi-card__value">{formatRupees(period.totals.netSalary)}</span>
+                <span className="mp-kpi-card__subtext">Amount to pay</span>
               </div>
               <div className="mp-kpi-card">
-                <span className="mp-kpi-card__label">Run Status</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge
-                    tone={
-                      period.totals.errorCount > 0
-                        ? "error"
-                        : period.totals.warningCount > 0
-                          ? "warning"
-                          : "success"
-                    }
-                  >
-                    {period.totals.errorCount > 0
-                      ? `${period.totals.errorCount} Errors`
-                      : period.totals.warningCount > 0
-                        ? `${period.totals.warningCount} Warnings`
-                        : "Ready"}
-                  </Badge>
-                </div>
-                <span className="mp-kpi-card__subtext mt-1">
-                  {period.totals.employeeCount} {period.totals.employeeCount === 1 ? "employee" : "employees"}
+                <span className="mp-kpi-card__label">Status</span>
+                <span className="mp-kpi-card__value">{runStatusLabel(period.run.status)}</span>
+                <span className="mp-kpi-card__subtext">
+                  {period.totals.employeeCount}{" "}
+                  {period.totals.employeeCount === 1 ? "employee" : "employees"}
+                  {period.totals.errorCount > 0
+                    ? ` · ${period.totals.errorCount} ${period.totals.errorCount === 1 ? "error" : "errors"}`
+                    : ""}
+                  {period.totals.warningCount > 0
+                    ? ` · ${period.totals.warningCount} ${period.totals.warningCount === 1 ? "warning" : "warnings"}`
+                    : ""}
                 </span>
               </div>
             </div>
           ) : null}
+
+          <section className="sa-payroll-card" aria-label={`${periodLabel(year, month)} review`}>
+            <h2 className="sa-payroll-card__title">{periodLabel(year, month)}</h2>
+            <p className="sa-payroll-card__lede">
+              {locked
+                ? "This run is locked."
+                : canFinalize
+                  ? "Figures look complete. Finalize to lock them."
+                  : "Calculate to refresh gross, deductions, and net."}
+            </p>
+            <div className="sa-payroll-card__actions">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void onCalculate()}
+                loading={busy && !canDownload}
+                loadingLabel="Calculating…"
+                disabled={locked}
+              >
+                {period.results.length > 0 ? "Recalculate" : "Calculate"}
+              </Button>
+              {canFinalize ? (
+                <Button type="button" onClick={() => setConfirmOpen(true)} disabled={busy}>
+                  Finalize
+                </Button>
+              ) : null}
+              {canDownload ? (
+                <Button type="button" onClick={() => void onDownloadAll()} disabled={busy}>
+                  Download all
+                </Button>
+              ) : null}
+              <Link href={`/app/payroll/${year}/${month}`} className="sa-compose__secondary">
+                Edit inputs
+              </Link>
+            </div>
+          </section>
 
           {period.results.length === 0 ? (
             <p className="sa-empty">Calculate payroll to see gross, deductions, and net by employee.</p>
@@ -422,14 +420,13 @@ export default function PayrollReviewPage() {
                                   </div>
                                   <div>
                                     <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Deductions</h4>
-                                    <ul className="space-y-1.5">
-                                      {employee.deductions.map((deduction, index) => (
-                                        <li key={`ded-${index}`} className="flex justify-between items-center text-xs py-0.5 border-b border-rule">
-                                          <span>{deduction.name}</span>
-                                          <span className="font-mono font-medium">{formatRupees(deduction.amount)}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
+                                    <StatutoryDeductionList
+                                      employee={employee}
+                                      runId={period.run.id}
+                                      locked={locked}
+                                      busy={busy}
+                                      onSaved={load}
+                                    />
                                   </div>
                                 </div>
                               ) : null}
@@ -488,6 +485,158 @@ export default function PayrollReviewPage() {
         confirmLoadingLabel="Finalizing…"
       />
     </main>
+  );
+}
+
+function statutoryLines(employee: PayrollEmployeeDetail): PayrollLineDetail[] {
+  return employee.deductions.filter((line) => line.statutoryKind != null);
+}
+
+function otherDeductions(employee: PayrollEmployeeDetail): PayrollLineDetail[] {
+  return employee.deductions.filter((line) => line.statutoryKind == null);
+}
+
+function draftAmountsFrom(employee: PayrollEmployeeDetail): Record<string, string> {
+  return Object.fromEntries(
+    statutoryLines(employee).map((line) => [String(line.statutoryKind), String(line.amount)]),
+  );
+}
+
+function StatutoryDeductionList({
+  employee,
+  runId,
+  locked,
+  busy,
+  onSaved,
+}: {
+  employee: PayrollEmployeeDetail;
+  runId: string;
+  locked: boolean;
+  busy: boolean;
+  onSaved: () => Promise<void>;
+}) {
+  const toast = useToast();
+  const statutory = statutoryLines(employee);
+  const extras = otherDeductions(employee);
+  const [drafts, setDrafts] = useState(() => draftAmountsFrom(employee));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDrafts(draftAmountsFrom(employee));
+  }, [employee]);
+
+  const dirty = statutory.some((line) => {
+    const next = Number(drafts[String(line.statutoryKind)]);
+    return Number.isFinite(next) && next !== line.amount;
+  });
+
+  async function onApply() {
+    const overrides: Array<{ kind: StatutoryKind; amount: number }> = [];
+    for (const line of statutory) {
+      const kind = line.statutoryKind;
+      if (kind == null) continue;
+      const amount = Number(drafts[String(kind)]);
+      if (!Number.isFinite(amount) || amount < 0) {
+        toast.showError("Statutory amounts must be zero or more.");
+        return;
+      }
+      const computed = line.computedAmount ?? line.amount;
+      if (amount !== computed) {
+        overrides.push({ kind, amount });
+      }
+    }
+    setSaving(true);
+    try {
+      await setStatutoryOverrides(runId, employee.employeeId, overrides);
+      await onSaved();
+      toast.showSuccess("Statutory amounts updated.");
+    } catch (reason) {
+      toast.showError(
+        reason instanceof Error ? reason.message : "Could not update statutory amounts.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <ul className="space-y-1.5">
+        {extras.map((deduction, index) => (
+          <li
+            key={`ded-${index}`}
+            className="flex justify-between items-center text-xs py-0.5 border-b border-rule"
+          >
+            <span>{deduction.name}</span>
+            <span className="font-mono font-medium">{formatRupees(deduction.amount)}</span>
+          </li>
+        ))}
+        {statutory.map((deduction) => {
+          const kind = deduction.statutoryKind!;
+          const computed = deduction.computedAmount ?? deduction.amount;
+          const applied = Number(drafts[String(kind)] ?? deduction.amount);
+          const overridden = Number.isFinite(applied) && applied !== computed;
+          return (
+            <li key={`stat-${kind}`} className="text-xs py-0.5 border-b border-rule space-y-1">
+              <div className="flex justify-between items-center gap-2">
+                <span>{deduction.name}</span>
+                <span className="font-mono font-medium">
+                  {statutoryAppliedLabel(
+                    Number.isFinite(applied) ? applied : deduction.amount,
+                    computed,
+                  )}
+                </span>
+              </div>
+              {overridden ? (
+                <p className="sa-payroll-warn">Override differs from the computed amount.</p>
+              ) : null}
+              {!locked ? (
+                <Field
+                  id={`statutory-${employee.employeeId}-${kind}`}
+                  label={`Override ${deduction.name}`}
+                >
+                  <input
+                    className="mp-input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={drafts[String(kind)] ?? ""}
+                    disabled={busy || saving}
+                    onChange={(event) =>
+                      setDrafts((current) => ({
+                        ...current,
+                        [String(kind)]: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {employee.employerPf || employee.employerEsi ? (
+        <p className="mp-group__hint mt-2">
+          Employer PF {formatRupees(employee.employerPf ?? 0)} · Employer ESI{" "}
+          {formatRupees(employee.employerEsi ?? 0)}
+        </p>
+      ) : null}
+      {!locked && statutory.length > 0 ? (
+        <div className="mt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void onApply()}
+            loading={saving}
+            loadingLabel="Saving…"
+            disabled={busy || !dirty}
+          >
+            Apply statutory overrides
+          </Button>
+        </div>
+      ) : null}
+    </>
   );
 }
 

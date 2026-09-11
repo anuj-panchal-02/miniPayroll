@@ -1,13 +1,17 @@
 # PRD: miniPayroll
 
 **Product Name:** miniPayroll  
-**Document Version:** 1.3  
+**Document Version:** 1.4  
 **Product Stage:** MVP  
 **Target Market:** Small businesses with 1–50 salaried employees  
 **Primary Market:** India  
 **Currency:** INR only (MVP)  
 **Primary Business Model:** SaaS subscription charged per billable employee  
 **Primary SaaS Owner:** Superadmin-controlled onboarding and plan management
+
+### Changelog (v1.3 → v1.4)
+
+- Automated PF, ESI, Professional Tax, and LWF from Indian wage bases after earnings and unpaid leave. Salary structure is earnings-only (Basic, DA, HRA, and other allowances). TDS remains a manual one-time deduction. Filing, Form 16, and Superadmin rate editing remain out of scope.
 
 ### Changelog (v1.2 → v1.3)
 
@@ -481,20 +485,13 @@ The system must support configurable salary components. Every component is eithe
 Examples:
 
 - Basic Salary
+- Dearness Allowance (DA)
 - HRA
 - Conveyance Allowance
 - Special Allowance
 - Other Allowance
 
-## Recurring Deductions (on the salary structure)
-
-Examples:
-
-- Provident Fund (PF) — manual amount
-- ESI — manual amount
-- Professional Tax — manual amount
-- Labour Welfare Fund (LWF) — manual amount
-- Other recurring deduction
+The salary structure is **earnings only**. PF, ESI, Professional Tax, and LWF are not typed as rupee amounts on the structure; they are calculated at payroll from company policy and employee coverage.
 
 ## One-Time Earnings (on the payroll run)
 
@@ -514,11 +511,21 @@ Examples:
 - Fixed amount
 - Percentage of Basic Salary
 
-### Statutory Components in MVP
+### Statutory Components
 
-PF, ESI, Professional Tax, TDS and LWF are supported as **named deduction components with manually entered amounts**. The MVP does **not** calculate statutory amounts, apply thresholds, or file returns — the admin (or their accountant) enters the amounts, and the system carries them through calculation, review, snapshots and payslips. Automated statutory calculation is Version 3 (Section 38).
+PF, ESI, Professional Tax, and LWF are **calculated** after recurring earnings, overtime, bonuses, and unpaid leave. The admin reviews computed lines before finalize and may override a line for that run. TDS remains a **manual one-time deduction** on the payroll run.
 
-This matters because Indian small businesses that already deduct PF or PT in spreadsheets will not adopt a product whose payslips cannot show those lines.
+Filing (EPFO/ESIC/PT returns), Form 16, and automated TDS are out of scope.
+
+#### Locked calculation rules
+
+- **PF wages** = Basic + DA after join/exit proration, then reduced by the share of unpaid-leave deducted from those components. Employee PF = 12% of PF wages, capped at ₹15,000 unless the company opted for full wages. ₹0 if the company or employee is not PF-covered. Do **not** calendar-prorate a fixed PF amount.
+- **ESI wages** = recurring earnings after unpaid leave + overtime; **exclude bonuses**. Employee ESI = 0.75% and employer ESI = 3.25% when the employee is ESI-covered (coverage continues above the ₹21,000 eligibility band). ₹0 if not covered.
+- **Professional Tax** = full-month slab from the **company** state (and gender where the state requires it). No proration if the employee was employed in the period.
+- **LWF** = state table; skip months with no contribution.
+- **Employer PF (12%) and employer ESI** are company cost and do **not** reduce net salary.
+- **TDS** is entered manually on the run.
+- Overrides are stored on the run and reapplied on recalculate. Finalized snapshots stay immutable.
 
 ---
 
@@ -617,7 +624,7 @@ Each manually entered deduction includes:
 
 Advances and loans are recorded as **one-time deduction amounts for the selected month only**. The MVP does **not** track outstanding balances, schedules or remaining installments — that is a loan-module feature for a future version. The UI must label these fields so admins understand no balance is being tracked (preventing accidental double-deduction assumptions).
 
-Recurring statutory deductions (PF, ESI, PT, LWF) belong on the salary structure (Section 14).
+Recurring statutory deductions (PF, ESI, PT, LWF) are calculated at payroll (Section 14 and 19.5), not typed on the salary structure. TDS is a one-time manual deduction on the run.
 
 ---
 
@@ -654,7 +661,7 @@ Unpaid Leave Deduction = Daily Rate × Unpaid Leave Days
 ```text
 Total Deductions
 = Unpaid Leave Deduction
-+ Recurring Deductions (PF, ESI, PT, LWF, other)
++ Statutory Deductions (PF, ESI, PT, LWF — calculated, see 19.5)
 + One-Time Deductions (advance, loan, TDS, other)
 ```
 
@@ -675,13 +682,17 @@ Prorated Recurring Earnings
 
 - **Joining mid-month:** Days Employed = calendar days from joining date to month end, inclusive.
 - **Leaving mid-month:** Days Employed = calendar days from month start to exit date, inclusive.
-- Recurring deductions are prorated by the same ratio. One-time items are never prorated.
+- Statutory deductions are **not** prorated by this ratio; they use this month’s wage bases (Section 19.5). One-time items are never prorated.
 
 Anything beyond this (split periods, per-component proration rules, LOP calendars) is **complex proration** and explicitly out of scope for MVP.
 
 ## 19.4 Mid-Month Salary Change
 
 If an employee's salary structure changes during a payroll month, the **entire month uses the structure effective on the last calendar day of the payroll period**. Split-month calculations are out of scope for MVP. The review screen shows a "salary changed since last month" warning so the admin can verify intent.
+
+## 19.5 Statutory calculation
+
+Statutory lines are computed **after** unpaid leave, from company policy and employee coverage. See Section 14. The review screen shows computed vs applied (override) amounts. Employer contributions are displayed as company cost and are not part of net salary.
 
 ---
 
@@ -793,17 +804,20 @@ The payslip renders the **snapshot component lines stored on the payroll run** �
 
 ### Payslip Contents
 
-- Company logo and information
-- Employee information (name, Employee ID, designation)
+- Company logo and information (name, address, PF establishment code and ESI code when set)
+- Employee information (name, Employee ID, designation, days paid)
 - Payroll month
 - All earning lines (from snapshot)
 - Gross earnings
 - All deduction lines (from snapshot), including statutory lines
 - Total deductions
 - Net salary (in figures and words)
+- Employer PF and ESI as informational lines (not part of net), when either amount is greater than zero
 - Payment status, if recorded (Paid via Bank/UPI/Cash on date)
+- A **miniPayroll** watermark on every page
+- Payslips belonging to a reversed run also carry a **Reversed** watermark and remain downloadable
 
-Payslips are downloadable as PDF, individually and as a single combined PDF for the whole run.
+Payslips are downloadable as PDF, individually and as a single combined PDF for the whole run. Company address and PF/ESI codes are frozen on the payroll run at create and finalize so later company edits do not rewrite historical slips.
 
 ---
 
@@ -955,7 +969,7 @@ The five monthly-input areas are **one screen** with an employee-per-row grid, n
 
 ## Payroll Management
 
-**FR-027** Company Admin must be able to configure salary structures with recurring earning and deduction components, including named statutory components (PF, ESI, PT, LWF).
+**FR-027** Company Admin must be able to configure salary structures with recurring earning components. PF, ESI, PT, and LWF are calculated at payroll from company policy and employee coverage; TDS remains a manual one-time deduction.
 **FR-028** Company Admin must be able to enter monthly attendance, leave, overtime, bonuses and deductions on a single monthly-inputs screen.
 **FR-029** The system must validate the attendance identity (Section 15) for every employee.
 **FR-030** The system must calculate payroll per the rules in Section 19, including daily rate, unpaid-leave deduction and rounding.
@@ -1371,7 +1385,7 @@ All metrics above are computed from the analytics events required by FR-044.
 - Single Basic plan with per-employee pricing and limits (cap 50)
 - Company setup wizard
 - Employee management (incl. joining/exit dates, encrypted bank details)
-- Salary structures with recurring components, incl. statutory deduction lines (manual amounts)
+- Salary structures with recurring earning components; PF, ESI, PT, and LWF calculated at payroll; TDS manual
 - Monthly Inputs screen (attendance identity validation, leave, overtime, bonuses, one-time deductions)
 - Payroll calculation engine (Section 19 rules: daily rate, proration, mid-month change, rounding)
 - Payroll review with defined warnings and blocking errors
@@ -1402,7 +1416,7 @@ All metrics above are computed from the analytics events required by FR-044.
 - Full HRMS
 - Advanced attendance (daily registers, devices, biometrics)
 - Multi-country payroll and multi-currency
-- **Automated** statutory calculation and filing (TDS/PF/ESI/PT amounts are manual lines in MVP)
+- Automated TDS, Form 16, and statutory filing (EPFO/ESIC/PT returns)
 - Loan/advance balance tracking
 - Expense management
 - Accounting integration
@@ -1433,12 +1447,9 @@ All metrics above are computed from the analytics events required by FR-044.
 
 ## Version 3
 
-- Automated PF calculation
-- Automated ESI calculation
-- Professional Tax slabs by state
-- TDS calculation
+- Automated TDS calculation
 - Form 16
-- Statutory reports
+- Statutory reports and filing (EPFO/ESIC/PT returns)
 - Automated compliance workflows
 
 ## Version 4

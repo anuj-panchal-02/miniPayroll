@@ -4,11 +4,11 @@
   align-self: start;
   width: auto;
   max-width: 100%;
-  height: 2.25rem;
+  height: var(--logo-height-nav);
   object-fit: contain;
   object-position: left center;
 }
 
 .brand-logo--auth {
-  height: 4.5rem;
+  height: var(--logo-height-auth);
 }

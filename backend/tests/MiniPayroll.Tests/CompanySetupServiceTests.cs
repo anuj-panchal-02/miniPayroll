@@ -354,6 +354,44 @@ public class CompanySetupServiceTests
         Assert.Equal("uploads/companies/logo.png", (await db.Companies.SingleAsync()).LogoPath);
     }
 
+    [Fact]
+    public async Task Completed_companies_update_statutory_policy_on_the_live_route()
+    {
+        var (db, service, _) = await CreateServiceAsync(company =>
+        {
+            MakeValid(company);
+            company.IsSetupComplete = true;
+            company.SetupStep = CompanySetupStep.Complete;
+        });
+        await using var ownedDb = db;
+
+        var blocked = await service.UpdatePayrollSettingsAsync(
+            new PayrollSettingsInput(DailyRateMethod.CalendarDays, 26, ["Sunday"], PfApplicable: false));
+        Assert.Equal(CompanySetupStatus.AlreadyComplete, blocked.Status);
+
+        var result = await service.UpdateCompletedPayrollSettingsAsync(
+            new PayrollSettingsInput(
+                DailyRateMethod.FixedThirty,
+                30,
+                ["Sunday"],
+                PfApplicable: false,
+                PfUseWageCeiling: false,
+                EsiApplicable: false,
+                PfEstablishmentCode: "MH/123",
+                EsiCode: "ESI-1"));
+
+        Assert.Equal(CompanySetupStatus.Success, result.Status);
+        var persisted = await db.Companies.SingleAsync();
+        Assert.False(persisted.PfApplicable);
+        Assert.False(persisted.PfUseWageCeiling);
+        Assert.False(persisted.EsiApplicable);
+        Assert.Equal("MH/123", persisted.PfEstablishmentCode);
+        Assert.Equal("ESI-1", persisted.EsiCode);
+        Assert.Equal(DailyRateMethod.FixedThirty, persisted.DailyRateMethod);
+        Assert.True(persisted.IsSetupComplete);
+        Assert.Equal(CompanySetupStep.Complete, persisted.SetupStep);
+    }
+
     private static async Task<(MiniPayrollDbContext Db, CompanySetupService Service, StaticTenantContext Tenant)>
         CreateServiceAsync(Action<Company>? configure = null)
     {

@@ -1,19 +1,17 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { SuperadminShell } from "@/components/SuperadminShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
 import { ListPager, usePager } from "@/components/ui/ListPager";
 import { Select } from "@/components/ui/Select";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { pageSlice } from "@/lib/paging";
 import {
   createPlatformCity,
-  getToken,
   listPlatformCities,
   listPlatformStates,
   updatePlatformCity,
@@ -22,7 +20,6 @@ import {
 } from "@/lib/api";
 
 export default function PlatformCitiesPage() {
-  const router = useRouter();
   const [states, setStates] = useState<PlatformStateItem[]>([]);
   const [cities, setCities] = useState<PlatformCityItem[]>([]);
   const [stateId, setStateId] = useState("");
@@ -35,11 +32,6 @@ export default function PlatformCitiesPage() {
   const [editName, setEditName] = useState("");
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
     listPlatformStates(true)
       .then((items) => {
@@ -59,7 +51,7 @@ export default function PlatformCitiesPage() {
     return () => {
       cancelled = true;
     };
-  }, [router.replace]);
+  }, []);
 
   useEffect(() => {
     if (!stateId) {
@@ -132,15 +124,13 @@ export default function PlatformCitiesPage() {
   const visible = pageSlice(cities, pager.page, pager.pageSize);
 
   return (
-    <SuperadminShell>
-      <main className="sa-shell">
+    <main className="sa-shell">
         <header className="sa-head">
           <h1>Cities</h1>
           <p>Cities belong to a state and appear on company and employee address forms.</p>
         </header>
 
         <Alert>{error}</Alert>
-        <ToastOutlet toast={toast} />
 
         <form className="sa-compose" onSubmit={onAdd}>
           <FieldGroup title="Add a city" className="mp-group--inline mp-group--inline-fields">
@@ -172,9 +162,11 @@ export default function PlatformCitiesPage() {
         </form>
 
         {loading ? (
-          <p className="sa-empty" role="status">
-            Loading states.
-          </p>
+          <div className="sa-master-wrap" role="status">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="mt-2 h-14 w-full" />
+            <Skeleton className="mt-2 h-14 w-full" />
+          </div>
         ) : !stateId ? (
           <p className="sa-empty">Select a state to manage its cities.</p>
         ) : (
@@ -268,7 +260,6 @@ export default function PlatformCitiesPage() {
           />
           </>
         )}
-      </main>
-    </SuperadminShell>
+    </main>
   );
 }

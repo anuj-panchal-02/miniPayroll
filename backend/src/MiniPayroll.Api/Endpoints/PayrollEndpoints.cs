@@ -19,6 +19,7 @@ public static class PayrollEndpoints
         group.MapPut("/runs/{runId:guid}/inputs", SaveInputs);
         group.MapPost("/runs/{runId:guid}/finalize", FinalizeRun);
         group.MapPut("/runs/{runId:guid}/employees/{employeeId:guid}/payment", SetPayment);
+        group.MapPut("/runs/{runId:guid}/employees/{employeeId:guid}/statutory-overrides", SetStatutoryOverrides);
         group.MapGet("/runs/{runId:guid}/payslips", CombinedPayslips);
         group.MapGet("/runs/{runId:guid}/payslips/{employeeId:guid}", EmployeePayslip);
         return routes;
@@ -55,6 +56,14 @@ public static class PayrollEndpoints
         PayrollInputService inputs,
         CancellationToken cancellationToken) =>
         ToHttp(await inputs.SetPaymentAsync(runId, employeeId, input, cancellationToken));
+
+    private static async Task<IResult> SetStatutoryOverrides(
+        Guid runId,
+        Guid employeeId,
+        StatutoryOverridesPayload? input,
+        PayrollCalculationService payroll,
+        CancellationToken cancellationToken) =>
+        ToHttp(await payroll.SetStatutoryOverridesAsync(runId, employeeId, input?.Overrides, cancellationToken));
 
     private static async Task<IResult> CombinedPayslips(
         Guid runId,

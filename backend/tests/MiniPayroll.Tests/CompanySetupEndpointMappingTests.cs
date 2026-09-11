@@ -41,7 +41,8 @@ public sealed class CompanySetupEndpointMappingTests
             ["/api/company/setup/details"] = HttpMethods.Patch,
             ["/api/company/setup/payroll-settings"] = HttpMethods.Patch,
             ["/api/company/setup/logo"] = HttpMethods.Post,
-            ["/api/company/setup/complete"] = HttpMethods.Post
+            ["/api/company/setup/complete"] = HttpMethods.Post,
+            ["/api/company/payroll-settings"] = HttpMethods.Patch
         };
 
         Assert.Equal(expected.Count, endpoints.Length);

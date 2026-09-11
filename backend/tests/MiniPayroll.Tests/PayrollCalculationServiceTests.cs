@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Payroll;
+using MiniPayroll.Domain.Payroll.Statutory;
 using MiniPayroll.Domain.Tenancy;
 using MiniPayroll.Infrastructure.Persistence;
 
@@ -207,6 +208,46 @@ public sealed class PayrollCalculationServiceTests
         Assert.Equal(1, await db.PayrollRuns.CountAsync());
     }
 
+    [Fact]
+    public async Task Statutory_override_survives_recalculation()
+    {
+        var fixture = await FixtureAsync();
+        await using var db = fixture.Db;
+        var company = await db.Companies.SingleAsync();
+        company.PfApplicable = true;
+        company.PfUseWageCeiling = true;
+        await db.SaveChangesAsync();
+
+        var runId = (await fixture.Payroll.CreateRunAsync(Year, Month)).Run!.Id;
+        await AddAttendanceAsync(db, fixture.Company.Id, runId, fixture.Employee.Id);
+
+        var calculated = await fixture.Payroll.CalculateAsync(runId);
+        var pf = Assert.Single(
+            calculated.Run!.Employees.Single().Deductions,
+            line => line.StatutoryKind == StatutoryKind.PfEmployee);
+        Assert.Equal(1800m, pf.Amount);
+        Assert.Equal(1800m, calculated.Run.Employees.Single().EmployerPf);
+
+        var overridden = await fixture.Payroll.SetStatutoryOverridesAsync(
+            runId,
+            fixture.Employee.Id,
+            [new StatutoryOverrideInput(StatutoryKind.PfEmployee, 0m)]);
+        Assert.Equal(PayrollRunStatusCode.Success, overridden.Status);
+        pf = Assert.Single(
+            overridden.Run!.Employees.Single().Deductions,
+            line => line.StatutoryKind == StatutoryKind.PfEmployee);
+        Assert.Equal(0m, pf.Amount);
+        Assert.Equal(1800m, pf.ComputedAmount);
+
+        var again = await fixture.Payroll.CalculateAsync(runId);
+        pf = Assert.Single(
+            again.Run!.Employees.Single().Deductions,
+            line => line.StatutoryKind == StatutoryKind.PfEmployee);
+        Assert.Equal(0m, pf.Amount);
+        Assert.Equal(1800m, pf.ComputedAmount);
+        Assert.Equal(1800m, again.Run.Employees.Single().EmployerPf);
+    }
+
     private sealed record Fixture(
         string Database,
         MiniPayrollDbContext Db,
@@ -236,6 +277,8 @@ public sealed class PayrollCalculationServiceTests
             IsSetupComplete = true,
             SetupStep = CompanySetupStep.Complete,
             DailyRateMethod = DailyRateMethod.CalendarDays,
+            PfApplicable = false,
+            EsiApplicable = false,
             CreatedAt = DateTimeOffset.UtcNow
         };
         var plan = new Plan

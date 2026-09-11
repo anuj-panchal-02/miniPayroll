@@ -5,6 +5,7 @@ import {
   companySetupErrors,
   employeeDraftErrors,
   employeeErrors,
+  employeePayrollErrors,
   employeeLimitError,
   logoFileError,
   newPasswordError,
@@ -170,6 +171,12 @@ describe("employee validation", () => {
     ifsc: "HDFC0001234",
     upiId: "",
     overtimeRate: "",
+    gender: "0",
+    pfCovered: "true",
+    esiCovered: "true",
+    uan: "",
+    pfNumber: "",
+    esiNumber: "",
   };
 
   it("accepts a valid employee", () => {
@@ -213,8 +220,17 @@ describe("employee validation", () => {
         bankName: "",
         bankAccountNumber: "",
         ifsc: "",
+        gender: "",
       }),
     ).toEqual({});
+  });
+
+  it("requires gender to activate an employee", () => {
+    expect(employeeErrors({ ...valid, gender: "" }).gender).toBe("Select a gender.");
+  });
+
+  it("rejects a short UAN", () => {
+    expect(employeePayrollErrors({ ...valid, uan: "123" }).uan).toBe("UAN must be 12 digits.");
   });
 
   it("rejects an exit date before joining", () => {

@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll;
 using MiniPayroll.Domain.Tenancy;
 using MiniPayroll.Infrastructure.Identity;
 
@@ -45,6 +47,7 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<PayrollEmployee> PayrollEmployees => Set<PayrollEmployee>();
     public DbSet<PayrollEarning> PayrollEarnings => Set<PayrollEarning>();
     public DbSet<PayrollDeduction> PayrollDeductions => Set<PayrollDeduction>();
+    public DbSet<PayrollStatutoryOverride> PayrollStatutoryOverrides => Set<PayrollStatutoryOverride>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -83,6 +86,8 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .HasDefaultValue(CompanySetupStep.CompanyDetails)
                 .IsRequired();
             entity.Property(c => c.WeeklyOffDays).HasMaxLength(100).IsRequired();
+            entity.Property(c => c.PfEstablishmentCode).HasMaxLength(50);
+            entity.Property(c => c.EsiCode).HasMaxLength(50);
             entity.Property(c => c.RowVersion).IsRowVersion();
             entity.HasIndex(c => c.ContactEmail);
             entity.HasQueryFilter(c => _tenant.IsSuperadmin || c.Id == _tenant.CompanyId);
@@ -190,6 +195,9 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .IsRequired();
             entity.Property(e => e.UpiId).HasMaxLength(100);
             entity.Property(e => e.OvertimeRate).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.Uan).HasMaxLength(12);
+            entity.Property(e => e.PfNumber).HasMaxLength(50);
+            entity.Property(e => e.EsiNumber).HasMaxLength(50);
             entity.HasIndex(e => new { e.CompanyId, e.EmployeeCode }).IsUnique();
             entity.HasOne(e => e.Company)
                 .WithMany()
@@ -272,6 +280,9 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.ToTable(TableNames.PayrollRun);
             entity.Property(run => run.CompanyName).HasMaxLength(200);
             entity.Property(run => run.CompanyLogoPath).HasMaxLength(500);
+            entity.Property(run => run.CompanyAddress).HasMaxLength(CompanyAddressFormatter.MaxLength);
+            entity.Property(run => run.PfEstablishmentCode).HasMaxLength(CompanySetupRules.EstablishmentCodeMaxLength);
+            entity.Property(run => run.EsiCode).HasMaxLength(CompanySetupRules.EstablishmentCodeMaxLength);
             entity.Property(run => run.ReversalReason).HasMaxLength(500);
             entity.Property(run => run.RowVersion).IsRowVersion();
             // Only one non-reversed run per company per period (PRD §20).
@@ -372,6 +383,8 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.Property(result => result.GrossEarnings).HasColumnType("decimal(18,2)");
             entity.Property(result => result.TotalDeductions).HasColumnType("decimal(18,2)");
             entity.Property(result => result.NetSalary).HasColumnType("decimal(18,2)");
+            entity.Property(result => result.EmployerPf).HasColumnType("decimal(18,2)");
+            entity.Property(result => result.EmployerEsi).HasColumnType("decimal(18,2)");
             entity.Property(result => result.Warnings).HasMaxLength(2000);
             entity.Property(result => result.Errors).HasMaxLength(2000);
             entity.Property(result => result.PaymentReference).HasMaxLength(100);
@@ -409,6 +422,7 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.ToTable(TableNames.PayrollDeduction);
             entity.Property(line => line.Name).HasMaxLength(100).IsRequired();
             entity.Property(line => line.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(line => line.ComputedAmount).HasColumnType("decimal(18,2)");
             entity.HasIndex(line => new { line.PayrollEmployeeId, line.SortOrder })
                 .IsUnique();
             entity.HasOne(line => line.PayrollEmployee)
@@ -417,6 +431,24 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasQueryFilter(line =>
                 _tenant.IsSuperadmin || line.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<PayrollStatutoryOverride>(entity =>
+        {
+            entity.ToTable(TableNames.PayrollStatutoryOverride);
+            entity.Property(item => item.Amount).HasColumnType("decimal(18,2)");
+            entity.HasIndex(item => new { item.PayrollRunId, item.EmployeeId, item.Kind })
+                .IsUnique();
+            entity.HasOne(item => item.PayrollRun)
+                .WithMany(run => run.StatutoryOverrides)
+                .HasForeignKey(item => item.PayrollRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.Employee)
+                .WithMany()
+                .HasForeignKey(item => item.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(item =>
+                _tenant.IsSuperadmin || item.CompanyId == _tenant.CompanyId);
         });
     }
 }

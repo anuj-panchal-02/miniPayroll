@@ -1,6 +1,5 @@
 "use client";
 
-import { SuperadminShell } from "@/components/SuperadminShell";
 import { Stepper } from "@/components/ui/Stepper";
 import "@/app/app/setup/setup.css";
 
@@ -20,29 +19,22 @@ export function SetupWizardShell({
   description,
 }: SetupWizardShellProps) {
   return (
-    <SuperadminShell
-      role="Company Admin"
-      homeHref="/app"
-      requiredRole="CompanyAdmin"
-      allowIncompleteSetup
-    >
-      <main className="setup-shell">
-        <Stepper
-          className="setup-progress"
-          label="Setup progress"
-          currentStep={currentStep}
-          steps={STEPS}
-        />
+    <main className="setup-shell">
+      <Stepper
+        className="setup-progress"
+        label="Setup progress"
+        currentStep={currentStep}
+        steps={STEPS}
+      />
 
-        <section className="setup-content">
-          <header className="setup-heading">
-            <p className="setup-heading__eyebrow">Company setup</p>
-            <h1>{title}</h1>
-            <p>{description}</p>
-          </header>
-          {children}
-        </section>
-      </main>
-    </SuperadminShell>
+      <section className="setup-content">
+        <header className="setup-heading">
+          <p className="setup-heading__eyebrow">Company setup</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </header>
+        {children}
+      </section>
+    </main>
   );
 }

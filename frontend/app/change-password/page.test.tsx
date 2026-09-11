@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanySetupStep } from "@/lib/setup";
+import { ToastProvider } from "@/components/Toast";
 import ChangePasswordPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -58,14 +59,22 @@ describe("ChangePasswordPage", () => {
 
   it("redirects to login when there is no token", async () => {
     mocks.getToken.mockReturnValue(null);
-    render(<ChangePasswordPage />);
+    render(
+      <ToastProvider>
+        <ChangePasswordPage />
+      </ToastProvider>,
+    );
     await waitFor(() => {
       expect(mocks.replace).toHaveBeenCalledWith("/login");
     });
   });
 
   it("validates on blur and focuses the first error on submit", async () => {
-    render(<ChangePasswordPage />);
+    render(
+      <ToastProvider>
+        <ChangePasswordPage />
+      </ToastProvider>,
+    );
     const current = await screen.findByLabelText("Current password");
     fireEvent.blur(current);
     expect(screen.getByText("Enter your current password.")).toBeTruthy();
@@ -76,14 +85,22 @@ describe("ChangePasswordPage", () => {
   });
 
   it("toggles password visibility", async () => {
-    render(<ChangePasswordPage />);
+    render(
+      <ToastProvider>
+        <ChangePasswordPage />
+      </ToastProvider>,
+    );
     const current = (await screen.findByLabelText("Current password")) as HTMLInputElement;
     fireEvent.click(screen.getAllByRole("button", { name: "Show password" })[0]);
     expect(current.type).toBe("text");
   });
 
   it("saves a valid password and continues into the app", async () => {
-    render(<ChangePasswordPage />);
+    render(
+      <ToastProvider>
+        <ChangePasswordPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Current password");
     fireEvent.change(screen.getByLabelText("Current password"), {
       target: { value: "Tmp_TestAdmin1!" },
@@ -108,7 +125,11 @@ describe("ChangePasswordPage", () => {
         setTimeout(() => reject(new Error("Current password is incorrect.")), 0);
       }),
     );
-    render(<ChangePasswordPage />);
+    render(
+      <ToastProvider>
+        <ChangePasswordPage />
+      </ToastProvider>,
+    );
     await screen.findByLabelText("Current password");
     fireEvent.change(screen.getByLabelText("Current password"), {
       target: { value: "Tmp_TestAdmin1!" },

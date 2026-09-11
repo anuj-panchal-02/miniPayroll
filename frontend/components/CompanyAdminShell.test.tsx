@@ -43,7 +43,10 @@ describe("CompanyAdminShell", () => {
     );
     expect(screen.getByRole("link", { name: "Payroll" })).toBeTruthy();
     expect(screen.queryByText(/payroll · coming soon/i)).toBeNull();
-    expect(screen.getByText(/settings · coming soon/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Settings" }).getAttribute("href")).toBe(
+      "/app/settings",
+    );
+    expect(screen.queryByText(/settings · coming soon/i)).toBeNull();
     expect(screen.getByText("Workspace")).toBeTruthy();
   });
 });

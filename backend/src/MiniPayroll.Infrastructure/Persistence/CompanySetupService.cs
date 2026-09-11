@@ -30,7 +30,12 @@ public sealed record CompanyDetailsInput(
 public sealed record PayrollSettingsInput(
     DailyRateMethod DailyRateMethod,
     int WorkingDaysPerMonth,
-    IReadOnlyCollection<string?>? WeeklyOffDays);
+    IReadOnlyCollection<string?>? WeeklyOffDays,
+    bool PfApplicable = true,
+    bool PfUseWageCeiling = true,
+    bool EsiApplicable = true,
+    string? PfEstablishmentCode = null,
+    string? EsiCode = null);
 
 public sealed record CompanySetupState(
     Guid CompanyId,
@@ -47,7 +52,12 @@ public sealed record CompanySetupState(
     int WorkingDaysPerMonth,
     IReadOnlyList<string> WeeklyOffDays,
     CompanySetupStep SetupStep,
-    bool IsSetupComplete);
+    bool IsSetupComplete,
+    bool PfApplicable = true,
+    bool PfUseWageCeiling = true,
+    bool EsiApplicable = true,
+    string? PfEstablishmentCode = null,
+    string? EsiCode = null);
 
 public sealed record CompanySetupResult(
     CompanySetupStatus Status,
@@ -155,18 +165,65 @@ public sealed class CompanySetupService(
         {
             DailyRateMethod = input.DailyRateMethod,
             WorkingDaysPerMonth = input.WorkingDaysPerMonth,
-            WeeklyOffDays = canonicalDays
+            WeeklyOffDays = canonicalDays,
+            PfApplicable = input.PfApplicable,
+            PfUseWageCeiling = input.PfUseWageCeiling,
+            EsiApplicable = input.EsiApplicable,
+            PfEstablishmentCode = TrimCode(input.PfEstablishmentCode),
+            EsiCode = TrimCode(input.EsiCode)
         };
         if (!CompanySetupRules.HasValidPayrollSettings(candidate))
         {
             return Result(CompanySetupStatus.InvalidInput, company);
         }
 
-        company.DailyRateMethod = candidate.DailyRateMethod;
-        company.WorkingDaysPerMonth = candidate.WorkingDaysPerMonth;
-        company.WeeklyOffDays = candidate.WeeklyOffDays;
+        ApplyPayrollSettings(company, candidate);
         AdvanceTo(company, CompanySetupStep.Review);
 
+        await db.SaveChangesAsync(cancellationToken);
+        return Result(CompanySetupStatus.Success, company);
+    }
+
+    public async Task<CompanySetupResult> UpdateCompletedPayrollSettingsAsync(
+        PayrollSettingsInput? input,
+        CancellationToken cancellationToken = default)
+    {
+        var company = await GetTenantCompanyAsync(cancellationToken);
+        if (company is null)
+        {
+            return Result(CompanySetupStatus.CompanyNotFound);
+        }
+
+        if (!company.IsSetupComplete)
+        {
+            return Result(CompanySetupStatus.InvalidStep, company);
+        }
+
+        if (input is null
+            || !CompanySetupRules.TryCanonicalizeWeeklyOffDays(
+                input.WeeklyOffDays,
+                out var canonicalDays))
+        {
+            return Result(CompanySetupStatus.InvalidInput, company);
+        }
+
+        var candidate = new Company
+        {
+            DailyRateMethod = input.DailyRateMethod,
+            WorkingDaysPerMonth = input.WorkingDaysPerMonth,
+            WeeklyOffDays = canonicalDays,
+            PfApplicable = input.PfApplicable,
+            PfUseWageCeiling = input.PfUseWageCeiling,
+            EsiApplicable = input.EsiApplicable,
+            PfEstablishmentCode = TrimCode(input.PfEstablishmentCode),
+            EsiCode = TrimCode(input.EsiCode)
+        };
+        if (!CompanySetupRules.HasValidPayrollSettings(candidate))
+        {
+            return Result(CompanySetupStatus.InvalidInput, company);
+        }
+
+        ApplyPayrollSettings(company, candidate);
         await db.SaveChangesAsync(cancellationToken);
         return Result(CompanySetupStatus.Success, company);
     }
@@ -307,5 +364,28 @@ public sealed class CompanySetupService(
         company.WorkingDaysPerMonth,
         company.WeeklyOffDays.Split(',', StringSplitOptions.RemoveEmptyEntries),
         company.SetupStep,
-        company.IsSetupComplete);
+        company.IsSetupComplete,
+        company.PfApplicable,
+        company.PfUseWageCeiling,
+        company.EsiApplicable,
+        company.PfEstablishmentCode,
+        company.EsiCode);
+
+    private static void ApplyPayrollSettings(Company company, Company candidate)
+    {
+        company.DailyRateMethod = candidate.DailyRateMethod;
+        company.WorkingDaysPerMonth = candidate.WorkingDaysPerMonth;
+        company.WeeklyOffDays = candidate.WeeklyOffDays;
+        company.PfApplicable = candidate.PfApplicable;
+        company.PfUseWageCeiling = candidate.PfUseWageCeiling;
+        company.EsiApplicable = candidate.EsiApplicable;
+        company.PfEstablishmentCode = candidate.PfEstablishmentCode;
+        company.EsiCode = candidate.EsiCode;
+    }
+
+    private static string? TrimCode(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
 }

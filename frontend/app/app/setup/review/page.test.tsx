@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanySetupStep } from "@/lib/setup";
+import { ToastProvider } from "@/components/Toast";
 import ReviewSetupPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -38,6 +39,11 @@ const setup = {
   dailyRateMethod: "CalendarDays" as const,
   workingDaysPerMonth: 26,
   weeklyOffDays: ["Sunday"],
+  pfApplicable: true,
+  pfUseWageCeiling: true,
+  esiApplicable: true,
+  pfEstablishmentCode: null,
+  esiCode: null,
   setupStep: CompanySetupStep.Review,
   isSetupComplete: false,
 };
@@ -54,11 +60,18 @@ describe("ReviewSetupPage", () => {
   });
 
   it("shows a read-only grouped summary with edit links", async () => {
-    render(<ReviewSetupPage />);
+    render(
+      <ToastProvider>
+        <ReviewSetupPage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByText("Acme Ltd")).toBeTruthy();
     expect(screen.getByRole("link", { name: /edit company details/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /edit payroll settings/i })).toBeTruthy();
+    expect(screen.getByText(/on, ₹15,000 wage ceiling/i)).toBeTruthy();
+    expect(screen.getByText("ESI").parentElement?.textContent).toMatch(/On/);
+    expect(screen.getByText(/maharashtra rules/i)).toBeTruthy();
     expect(screen.getByAltText(/acme ltd logo/i).getAttribute("src")).toBe(
       "http://localhost:5238/uploads/logo.png",
     );
@@ -71,7 +84,11 @@ describe("ReviewSetupPage", () => {
         resolveComplete = resolve;
       }),
     );
-    render(<ReviewSetupPage />);
+    render(
+      <ToastProvider>
+        <ReviewSetupPage />
+      </ToastProvider>,
+    );
     await screen.findByText("Acme Ltd");
 
     fireEvent.click(screen.getByRole("button", { name: /complete setup/i }));
@@ -85,7 +102,11 @@ describe("ReviewSetupPage", () => {
     mocks.completeCompanySetup.mockRejectedValueOnce(
       new Error("Upload a company logo before completing setup."),
     );
-    render(<ReviewSetupPage />);
+    render(
+      <ToastProvider>
+        <ReviewSetupPage />
+      </ToastProvider>,
+    );
     await screen.findByText("Acme Ltd");
 
     fireEvent.click(screen.getByRole("button", { name: /complete setup/i }));
@@ -103,7 +124,11 @@ describe("ReviewSetupPage", () => {
         resolveComplete = resolve;
       }),
     );
-    const view = render(<ReviewSetupPage />);
+    const view = render(
+      <ToastProvider>
+        <ReviewSetupPage />
+      </ToastProvider>,
+    );
     await screen.findByText("Acme Ltd");
     fireEvent.click(screen.getByRole("button", { name: /complete setup/i }));
     await waitFor(() => expect(mocks.completeCompanySetup).toHaveBeenCalledOnce());

@@ -10,8 +10,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  min-height: 44px;
-  min-width: 44px;
+  min-height: var(--control-height);
+  min-width: var(--control-height);
   padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--color-rule-2);
   border-radius: var(--radius-pill);
@@ -21,12 +21,12 @@
   font-size: var(--text-button);
   font-weight: 500;
   font-style: normal;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-body);
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  outline: 2px solid transparent;
-  outline-offset: 2px;
+  outline: var(--outline-width) solid transparent;
+  outline-offset: var(--outline-offset-action);
   transition:
     background-color var(--dur-hover) var(--ease-out),
     border-color var(--dur-hover) var(--ease-out),
@@ -37,7 +37,7 @@
 .sign-out::before {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: calc(var(--hit-area-expand) * -1);
 }
 
 .sign-out.is-hover {
@@ -73,7 +73,7 @@
   background: var(--color-paper);
   border-color: var(--color-rule);
   color: var(--color-neutral);
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
   transform: none;
 }
@@ -112,7 +112,7 @@
   flex-shrink: 0;
   border: 2px solid var(--color-rule);
   border-top-color: var(--color-ink);
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   animation: sign-out-spin 700ms linear infinite;
 }
 
@@ -139,7 +139,7 @@
 }
 
 .sign-out-dialog {
-  width: min(22rem, calc(100% - 2 * var(--page-gutter)));
+  width: min(var(--content-form), calc(100% - 2 * var(--page-gutter)));
   margin: auto;
   padding: var(--space-lg);
   border: 1px solid var(--color-rule);
@@ -165,7 +165,7 @@
   font-size: var(--text-lg);
   font-weight: 600;
   font-style: normal;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-display);
   line-height: 1.2;
   overflow-wrap: anywhere;
   min-width: 0;
@@ -190,19 +190,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: var(--control-height);
   padding: 0 var(--space-md);
   border-radius: var(--radius-pill);
   font-family: var(--font-body);
   font-size: var(--text-button);
   font-weight: 500;
   font-style: normal;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-body);
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  outline: 2px solid transparent;
-  outline-offset: 2px;
+  outline: var(--outline-width) solid transparent;
+  outline-offset: var(--outline-offset-action);
   transition:
     background-color var(--dur-hover) var(--ease-out),
     border-color var(--dur-hover) var(--ease-out),
@@ -243,7 +243,7 @@
 .sign-out-dialog__cancel:disabled,
 .sign-out-dialog__cancel.is-disabled,
 .sign-out-dialog__cancel.is-loading {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
   transform: none;
 }

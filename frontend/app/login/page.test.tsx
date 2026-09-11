@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanySetupStep } from "@/lib/setup";
+import { ToastProvider } from "@/components/Toast";
 import LoginPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -43,13 +44,21 @@ describe("LoginPage", () => {
   });
 
   it("does not prefill Superadmin credentials", () => {
-    render(<LoginPage />);
+    render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("");
     expect((screen.getByLabelText("Password") as HTMLInputElement).value).toBe("");
   });
 
   it("validates on blur and focuses the first invalid field", () => {
-    render(<LoginPage />);
+    render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     const email = screen.getByLabelText("Email");
     fireEvent.blur(email);
     expect(screen.getByText("Enter your email.")).toBeTruthy();
@@ -60,7 +69,11 @@ describe("LoginPage", () => {
   });
 
   it("toggles password visibility", () => {
-    render(<LoginPage />);
+    render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     const password = screen.getByLabelText("Password") as HTMLInputElement;
     expect(password.type).toBe("password");
     fireEvent.click(screen.getByRole("button", { name: "Show password" }));
@@ -68,7 +81,11 @@ describe("LoginPage", () => {
   });
 
   it("does not show a password strength meter", () => {
-    const { container } = render(<LoginPage />);
+    const { container } = render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Tmp_TestAdmin1!" },
     });
@@ -76,7 +93,11 @@ describe("LoginPage", () => {
   });
 
   it("submits from the keyboard and replaces login history", async () => {
-    render(<LoginPage />);
+    render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "owner@abctraders.example" },
     });
@@ -101,7 +122,11 @@ describe("LoginPage", () => {
         setTimeout(() => reject(new Error("Invalid email or password.")), 0);
       }),
     );
-    render(<LoginPage />);
+    render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "owner@abctraders.example" },
     });
@@ -118,7 +143,11 @@ describe("LoginPage", () => {
   });
 
   it("replaces login history after a successful sign in", async () => {
-    render(<LoginPage />);
+    render(
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>,
+    );
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "owner@abctraders.example" },
     });

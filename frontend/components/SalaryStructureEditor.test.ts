@@ -46,4 +46,18 @@ describe("salary structure editor", () => {
       ],
     });
   });
+
+  it("rejects statutory amount lines on the structure", () => {
+    const fields = newSalaryStructureFields("2026-01-15");
+    fields.components[0].value = "25000";
+    fields.components.push({
+      key: "pf",
+      name: "Provident Fund (PF)",
+      type: SalaryComponentType.Deduction,
+      valueType: SalaryComponentValueType.FixedAmount,
+      value: "1800",
+    });
+
+    expect(salaryStructureError(fields, "2026-01-15")).toMatch(/statutory deductions/i);
+  });
 });

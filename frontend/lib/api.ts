@@ -1,4 +1,5 @@
 import { CompanySetupStep } from "./setup";
+import { clearSession } from "./session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5238";
 const TOKEN_KEY = "mp_token";
@@ -123,6 +124,11 @@ export type CompanySetup = {
   weeklyOffDays: string[];
   setupStep: CompanySetupStep;
   isSetupComplete: boolean;
+  pfApplicable: boolean;
+  pfUseWageCeiling: boolean;
+  esiApplicable: boolean;
+  pfEstablishmentCode: string | null;
+  esiCode: string | null;
 };
 
 export type CompanyDetailsInput = {
@@ -140,6 +146,11 @@ export type PayrollSettingsInput = {
   dailyRateMethod: DailyRateMethod;
   workingDaysPerMonth: number;
   weeklyOffDays: string[];
+  pfApplicable: boolean;
+  pfUseWageCeiling: boolean;
+  esiApplicable: boolean;
+  pfEstablishmentCode?: string | null;
+  esiCode?: string | null;
 };
 
 type SetupStepWireValue = number | string;
@@ -203,6 +214,7 @@ export function setToken(token: string | null): void {
   } else {
     localStorage.removeItem(TOKEN_KEY);
   }
+  clearSession();
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -389,6 +401,17 @@ export async function updatePayrollSettings(
   );
 }
 
+export async function updateCompletedPayrollSettings(
+  input: PayrollSettingsInput,
+): Promise<CompanySetup> {
+  return normalizeSetup(
+    await api<CompanySetupWire>("/api/company/payroll-settings", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
 export async function uploadCompanyLogo(file: File): Promise<CompanySetup> {
   const body = new FormData();
   body.append("file", file);
@@ -415,9 +438,19 @@ export const EmployeeStatus = {
 } as const;
 export type EmployeeStatus = (typeof EmployeeStatus)[keyof typeof EmployeeStatus];
 
-export const EmploymentType = {
-  FullTimeMonthly: 0,
+export const Gender = {
+  Male: 0,
+  Female: 1,
 } as const;
+export type Gender = (typeof Gender)[keyof typeof Gender];
+
+export const StatutoryKind = {
+  PfEmployee: 0,
+  EsiEmployee: 1,
+  ProfessionalTax: 2,
+  LwfEmployee: 3,
+} as const;
+export type StatutoryKind = (typeof StatutoryKind)[keyof typeof StatutoryKind];
 export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
 
 export const SalaryComponentType = {
@@ -502,6 +535,12 @@ export type EmployeeDetail = {
   ifsc: string;
   upiId: string | null;
   overtimeRate: number | null;
+  gender: Gender | null;
+  pfCovered: boolean;
+  esiCovered: boolean;
+  uan: string | null;
+  pfNumber: string | null;
+  esiNumber: string | null;
 };
 
 export type EmployeeInput = {
@@ -525,6 +564,12 @@ export type EmployeeInput = {
   ifsc: string;
   upiId?: string | null;
   overtimeRate?: number | null;
+  gender?: Gender | null;
+  pfCovered?: boolean;
+  esiCovered?: boolean;
+  uan?: string | null;
+  pfNumber?: string | null;
+  esiNumber?: string | null;
   saveAsDraft?: boolean;
   draftStep?: number | null;
   salaryStructure?: SalaryStructureInput | null;
@@ -610,6 +655,7 @@ export const PayrollLineKind = {
   RecurringDeduction: 3,
   UnpaidLeave: 4,
   OneTimeDeduction: 5,
+  Statutory: 6,
 } as const;
 export type PayrollLineKind = (typeof PayrollLineKind)[keyof typeof PayrollLineKind];
 
@@ -688,6 +734,8 @@ export type PayrollLineDetail = {
   kind: PayrollLineKind;
   amount: number;
   sortOrder: number;
+  computedAmount?: number | null;
+  statutoryKind?: StatutoryKind | null;
 };
 
 export type PayrollEmployeeDetail = {
@@ -708,6 +756,8 @@ export type PayrollEmployeeDetail = {
   paymentMode: SalaryPaymentMode | null;
   paidOn: string | null;
   paymentReference: string | null;
+  employerPf?: number;
+  employerEsi?: number;
 };
 
 export type PayrollTotals = {
@@ -783,6 +833,20 @@ export function savePayrollInputs(
 
 export function calculatePayroll(year: number, month: number): Promise<PayrollRunDetail> {
   return api<PayrollRunDetail>(`/api/payroll/${year}/${month}/calculate`, { method: "POST" });
+}
+
+export function setStatutoryOverrides(
+  runId: string,
+  employeeId: string,
+  overrides: Array<{ kind: StatutoryKind; amount: number }>,
+): Promise<PayrollRunDetail> {
+  return api<PayrollRunDetail>(
+    `/api/payroll/runs/${runId}/employees/${employeeId}/statutory-overrides`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ overrides }),
+    },
+  );
 }
 
 export function finalizePayroll(runId: string): Promise<PayrollRunDetail> {

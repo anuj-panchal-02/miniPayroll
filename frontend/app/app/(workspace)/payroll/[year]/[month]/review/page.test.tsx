@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   downloadPayrollPayslip: vi.fn(),
   downloadAllPayrollPayslips: vi.fn(),
   updatePayrollPayment: vi.fn(),
+  setStatutoryOverrides: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -23,12 +24,23 @@ vi.mock("@/lib/api", () => ({
   OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
   SalaryPaymentStatus: { Unpaid: 0, Paid: 1 },
   SalaryPaymentMode: { Bank: 0, Upi: 1, Cash: 2 },
+  StatutoryKind: { PfEmployee: 0, EsiEmployee: 1, ProfessionalTax: 2, LwfEmployee: 3 },
+  PayrollLineKind: {
+    RecurringEarning: 0,
+    Overtime: 1,
+    Bonus: 2,
+    RecurringDeduction: 3,
+    UnpaidLeave: 4,
+    OneTimeDeduction: 5,
+    Statutory: 6,
+  },
   getPayrollPeriod: mocks.getPayrollPeriod,
   calculatePayroll: mocks.calculatePayroll,
   finalizePayroll: mocks.finalizePayroll,
   downloadPayrollPayslip: mocks.downloadPayrollPayslip,
   downloadAllPayrollPayslips: mocks.downloadAllPayrollPayslips,
   updatePayrollPayment: mocks.updatePayrollPayment,
+  setStatutoryOverrides: mocks.setStatutoryOverrides,
 }));
 
 vi.mock("@/components/CompanyAdminShell", () => ({
@@ -92,6 +104,7 @@ describe("PayrollReviewPage", () => {
     mocks.downloadPayrollPayslip.mockReset();
     mocks.downloadAllPayrollPayslips.mockReset();
     mocks.updatePayrollPayment.mockReset();
+    mocks.setStatutoryOverrides.mockReset();
   });
 
   it("renders totals and recalculates", async () => {
@@ -101,6 +114,15 @@ describe("PayrollReviewPage", () => {
     render(<PayrollReviewPage />);
 
     expect(await screen.findByText("Ada Lovelace")).toBeTruthy();
+    const history = screen.getByRole("link", { name: "History" });
+    expect(history.getAttribute("href")).toBe("/app/payroll/history");
+    expect(history.closest("header")?.className).toContain("sa-head--with-back");
+    const snapshot = screen.getByRole("region", { name: /snapshot/i });
+    expect(snapshot.textContent).toMatch(/Gross/);
+    expect(snapshot.textContent).toMatch(/Deductions/);
+    expect(snapshot.textContent).toMatch(/Net/);
+    expect(snapshot.textContent).toMatch(/Status/);
+    expect(snapshot.textContent).toMatch(/Calculated/);
     expect(screen.getByText(/1 paid · 0 warnings · 0 errors/i)).toBeTruthy();
     expect(screen.getAllByText("₹28,000").length).toBeGreaterThan(0);
 
@@ -129,7 +151,7 @@ describe("PayrollReviewPage", () => {
 
     render(<PayrollReviewPage />);
 
-    expect(await screen.findByText(/draft/i)).toBeTruthy();
+    expect((await screen.findAllByText(/draft/i)).length).toBeGreaterThan(0);
     const names = screen.getAllByText(/lovelace|hopper/i).map((node) => node.textContent);
     expect(names[0]).toMatch(/grace hopper/i);
     expect(screen.getByText(/attendance not entered/i)).toBeTruthy();
@@ -207,5 +229,82 @@ describe("PayrollReviewPage", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /mark paid/i }));
     await waitFor(() => expect(mocks.updatePayrollPayment).toHaveBeenCalled());
+  });
+
+  it("overrides a statutory amount on a calculated run", async () => {
+    const withPf = {
+      ...calculated,
+      results: [
+        {
+          ...calculated.results[0],
+          totalDeductions: 1800,
+          netSalary: 26200,
+          employerPf: 1800,
+          employerEsi: 0,
+          deductions: [
+            {
+              name: "Provident Fund (PF)",
+              kind: 6,
+              amount: 1800,
+              sortOrder: 0,
+              computedAmount: 1800,
+              statutoryKind: 0,
+            },
+          ],
+        },
+      ],
+      totals: { ...calculated.totals, totalDeductions: 1800, netSalary: 26200 },
+    };
+    mocks.getPayrollPeriod.mockResolvedValue(withPf);
+    mocks.setStatutoryOverrides.mockResolvedValue({ runStatus: 1 });
+
+    render(<PayrollReviewPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /show breakdown/i }));
+    expect(await screen.findByText("₹1,800 (computed)")).toBeTruthy();
+    expect(screen.getByText(/employer pf ₹1,800/i)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/override provident fund/i), {
+      target: { value: "0" },
+    });
+    expect(screen.getByText(/override differs from the computed amount/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /apply statutory overrides/i }));
+
+    await waitFor(() =>
+      expect(mocks.setStatutoryOverrides).toHaveBeenCalledWith("run-1", "emp-1", [
+        { kind: 0, amount: 0 },
+      ]),
+    );
+    expect(mocks.getPayrollPeriod.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("hides statutory override controls after finalize", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue({
+      ...calculated,
+      run: { ...calculated.run, status: 2, finalizedAt: "2026-09-01T00:00:00Z" },
+      results: [
+        {
+          ...calculated.results[0],
+          employerPf: 1800,
+          deductions: [
+            {
+              name: "Provident Fund (PF)",
+              kind: 6,
+              amount: 0,
+              sortOrder: 0,
+              computedAmount: 1800,
+              statutoryKind: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<PayrollReviewPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /show breakdown/i }));
+
+    expect(await screen.findByText("₹0 (computed ₹1,800)")).toBeTruthy();
+    expect(screen.queryByLabelText(/override provident fund/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /apply statutory overrides/i })).toBeNull();
   });
 });

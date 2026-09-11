@@ -63,6 +63,19 @@ describe("CompanyDashboardPage", () => {
     expect(
       screen.getByText(/Payment is overdue. You can keep running payroll during the grace period/),
     ).toBeTruthy();
+    const history = screen.getByRole("link", { name: "History" });
+    expect(history.getAttribute("href")).toBe("/app/payroll/history");
+    expect(history.closest("header")?.className).toContain("sa-head--with-back");
+    const snapshot = screen.getByRole("region", { name: /snapshot/i });
+    expect(snapshot.textContent).toMatch(/Headcount/);
+    expect(snapshot.textContent).toMatch(/Period/);
+    expect(snapshot.textContent).toMatch(/Plan/);
+    expect(screen.getByRole("link", { name: "Process payroll" }).getAttribute("href")).toBe(
+      "/app/payroll",
+    );
+    expect(screen.getByRole("link", { name: "Add employee" }).getAttribute("href")).toBe(
+      "/app/employees/new",
+    );
   });
 
   it("shows the open calendar month when later finalized periods exist", async () => {
@@ -127,8 +140,12 @@ describe("CompanyDashboardPage", () => {
 
     render(<CompanyDashboardPage />);
 
-    expect(await screen.findByText("September 2026")).toBeTruthy();
+    expect(await screen.findByText(/1 × ₹49 = ₹49/)).toBeTruthy();
+    expect(screen.getAllByText("September 2026").length).toBeGreaterThan(0);
     expect(screen.getByText(/1 × ₹49 = ₹49/)).toBeTruthy();
     expect(screen.queryByText("December 2026")).toBeNull();
+    expect(screen.getByRole("region", { name: "Subscription" })).toBeTruthy();
+    expect(screen.getByText("Paid")).toBeTruthy();
+    expect(screen.getByText("Remaining")).toBeTruthy();
   });
 });

@@ -16,6 +16,9 @@ public class PayrollRun
     /// <summary>Company display name frozen at finalization for payslips.</summary>
     public string? CompanyName { get; set; }
     public string? CompanyLogoPath { get; set; }
+    public string? CompanyAddress { get; set; }
+    public string? PfEstablishmentCode { get; set; }
+    public string? EsiCode { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CalculatedAt { get; set; }
@@ -32,4 +35,5 @@ public class PayrollRun
     public ICollection<Bonus> Bonuses { get; set; } = new List<Bonus>();
     public ICollection<Deduction> Deductions { get; set; } = new List<Deduction>();
     public ICollection<PayrollEmployee> Results { get; set; } = new List<PayrollEmployee>();
+    public ICollection<PayrollStatutoryOverride> StatutoryOverrides { get; set; } = new List<PayrollStatutoryOverride>();
 }

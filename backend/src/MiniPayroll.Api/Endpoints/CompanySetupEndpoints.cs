@@ -19,6 +19,10 @@ public static class CompanySetupEndpoints
         group.MapPost("/logo", UploadLogo);
         group.MapPost("/complete", Complete);
 
+        routes.MapGroup("/api/company")
+            .RequireAuthorization(CompanySetupAuthorization.Configure)
+            .MapPatch("/payroll-settings", UpdateCompletedPayrollSettings);
+
         return routes;
     }
 
@@ -44,6 +48,15 @@ public static class CompanySetupEndpoints
         CancellationToken cancellationToken) =>
         ToHttpResult(
             await setup.UpdatePayrollSettingsAsync(input, cancellationToken),
+            request);
+
+    private static async Task<IResult> UpdateCompletedPayrollSettings(
+        PayrollSettingsInput? input,
+        CompanySetupService setup,
+        HttpRequest request,
+        CancellationToken cancellationToken) =>
+        ToHttpResult(
+            await setup.UpdateCompletedPayrollSettingsAsync(input, cancellationToken),
             request);
 
     private static async Task<IResult> UploadLogo(
@@ -197,7 +210,12 @@ public static class CompanySetupEndpoints
             state.WorkingDaysPerMonth,
             state.WeeklyOffDays,
             state.SetupStep.ToString(),
-            state.IsSetupComplete);
+            state.IsSetupComplete,
+            state.PfApplicable,
+            state.PfUseWageCeiling,
+            state.EsiApplicable,
+            state.PfEstablishmentCode,
+            state.EsiCode);
 
     private static string? BuildLogoUrl(string? logoPath, HttpRequest request)
     {
@@ -245,7 +263,12 @@ public static class CompanySetupEndpoints
         int WorkingDaysPerMonth,
         IReadOnlyList<string> WeeklyOffDays,
         string SetupStep,
-        bool IsSetupComplete);
+        bool IsSetupComplete,
+        bool PfApplicable,
+        bool PfUseWageCeiling,
+        bool EsiApplicable,
+        string? PfEstablishmentCode,
+        string? EsiCode);
 
     public sealed record CompanySetupError(
         string Error,

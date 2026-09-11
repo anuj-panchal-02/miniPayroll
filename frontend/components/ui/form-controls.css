@@ -9,6 +9,7 @@
   display: grid;
   gap: var(--space-2xs);
   min-width: 0;
+  align-content: start;
 }
 
 .mp-field__well {
@@ -68,10 +69,20 @@
   outline: none;
 }
 
+.mp-input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
 .mp-textarea {
   min-height: 6rem;
   padding-block: var(--space-3xs);
   resize: vertical;
+  align-self: start;
+}
+
+.mp-field__well:has(.mp-textarea) {
+  align-items: start;
+  min-height: 0;
 }
 
 .mp-select,
@@ -759,6 +770,14 @@
   display: grid;
   gap: var(--space-sm);
   min-width: 0;
+  align-items: start;
+}
+
+.mp-group > .sa-master-wrap,
+.mp-group > .sa-compose,
+.mp-group > form,
+.mp-group > .mp-field:has(.mp-textarea) {
+  grid-column: 1 / -1;
 }
 
 .sa-compose__span,
@@ -832,7 +851,7 @@
   flex: 0 0 auto;
   width: 1.125rem;
   height: 1.125rem;
-  margin-top: 0.15rem;
+  margin-top: var(--space-3xs);
   accent-color: var(--color-accent);
 }
 
@@ -1102,7 +1121,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3xs);
-  padding: 0.125rem 0.5rem;
+  padding: var(--space-3xs) var(--space-xs);
   border-radius: var(--radius-pill);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -1337,7 +1356,12 @@
   color: var(--color-warning-ink);
 }
 
-/* Slide-over Drawer */
+/* Hallmark · component: drawer · genre: modern-minimal · theme: Coral
+ * design-system: design.md · designed-as-app
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (46–50)
+ * Hallmark · pre-emit critique: P5 H5 E4 S4 R5 V4
+ */
 .mp-drawer {
   position: fixed;
   inset: 0 0 0 auto;
@@ -1352,7 +1376,7 @@
   color: var(--color-ink);
   font-family: var(--font-body);
   z-index: var(--z-modal);
-  box-shadow: -4px 0 24px oklch(20% 0.016 48 / 0.12);
+  box-shadow: var(--shadow-whisper);
 }
 
 .mp-drawer::backdrop {
@@ -1382,7 +1406,10 @@
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 600;
+  font-style: normal;
   letter-spacing: var(--tracking-display);
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .mp-drawer__subtitle {
@@ -1400,13 +1427,73 @@
   align-content: start;
 }
 
+.mp-drawer__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.mp-drawer__fact {
+  display: grid;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+
+.mp-drawer__fact .mp-kpi-card__value {
+  font-size: var(--text-md);
+}
+
+.mp-drawer .mp-group {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mp-drawer .sa-payroll-extra-row {
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-self: stretch;
+}
+
+.mp-drawer .mp-group > .mp-btn {
+  grid-column: 1 / -1;
+  width: auto;
+  justify-self: start;
+}
+
+/* Hallmark · component: salary-drawer · genre: modern-minimal · theme: Coral
+ * design-system: design.md · designed-as-app
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (46–50)
+ * Hallmark · pre-emit critique: P5 H5 E4 S4 R5 V4
+ */
+.mp-drawer .mp-kpi-grid {
+  margin-bottom: 0;
+}
+
+.mp-drawer .sa-salary-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.mp-drawer .sa-salary-fields > .mp-btn {
+  grid-column: 1 / -1;
+  width: auto;
+  justify-self: start;
+  margin-top: 0;
+}
+
 .mp-drawer__foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--color-rule);
   background: var(--color-paper-2);
+}
+
+.mp-drawer__head .mp-btn,
+.mp-drawer__foot .mp-btn {
+  width: auto;
 }
 
 /* Navigation Card */
@@ -1493,6 +1580,14 @@
   .setup-button {
     width: 100%;
     justify-self: stretch;
+  }
+
+  .mp-drawer__head .mp-btn,
+  .mp-drawer__foot .mp-btn,
+  .mp-drawer .mp-group > .mp-btn,
+  .mp-drawer .sa-salary-fields > .mp-btn {
+    width: auto;
+    justify-self: start;
   }
 
   .mp-toolbar {

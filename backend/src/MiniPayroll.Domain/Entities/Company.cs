@@ -19,6 +19,11 @@ public class Company
     public DailyRateMethod DailyRateMethod { get; set; } = DailyRateMethod.CalendarDays;
     public int WorkingDaysPerMonth { get; set; } = 26;
     public string WeeklyOffDays { get; set; } = "Sunday";
+    public bool PfApplicable { get; set; } = true;
+    public bool PfUseWageCeiling { get; set; } = true;
+    public bool EsiApplicable { get; set; } = true;
+    public string? PfEstablishmentCode { get; set; }
+    public string? EsiCode { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ActivatedAt { get; set; }
     public byte[]? RowVersion { get; set; }

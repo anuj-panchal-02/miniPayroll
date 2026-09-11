@@ -348,6 +348,7 @@ public class EmployeeServiceTests
         "HDFC0001234",
         null,
         null,
+        Gender.Male,
         SalaryStructure: BasicSalary());
 
     private static SalaryStructureInput BasicSalary(DateOnly? effectiveFrom = null) => new(
@@ -360,28 +361,28 @@ public class EmployeeServiceTests
             0)]);
 
     private static EmployeeInput DraftInput(string code, int draftStep = 1) => new(
-        code,
-        "Ada Lovelace",
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        true,
-        draftStep);
+        EmployeeCode: code,
+        FullName: "Ada Lovelace",
+        DateOfBirth: null,
+        Phone: null,
+        Email: null,
+        AddressLine1: null,
+        AddressLine2: null,
+        City: null,
+        State: null,
+        PostalCode: null,
+        Designation: null,
+        Department: null,
+        JoiningDate: null,
+        ExitDate: null,
+        Status: null,
+        BankName: null,
+        BankAccountNumber: null,
+        Ifsc: null,
+        UpiId: null,
+        OvertimeRate: null,
+        SaveAsDraft: true,
+        DraftStep: draftStep);
 
     private static string UniqueDatabase() => $"employees-{Guid.NewGuid():N}";
 }

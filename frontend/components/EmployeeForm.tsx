@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { EmployeeDetail, EmployeeInput, EmployeeStatus } from "@/lib/api";
-import { EmployeeStatus as Status } from "@/lib/api";
+import type { EmployeeDetail, EmployeeInput, EmployeeStatus, Gender } from "@/lib/api";
+import { EmployeeStatus as Status, Gender as GenderValue } from "@/lib/api";
 import {
   SalaryStructureEditor,
   newSalaryStructureFields,
@@ -10,8 +10,9 @@ import {
   toSalaryStructureInput,
   type SalaryStructureFields,
 } from "@/components/SalaryStructureEditor";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
+import { Choice } from "@/components/ui/Choice";
 import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
 import { DateField } from "@/components/ui/DateField";
@@ -154,6 +155,25 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
     });
   }
 
+  const statusLabel = !employee
+    ? "New"
+    : employee.status === Status.Draft
+      ? "Draft"
+      : status === Status.Inactive
+        ? "Inactive"
+        : "Active";
+  const nameFact = values.fullName.trim() || "—";
+  const codeFact = values.employeeCode.trim() || "—";
+  const stepTitle = steps[step - 1];
+  const lastStep = step === steps.length;
+  const commandLede = lastStep
+    ? allowDraft
+      ? "Save to finish, or keep a draft."
+      : "Save to finish this employee."
+    : allowDraft
+      ? "Continue, or save a draft."
+      : "Continue to the next step.";
+
   function field(name: EmployeeField, label: string, type = "text") {
     const message = errors[name];
     if (type === "date") {
@@ -196,13 +216,29 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
         event.preventDefault();
       }}
     >
+      <div className="mp-kpi-grid" role="region" aria-label="Employee snapshot">
+        <div className="mp-kpi-card">
+          <span className="mp-kpi-card__label">Status</span>
+          <span className="mp-kpi-card__value">{statusLabel}</span>
+          <span className="mp-kpi-card__subtext">{stepTitle}</span>
+        </div>
+        <div className="mp-kpi-card">
+          <span className="mp-kpi-card__label">Name</span>
+          <span className="mp-kpi-card__value">{nameFact}</span>
+          <span className="mp-kpi-card__subtext">Full name</span>
+        </div>
+        <div className="mp-kpi-card">
+          <span className="mp-kpi-card__label">Code</span>
+          <span className="mp-kpi-card__value">{codeFact}</span>
+          <span className="mp-kpi-card__subtext">Employee ID</span>
+        </div>
+      </div>
       <Stepper
         className="sa-progress"
         label="Employee details"
         currentStep={step}
         steps={steps}
       />
-      <ToastOutlet toast={toast} />
       {step === 1 ? (
         <>
           <FieldGroup title="Identity">
@@ -210,6 +246,17 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
             {field("fullName", "Full name")}
             {field("email", "Email", "email")}
             {field("phone", "Phone")}
+            <Field id="gender" label="Gender" error={errors.gender ?? null}>
+              <Select
+                value={values.gender}
+                onChange={(next) => updateField("gender", next)}
+                options={[
+                  { value: "", label: "Select gender" },
+                  { value: String(GenderValue.Male), label: "Male" },
+                  { value: String(GenderValue.Female), label: "Female" },
+                ]}
+              />
+            </Field>
           </FieldGroup>
           <FieldGroup title="Address">
             {field("addressLine1", "Address line 1")}
@@ -272,10 +319,25 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
       ) : null}
       {step === 3 ? (
         <FieldGroup
-          title="Payroll"
-          hint="Overtime is optional until you run payroll with extra hours."
+          title="Payroll details"
+          hint="Coverage inherits company defaults. Statutory amounts are calculated when you run payroll."
         >
           {field("overtimeRate", "Overtime rate (optional)", "number")}
+          <Choice
+            type="checkbox"
+            checked={values.pfCovered === "true"}
+            onChange={(event) => updateField("pfCovered", event.target.checked ? "true" : "false")}
+            label="Covered by Provident Fund"
+          />
+          <Choice
+            type="checkbox"
+            checked={values.esiCovered === "true"}
+            onChange={(event) => updateField("esiCovered", event.target.checked ? "true" : "false")}
+            label="Covered by ESI"
+          />
+          {field("uan", "UAN (optional)")}
+          {field("pfNumber", "PF number (optional)")}
+          {field("esiNumber", "ESI number (optional)")}
         </FieldGroup>
       ) : null}
       {step === 4 ? (
@@ -289,44 +351,48 @@ export function EmployeeForm({ employee, submitLabel, onSave }: EmployeeFormProp
           }}
         />
       ) : null}
-      <div className="sa-compose__actions">
-        {step > 1 ? (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={pending}
-            onClick={() => {
-              setStep((current) => clampStep(current - 1));
-            }}
-          >
-            Back
-          </Button>
-        ) : null}
-        {step < steps.length ? (
-          <Button type="button" disabled={pending} onClick={goNext}>
-            Next
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            loading={pending}
-            loadingLabel="Saving…"
-            onClick={() => void save("complete")}
-          >
-            {submitLabel}
-          </Button>
-        )}
-        {allowDraft ? (
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={pending}
-            onClick={() => void save("draft")}
-          >
-            Save as draft
-          </Button>
-        ) : null}
-      </div>
+      <section className="sa-payroll-card" aria-label={stepTitle}>
+        <h2 className="sa-payroll-card__title">{stepTitle}</h2>
+        <p className="sa-payroll-card__lede">{commandLede}</p>
+        <div className="sa-payroll-card__actions">
+          {step > 1 ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => {
+                setStep((current) => clampStep(current - 1));
+              }}
+            >
+              Back
+            </Button>
+          ) : null}
+          {step < steps.length ? (
+            <Button type="button" disabled={pending} onClick={goNext}>
+              Next
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              loading={pending}
+              loadingLabel="Saving…"
+              onClick={() => void save("complete")}
+            >
+              {submitLabel}
+            </Button>
+          )}
+          {allowDraft ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => void save("draft")}
+            >
+              Save as draft
+            </Button>
+          ) : null}
+        </div>
+      </section>
     </form>
   );
 }
@@ -360,6 +426,12 @@ function fromEmployee(employee?: EmployeeDetail): EmployeeFields {
     upiId: employee?.upiId ?? "",
     overtimeRate:
       employee?.overtimeRate == null ? "" : String(employee.overtimeRate),
+    gender: employee?.gender == null ? "" : String(employee.gender),
+    pfCovered: employee?.pfCovered === false ? "false" : "true",
+    esiCovered: employee?.esiCovered === false ? "false" : "true",
+    uan: employee?.uan ?? "",
+    pfNumber: employee?.pfNumber ?? "",
+    esiNumber: employee?.esiNumber ?? "",
   };
 }
 
@@ -392,6 +464,12 @@ function toInput(
     ifsc: values.ifsc.trim().toUpperCase(),
     upiId: values.upiId.trim() || null,
     overtimeRate: overtime ? Number(overtime) : null,
+    gender: values.gender === "" ? null : (Number(values.gender) as Gender),
+    pfCovered: values.pfCovered !== "false",
+    esiCovered: values.esiCovered !== "false",
+    uan: values.uan.replace(/\D/g, "") || null,
+    pfNumber: values.pfNumber.trim() || null,
+    esiNumber: values.esiNumber.trim() || null,
     saveAsDraft,
     draftStep,
     salaryStructure,

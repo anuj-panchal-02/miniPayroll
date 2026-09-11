@@ -209,6 +209,7 @@ public class EmployeeRulesTests
         Status = EmployeeStatus.Active,
         BankName = "HDFC Bank",
         BankAccountNumber = "123456789012",
-        Ifsc = "HDFC0001234"
+        Ifsc = "HDFC0001234",
+        Gender = Gender.Male
     };
 }

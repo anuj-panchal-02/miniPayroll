@@ -44,7 +44,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
   color: var(--color-muted);
 }
@@ -71,7 +71,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
   color: var(--color-muted);
 }
@@ -106,7 +106,7 @@
 }
 
 .sa-shell {
-  width: min(72rem, 100%);
+  width: min(var(--content-shell), 100%);
   margin-inline: auto;
   padding: var(--space-xl) var(--page-gutter) var(--space-3xl);
 }
@@ -123,7 +123,7 @@
   font-size: var(--text-xl);
   font-weight: 600;
   font-style: normal;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-display);
   line-height: 1.15;
   overflow-wrap: anywhere;
   min-width: 0;
@@ -162,6 +162,10 @@
   width: auto;
 }
 
+/* Hallmark · component: employees-index · genre: modern-minimal · theme: Coral
+ * macrostructure: Index-First · design-system: design.md · designed-as-app
+ * Hallmark · pre-emit critique: P5 H4 E4 S4 R5 V4
+ */
 .sa-index {
   margin: var(--space-lg) 0 0;
   padding: 0;
@@ -332,9 +336,18 @@ a.sa-index__row:focus-visible {
   grid-row: 1;
 }
 
-.sa-head--with-back .sa-back,
 .sa-head--with-back .sa-compose__submit,
+.sa-head--with-back .sa-compose__secondary,
 .sa-head--with-back .mp-btn {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  margin: 0;
+  width: auto;
+}
+
+.sa-head--with-back .sa-back {
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
@@ -347,17 +360,46 @@ a.sa-index__row:focus-visible {
   grid-row: 2;
 }
 
+.sa-head__actions {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  justify-self: end;
+  width: auto;
+}
+
+.sa-head--with-back .sa-head__actions .sa-compose__secondary,
+.sa-head--with-back .sa-head__actions .sa-compose__submit,
+.sa-head--with-back .sa-head__actions .mp-btn {
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: auto;
+  width: auto;
+}
+
+.sa-head--with-back .sa-head__actions .sa-back {
+  grid-column: auto;
+  grid-row: auto;
+}
+
 .sa-back {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  flex: 0 0 var(--control-height);
   width: var(--control-height);
+  min-width: var(--control-height);
+  max-width: var(--control-height);
   height: var(--control-height);
+  aspect-ratio: 1;
   margin: 0;
   border: 1px solid var(--color-rule-2);
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: transparent;
   color: var(--color-ink);
   text-decoration: none;
@@ -371,7 +413,7 @@ a.sa-index__row:focus-visible {
 .sa-back::before {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: calc(var(--hit-area-expand) * -1);
 }
 
 .sa-back__icon {
@@ -470,8 +512,8 @@ a.sa-index__row:focus-visible {
 
 .sa-workspace {
   display: grid;
-  grid-template-columns: 14rem minmax(0, 1fr);
-  min-height: calc(100vh - 4.5rem);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: calc(100vh - var(--nav-height));
 }
 
 .sa-sidebar {
@@ -494,7 +536,7 @@ a.sa-index__row:focus-visible {
 }
 
 .sa-sidebar a[aria-current="page"] {
-  background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  background: color-mix(in oklch, var(--color-ink) 8%, transparent);
   font-weight: 600;
 }
 
@@ -699,12 +741,6 @@ a.sa-index__row:focus-visible {
   color: var(--color-muted);
 }
 
-.sa-salary-history__editor {
-  display: grid;
-  gap: var(--space-md);
-  min-width: 0;
-}
-
 @media (hover: hover) {
   a.sa-index__row:hover {
     background: var(--color-paper-2);
@@ -761,7 +797,8 @@ a.sa-index__row:focus-visible {
     align-items: start;
   }
 
-  .sa-salary-fields .sa-compose__remove {
+  .sa-salary-fields .sa-compose__remove,
+  .sa-salary-fields > .mp-btn {
     margin-top: var(--field-label-stack);
     height: var(--control-height-field);
     display: inline-flex;
@@ -793,14 +830,41 @@ a.sa-index__row:focus-visible {
   }
 }
 
+/* Hallmark · component: payroll-start · genre: modern-minimal · theme: Coral
+ * Hallmark · component: payroll-review · genre: modern-minimal · theme: Coral
+ * Hallmark · component: company-dashboard · genre: modern-minimal · theme: Coral
+ * Hallmark · component: employee-form · genre: modern-minimal · theme: Coral
+ * macrostructure: Workbench · design-system: design.md · designed-as-app
+ * Hallmark · pre-emit critique: P5 H5 E4 S4 R5 V4
+ */
 .sa-payroll-card {
   display: grid;
   gap: var(--space-sm);
-  margin-top: var(--space-lg);
+  margin-top: 0;
   padding: var(--space-md);
   border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card, 0.75rem);
+  border-radius: var(--radius-input);
   background: var(--color-paper-2);
+}
+
+.sa-payroll-card__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.sa-payroll-card__lede {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  max-width: 36rem;
 }
 
 .sa-payroll-card__status {
@@ -815,14 +879,85 @@ a.sa-index__row:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
+  align-items: center;
 }
 
+.sa-payroll-card__actions .mp-btn,
+.sa-payroll-card__actions .sa-compose__submit,
+.sa-payroll-card__actions .sa-compose__secondary {
+  width: auto;
+  justify-self: start;
+}
+
+.sa-payroll-card + .sa-payroll-card {
+  margin-top: var(--space-lg);
+}
+
+.sa-billing-facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.sa-billing-facts > div {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 9rem) minmax(0, 1fr);
+  column-gap: var(--space-md);
+  align-items: baseline;
+  min-width: 0;
+  padding-block: var(--space-sm);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.sa-billing-facts > div:first-child {
+  border-top: 1px solid var(--color-rule);
+}
+
+.sa-billing-facts dt {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.sa-billing-facts dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 23.4375rem) {
+  .sa-billing-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-3xs);
+  }
+
+  .sa-billing-facts dd {
+    text-align: left;
+  }
+}
+
+/* Hallmark · component: payroll-inputs · genre: modern-minimal · theme: Coral
+ * macrostructure: Workbench · design-system: design.md · designed-as-app
+ * Hallmark · pre-emit critique: P5 H4 E4 S4 R5 V4
+ */
 .sa-payroll-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
   align-items: center;
   margin-top: var(--space-md);
+}
+
+.sa-payroll-toolbar .mp-btn,
+.sa-payroll-toolbar .sa-compose__submit,
+.sa-payroll-toolbar .sa-compose__secondary {
+  width: auto;
 }
 
 .sa-payroll-grid-wrap {
@@ -918,9 +1053,14 @@ a.sa-index__row:focus-visible {
 }
 
 .sa-payroll-qty:focus-visible {
-  outline: var(--outline-width) solid var(--color-focus);
-  outline-offset: var(--outline-offset-control);
-  background: var(--color-paper);
+  outline: none;
+  border-color: var(--color-ink-2);
+}
+
+.sa-payroll-qty:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+  color: var(--color-neutral);
 }
 
 .sa-payroll-row--warn {
@@ -941,9 +1081,44 @@ a.sa-index__row:focus-visible {
 
 .sa-payroll-extra-row {
   display: grid;
-  grid-template-columns: minmax(8rem, 12rem) minmax(6rem, 8rem) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(5.5rem, 7rem) minmax(5.5rem, 7rem) minmax(0, 1fr) auto;
   gap: var(--space-xs);
   align-items: end;
+  min-width: 0;
+  width: 100%;
+}
+
+.sa-payroll-extra-row--typed {
+  grid-template-columns: minmax(11rem, 1.4fr) minmax(6rem, 8rem) minmax(0, 1fr) auto;
+}
+
+.sa-payroll-extra-row > .mp-btn {
+  width: auto;
+  justify-self: start;
+}
+
+.sa-payroll-extra-row .mp-field__slot:not([data-tone]) {
+  display: none;
+  min-height: 0;
+}
+
+.sa-payroll-extra-row .mp-select-trigger {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 39.99rem) {
+  .sa-payroll-extra-row,
+  .sa-payroll-extra-row--typed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (pointer: coarse) {
+  .sa-payroll-qty {
+    height: var(--control-height-field-touch);
+  }
 }
 
 .sa-payroll-review {
@@ -1036,6 +1211,18 @@ a.sa-index__row:focus-visible {
   .sa-payroll-review__pay {
     grid-template-columns: minmax(0, 1fr);
     width: 100%;
+  }
+
+  .sa-head--with-back .sa-compose__secondary,
+  .sa-head__actions .sa-compose__secondary,
+  .sa-payroll-card__actions .mp-btn,
+  .sa-payroll-card__actions .sa-compose__submit,
+  .sa-payroll-card__actions .sa-compose__secondary,
+  .sa-payroll-toolbar .mp-btn,
+  .sa-payroll-toolbar .sa-compose__submit,
+  .sa-payroll-toolbar .sa-compose__secondary {
+    width: auto;
+    justify-self: start;
   }
 }
 

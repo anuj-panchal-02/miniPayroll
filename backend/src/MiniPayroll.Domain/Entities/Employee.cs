@@ -28,6 +28,12 @@ public class Employee
     public string Ifsc { get; set; } = string.Empty;
     public string? UpiId { get; set; }
     public decimal? OvertimeRate { get; set; }
+    public Gender? Gender { get; set; }
+    public bool PfCovered { get; set; } = true;
+    public bool EsiCovered { get; set; } = true;
+    public string? Uan { get; set; }
+    public string? PfNumber { get; set; }
+    public string? EsiNumber { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public Company Company { get; set; } = null!;

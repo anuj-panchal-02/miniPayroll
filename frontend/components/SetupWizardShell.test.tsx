@@ -3,24 +3,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SetupWizardShell } from "./SetupWizardShell";
 
-const shellProps = vi.hoisted(() => vi.fn());
-
-vi.mock("@/components/SuperadminShell", () => ({
-  SuperadminShell: (props: {
-    children: React.ReactNode;
-    requiredRole?: string;
-    allowIncompleteSetup?: boolean;
-  }) => {
-    shellProps(props);
-    return <>{props.children}</>;
-  },
-}));
-
 describe("SetupWizardShell", () => {
-  it("protects setup for company admins and exposes progress accessibly", () => {
+  it("exposes progress accessibly without wrapping the app shell", () => {
     render(
       <SetupWizardShell
         currentStep={2}
@@ -31,12 +18,6 @@ describe("SetupWizardShell", () => {
       </SetupWizardShell>,
     );
 
-    expect(shellProps).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requiredRole: "CompanyAdmin",
-        allowIncompleteSetup: true,
-      }),
-    );
     expect(screen.getByRole("navigation", { name: /setup progress/i })).toBeTruthy();
     expect(screen.queryByRole("navigation", { name: /company/i })).toBeNull();
     expect(screen.queryByText(/coming soon/i)).toBeNull();

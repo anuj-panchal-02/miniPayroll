@@ -1,4 +1,5 @@
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll.Statutory;
 
 namespace MiniPayroll.Domain.Payroll;
 
@@ -22,7 +23,8 @@ public sealed record PayrollStructureLine(
     SalaryComponentType Type,
     SalaryComponentValueType ValueType,
     decimal Value,
-    int SortOrder);
+    int SortOrder,
+    SalaryComponentKind Kind = SalaryComponentKind.OtherEarning);
 
 public sealed record PayrollOvertimeEntry(decimal Hours, decimal? Rate);
 
@@ -39,7 +41,9 @@ public sealed record PayrollEmployeeInput(
     IReadOnlyList<PayrollOvertimeEntry>? Overtime = null,
     IReadOnlyList<PayrollAmountEntry>? Bonuses = null,
     IReadOnlyList<PayrollAmountEntry>? OneTimeDeductions = null,
-    decimal? PreviousMonthNet = null);
+    decimal? PreviousMonthNet = null,
+    StatutoryPolicy? Statutory = null,
+    IReadOnlyList<StatutoryOverride>? Overrides = null);
 
 public enum PayrollLineKind
 {
@@ -48,14 +52,17 @@ public enum PayrollLineKind
     Bonus = 2,
     RecurringDeduction = 3,
     UnpaidLeave = 4,
-    OneTimeDeduction = 5
+    OneTimeDeduction = 5,
+    Statutory = 6
 }
 
 public sealed record PayrollResultLine(
     string Name,
     SalaryComponentType Type,
     PayrollLineKind Kind,
-    decimal Amount);
+    decimal Amount,
+    StatutoryKind? StatutoryKind = null,
+    decimal? ComputedAmount = null);
 
 public sealed record PayrollEmployeeResult(
     IReadOnlyList<PayrollResultLine> Lines,
@@ -65,7 +72,9 @@ public sealed record PayrollEmployeeResult(
     int DaysEmployed,
     decimal DailyRate,
     IReadOnlyList<string> Errors,
-    IReadOnlyList<string> Warnings)
+    IReadOnlyList<string> Warnings,
+    decimal EmployerPf = 0m,
+    decimal EmployerEsi = 0m)
 {
     public bool HasBlockingErrors => Errors.Count > 0;
 }
@@ -88,6 +97,11 @@ public static class PayrollCalculationMessages
         "Salary structure changed during this month; the structure effective on the last day was used.";
     public const string NetChangedFromPreviousMonth =
         "Net salary differs from the previous month by more than 20%.";
+    public const string IgnoredStatutoryStructure =
+        "Statutory amounts on the salary structure were ignored; PF, ESI, PT, and LWF are calculated at payroll.";
+    public const string StatutoryOverrideApplied = "A statutory amount was overridden for this run.";
+    public const string EsiWagesAboveThreshold =
+        "ESI wages are above the ₹21,000 eligibility band; contribution continues because the employee is covered.";
 }
 
 public static class PayrollCalculator
@@ -135,7 +149,7 @@ public static class PayrollCalculator
         else
         {
             basic = structure.FirstOrDefault(line =>
-                line.Name.Equals(BasicSalaryName, StringComparison.OrdinalIgnoreCase)
+                ResolveKind(line) == SalaryComponentKind.Basic
                 && line.Type == SalaryComponentType.Earning
                 && line.ValueType == SalaryComponentValueType.FixedAmount);
             if (basic is null)
@@ -158,16 +172,23 @@ public static class PayrollCalculator
         var calendarDays = period.CalendarDays;
         var basicValue = basic!.Value;
 
-        // Resolve % of Basic to a 2 dp full-month value, matching salary-structure storage.
         decimal FullMonthValue(PayrollStructureLine line) =>
             line.ValueType == SalaryComponentValueType.FixedAmount
                 ? line.Value
                 : decimal.Round(basicValue * line.Value / 100m, 2, MidpointRounding.AwayFromZero);
 
         var orderedStructure = structure.OrderBy(line => line.SortOrder).ToList();
-        var fullMonthEarnings = orderedStructure
+        if (orderedStructure.Any(line =>
+            line.Type == SalaryComponentType.Deduction
+            || SalaryComponentKinds.IsStatutoryAmountName(line.Name)))
+        {
+            warnings.Add(PayrollCalculationMessages.IgnoredStatutoryStructure);
+        }
+
+        var earningLines = orderedStructure
             .Where(line => line.Type == SalaryComponentType.Earning)
-            .Sum(FullMonthValue);
+            .ToList();
+        var fullMonthEarnings = earningLines.Sum(FullMonthValue);
 
         var divisor = input.DailyRateMethod == DailyRateMethod.FixedThirty ? 30m : calendarDays;
         var dailyRate = fullMonthEarnings / divisor;
@@ -176,14 +197,12 @@ public static class PayrollCalculator
         var ratio = (decimal)daysEmployed / calendarDays;
 
         var lines = new List<PayrollResultLine>();
-        foreach (var line in orderedStructure)
+        foreach (var line in earningLines)
         {
             lines.Add(new PayrollResultLine(
                 line.Name,
-                line.Type,
-                line.Type == SalaryComponentType.Earning
-                    ? PayrollLineKind.RecurringEarning
-                    : PayrollLineKind.RecurringDeduction,
+                SalaryComponentType.Earning,
+                PayrollLineKind.RecurringEarning,
                 Rupees(FullMonthValue(line) * ratio)));
         }
 
@@ -205,13 +224,15 @@ public static class PayrollCalculator
                 Rupees(bonus.Amount)));
         }
 
+        var unpaidLeaveAmount = 0m;
         if (attendance.UnpaidLeave > 0)
         {
+            unpaidLeaveAmount = Rupees(dailyRate * attendance.UnpaidLeave);
             lines.Add(new PayrollResultLine(
                 "Unpaid Leave",
                 SalaryComponentType.Deduction,
                 PayrollLineKind.UnpaidLeave,
-                Rupees(dailyRate * attendance.UnpaidLeave)));
+                unpaidLeaveAmount));
         }
 
         foreach (var deduction in input.OneTimeDeductions ?? [])
@@ -221,6 +242,54 @@ public static class PayrollCalculator
                 SalaryComponentType.Deduction,
                 PayrollLineKind.OneTimeDeduction,
                 Rupees(deduction.Amount)));
+        }
+
+        var employerPf = 0m;
+        var employerEsi = 0m;
+        if (input.Statutory is { } policy)
+        {
+            var (pfWages, esiWages) = WageBases(earningLines, lines, unpaidLeaveAmount);
+            var overtimeAmount = lines.Where(line => line.Kind == PayrollLineKind.Overtime)
+                .Sum(line => line.Amount);
+            esiWages += overtimeAmount;
+            var ptWages = lines.Where(line => line.Type == SalaryComponentType.Earning)
+                .Sum(line => line.Amount) - unpaidLeaveAmount;
+            if (ptWages < 0)
+            {
+                ptWages = 0;
+            }
+
+            var statutory = StatutoryCalculator.Calculate(
+                policy,
+                period.LastDay,
+                period.Month,
+                pfWages,
+                esiWages,
+                ptWages,
+                input.Overrides);
+
+            foreach (var line in statutory.Where(item => item.Applied != 0 || item.Computed != 0))
+            {
+                lines.Add(new PayrollResultLine(
+                    StatutoryLabels.Name(line.Kind),
+                    SalaryComponentType.Deduction,
+                    PayrollLineKind.Statutory,
+                    line.Applied,
+                    line.Kind,
+                    line.Computed));
+                if (line.Applied != line.Computed)
+                {
+                    warnings.Add(PayrollCalculationMessages.StatutoryOverrideApplied);
+                }
+            }
+
+            employerPf = statutory.Single(item => item.Kind == StatutoryKind.PfEmployee).EmployerAmount;
+            employerEsi = statutory.Single(item => item.Kind == StatutoryKind.EsiEmployee).EmployerAmount;
+            var esiRule = EsiRules.For(period.LastDay);
+            if (policy.EsiApplicable && policy.EsiCovered && esiWages > esiRule.EligibilityCeiling)
+            {
+                warnings.Add(PayrollCalculationMessages.EsiWagesAboveThreshold);
+            }
         }
 
         var gross = lines.Where(line => line.Type == SalaryComponentType.Earning).Sum(line => line.Amount);
@@ -265,8 +334,50 @@ public static class PayrollCalculator
             daysEmployed,
             dailyRate,
             errors,
-            warnings);
+            warnings.Distinct().ToList(),
+            employerPf,
+            employerEsi);
     }
+
+    private static (decimal PfWages, decimal EsiWages) WageBases(
+        IReadOnlyList<PayrollStructureLine> earningLines,
+        IReadOnlyList<PayrollResultLine> lines,
+        decimal unpaidLeaveAmount)
+    {
+        var recurring = lines.Where(line => line.Kind == PayrollLineKind.RecurringEarning).ToList();
+        var totalRecurring = recurring.Sum(line => line.Amount);
+        decimal Reduce(PayrollResultLine line)
+        {
+            if (totalRecurring <= 0 || unpaidLeaveAmount <= 0)
+            {
+                return line.Amount;
+            }
+
+            return Math.Max(0m, line.Amount - unpaidLeaveAmount * line.Amount / totalRecurring);
+        }
+
+        var pfWages = 0m;
+        var esiWages = 0m;
+        foreach (var line in recurring)
+        {
+            var reduced = Reduce(line);
+            esiWages += reduced;
+            var structure = earningLines.FirstOrDefault(item => item.Name == line.Name);
+            var kind = structure is null ? SalaryComponentKinds.FromName(line.Name) : ResolveKind(structure);
+            if (kind is SalaryComponentKind.Basic or SalaryComponentKind.Da)
+            {
+                pfWages += reduced;
+            }
+        }
+
+        return (decimal.Round(pfWages, 2, MidpointRounding.AwayFromZero),
+            decimal.Round(esiWages, 2, MidpointRounding.AwayFromZero));
+    }
+
+    private static SalaryComponentKind ResolveKind(PayrollStructureLine line) =>
+        line.Kind == SalaryComponentKind.OtherEarning
+            ? SalaryComponentKinds.FromName(line.Name)
+            : line.Kind;
 
     private static decimal Rupees(decimal amount) =>
         decimal.Round(amount, 0, MidpointRounding.AwayFromZero);

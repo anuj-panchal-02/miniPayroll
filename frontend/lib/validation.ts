@@ -237,6 +237,12 @@ export type EmployeeFields = {
   ifsc: string;
   upiId: string;
   overtimeRate: string;
+  gender: string;
+  pfCovered: string;
+  esiCovered: string;
+  uan: string;
+  pfNumber: string;
+  esiNumber: string;
 };
 export type EmployeeField = keyof EmployeeFields;
 export type EmployeeErrors = Partial<Record<EmployeeField, string>>;
@@ -259,6 +265,7 @@ export const PERSONAL_FIELDS: EmployeeField[] = [
   "department",
   "joiningDate",
   "exitDate",
+  "gender",
 ];
 
 export const BANK_FIELDS: EmployeeField[] = [
@@ -268,7 +275,14 @@ export const BANK_FIELDS: EmployeeField[] = [
   "upiId",
 ];
 
-export const PAYROLL_FIELDS: EmployeeField[] = ["overtimeRate"];
+export const PAYROLL_FIELDS: EmployeeField[] = [
+  "overtimeRate",
+  "pfCovered",
+  "esiCovered",
+  "uan",
+  "pfNumber",
+  "esiNumber",
+];
 
 function requiredLengthError(
   value: string,
@@ -366,6 +380,9 @@ export function employeePersonalErrors(values: EmployeeFields): EmployeeErrors {
   if (values.exitDate && values.joiningDate && values.exitDate < values.joiningDate) {
     errors.exitDate = "Exit date cannot be before the joining date.";
   }
+  if (values.gender !== "0" && values.gender !== "1") {
+    errors.gender = "Select a gender.";
+  }
   return errors;
 }
 
@@ -390,6 +407,14 @@ export function employeePayrollErrors(values: EmployeeFields): EmployeeErrors {
       errors.overtimeRate = "Overtime rate cannot be negative.";
     }
   }
+  const uan = values.uan.replace(/\D/g, "");
+  if (values.uan.trim() && uan.length !== 12) {
+    errors.uan = "UAN must be 12 digits.";
+  }
+  const pf = optionalMaxError(values.pfNumber, 50, "PF number must be 50 characters or fewer.");
+  if (pf) errors.pfNumber = pf;
+  const esi = optionalMaxError(values.esiNumber, 50, "ESI number must be 50 characters or fewer.");
+  if (esi) errors.esiNumber = esi;
   return errors;
 }
 

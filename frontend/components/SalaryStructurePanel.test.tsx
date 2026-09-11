@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => ({
   SalaryComponentType: { Earning: 0, Deduction: 1 },
   SalaryComponentValueType: { FixedAmount: 0, PercentageOfBasic: 1 },
+  BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
+  OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
   listSalaryStructures: mocks.listSalaryStructures,
   createSalaryStructure: mocks.createSalaryStructure,
 }));
@@ -41,6 +43,12 @@ const employee = {
   ifsc: "HDFC0001234",
   upiId: null,
   overtimeRate: null,
+  gender: 0,
+  pfCovered: true,
+  esiCovered: true,
+  uan: null,
+  pfNumber: null,
+  esiNumber: null,
 };
 
 describe("SalaryStructurePanel", () => {
@@ -49,6 +57,12 @@ describe("SalaryStructurePanel", () => {
   beforeEach(() => {
     mocks.listSalaryStructures.mockReset();
     mocks.createSalaryStructure.mockReset();
+    HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+      this.removeAttribute("open");
+    };
   });
 
   it("shows a load error", async () => {
@@ -64,6 +78,9 @@ describe("SalaryStructurePanel", () => {
     mocks.listSalaryStructures.mockResolvedValue([]);
     render(<SalaryStructurePanel employee={employee} />);
     fireEvent.click(await screen.findByRole("button", { name: "Add salary structure" }));
+    expect(screen.getByRole("button", { name: "Add salary structure" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ada Lovelace" })).toBeTruthy();
+    expect(screen.getByText("EMP-01 · Salary revision")).toBeTruthy();
     expect(screen.getByLabelText(/effective from/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByLabelText(/effective from/i)).toBeNull();

@@ -1,4 +1,5 @@
 using MiniPayroll.Domain.Payroll;
+using MiniPayroll.Domain.Payroll.Statutory;
 
 namespace MiniPayroll.Domain.Entities;
 
@@ -13,6 +14,8 @@ public class PayrollDeduction
     public PayrollLineKind Kind { get; set; }
     public decimal Amount { get; set; }
     public int SortOrder { get; set; }
+    public StatutoryKind? StatutoryKind { get; set; }
+    public decimal? ComputedAmount { get; set; }
 
     public PayrollEmployee PayrollEmployee { get; set; } = null!;
 }

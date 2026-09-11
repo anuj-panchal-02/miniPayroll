@@ -277,6 +277,13 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<int>("DailyRateMethod")
                         .HasColumnType("int");
 
+                    b.Property<bool>("EsiApplicable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("EsiCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<bool>("IsSetupComplete")
                         .HasColumnType("bit");
 
@@ -288,6 +295,16 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("PfApplicable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PfEstablishmentCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("PfUseWageCeiling")
+                        .HasColumnType("bit");
 
                     b.Property<string>("PostalCode")
                         .HasMaxLength(20)
@@ -420,6 +437,13 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<int>("EmploymentType")
                         .HasColumnType("int");
 
+                    b.Property<bool>("EsiCovered")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("EsiNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateOnly?>("ExitDate")
                         .HasColumnType("date");
 
@@ -427,6 +451,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("Gender")
+                        .HasColumnType("int");
 
                     b.Property<string>("Ifsc")
                         .IsRequired()
@@ -438,6 +465,13 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal?>("OvertimeRate")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("PfCovered")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PfNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Phone")
                         .IsRequired()
@@ -457,6 +491,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<string>("Uan")
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
                     b.Property<string>("UpiId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -474,6 +512,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -638,6 +679,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("ComputedAmount")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("Kind")
                         .HasColumnType("int");
 
@@ -650,6 +694,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StatutoryKind")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -722,6 +769,12 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("EmployerEsi")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("EmployerPf")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Errors")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -779,6 +832,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("CalculatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("CompanyAddress")
+                        .HasMaxLength(800)
+                        .HasColumnType("nvarchar(800)");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -796,6 +853,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<int>("DailyRateMethod")
                         .HasColumnType("int");
 
+                    b.Property<string>("EsiCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTimeOffset?>("FinalizedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -804,6 +865,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Month")
                         .HasColumnType("int");
+
+                    b.Property<string>("PfEstablishmentCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("ReversalReason")
                         .HasMaxLength(500)
@@ -833,6 +898,37 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasFilter("[Status] <> 3");
 
                     b.ToTable("mp_TblPayrollRun", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollStatutoryOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollRunId", "EmployeeId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPayrollStatutoryOverride", (string)null);
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Plan", b =>
@@ -1375,6 +1471,25 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollStatutoryOverride", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.PayrollRun", "PayrollRun")
+                        .WithMany("StatutoryOverrides")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollRun");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformCity", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.PlatformState", "State")
@@ -1468,6 +1583,8 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("Overtime");
 
                     b.Navigation("Results");
+
+                    b.Navigation("StatutoryOverrides");
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Plan", b =>

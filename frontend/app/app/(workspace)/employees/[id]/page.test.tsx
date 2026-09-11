@@ -2,6 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "@/components/Toast";
 import EditEmployeePage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -20,8 +21,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api", () => ({
   EmployeeStatus: { Active: 0, Inactive: 1, Draft: 2 },
+  Gender: { Male: 0, Female: 1 },
   SalaryComponentType: { Earning: 0, Deduction: 1 },
   SalaryComponentValueType: { FixedAmount: 0, PercentageOfBasic: 1 },
+  BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
+  OneTimeDeductionType: { AdvanceRecovery: 0, LoanInstallment: 1, Tds: 2, Other: 3 },
   getEmployee: mocks.getEmployee,
   updateEmployee: mocks.updateEmployee,
   listSalaryStructures: mocks.listSalaryStructures,
@@ -54,6 +58,12 @@ const employee = {
   ifsc: "HDFC0001234",
   upiId: null,
   overtimeRate: null,
+  gender: 0,
+  pfCovered: true,
+  esiCovered: true,
+  uan: null,
+  pfNumber: null,
+  esiNumber: null,
 };
 
 const draftEmployee = {
@@ -82,15 +92,22 @@ describe("EditEmployeePage", () => {
   it("updates an employee and returns to the list", async () => {
     mocks.getEmployee.mockResolvedValue(employee);
     mocks.updateEmployee.mockResolvedValue(employee);
-    render(<EditEmployeePage />);
+    render(
+      <ToastProvider>
+        <EditEmployeePage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByDisplayValue("Ada Lovelace")).toBeTruthy();
+    expect(screen.getByText(/Ada Lovelace · EMP-01/)).toBeTruthy();
+    expect(screen.queryByText(/Loading employee/i)).toBeNull();
     fireEvent.change(screen.getByLabelText(/full name/i), {
       target: { value: "Ada Byron" },
     });
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     expect(screen.getByLabelText(/overtime rate/i)).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: /covered by provident fund/i })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
     await vi.waitFor(() => {
@@ -110,7 +127,11 @@ describe("EditEmployeePage", () => {
   it("saves a draft without leaving the page", async () => {
     mocks.getEmployee.mockResolvedValue(draftEmployee);
     mocks.updateEmployee.mockResolvedValue(draftEmployee);
-    render(<EditEmployeePage />);
+    render(
+      <ToastProvider>
+        <EditEmployeePage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByLabelText(/bank name/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /save as draft/i }));
@@ -147,7 +168,11 @@ describe("EditEmployeePage", () => {
         ],
       },
     ]);
-    render(<EditEmployeePage />);
+    render(
+      <ToastProvider>
+        <EditEmployeePage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByRole("heading", { name: "Current structure" })).toBeTruthy();
     expect(screen.getAllByText("₹25,000").length).toBeGreaterThan(0);

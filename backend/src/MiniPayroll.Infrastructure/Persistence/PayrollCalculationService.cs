@@ -4,11 +4,18 @@ using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Payroll;
+using MiniPayroll.Domain.Payroll.Statutory;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
 
-public sealed record PayrollLineDetail(string Name, PayrollLineKind Kind, decimal Amount, int SortOrder);
+public sealed record PayrollLineDetail(
+    string Name,
+    PayrollLineKind Kind,
+    decimal Amount,
+    int SortOrder,
+    decimal? ComputedAmount = null,
+    StatutoryKind? StatutoryKind = null);
 
 public sealed record PayrollEmployeeDetail(
     Guid EmployeeId,
@@ -27,7 +34,9 @@ public sealed record PayrollEmployeeDetail(
     SalaryPaymentStatus PaymentStatus,
     SalaryPaymentMode? PaymentMode,
     DateOnly? PaidOn,
-    string? PaymentReference);
+    string? PaymentReference,
+    decimal EmployerPf = 0m,
+    decimal EmployerEsi = 0m);
 
 public sealed record PayrollRunDetail(
     Guid Id,
@@ -57,6 +66,10 @@ public enum PayrollRunStatusCode
 }
 
 public sealed record PayrollRunResult(PayrollRunStatusCode Status, PayrollRunDetail? Run = null);
+
+public sealed record StatutoryOverrideInput(StatutoryKind Kind, decimal Amount);
+
+public sealed record StatutoryOverridesPayload(IReadOnlyList<StatutoryOverrideInput>? Overrides);
 
 public sealed class PayrollCalculationService(
     MiniPayrollDbContext db,
@@ -98,10 +111,9 @@ public sealed class PayrollCalculationService(
             Month = month,
             Status = PayrollRunStatus.Draft,
             DailyRateMethod = context.Company.DailyRateMethod,
-            CompanyName = context.Company.Name,
-            CompanyLogoPath = context.Company.LogoPath,
             CreatedAt = DateTimeOffset.UtcNow
         };
+        SnapshotCompanyIdentity(newRun, context.Company);
         db.PayrollRuns.Add(newRun);
         AddAudit(AuditActions.PayrollRunCreate, $"{year}-{month:D2}");
         await db.SaveChangesAsync(cancellationToken);
@@ -180,6 +192,9 @@ public sealed class PayrollCalculationService(
         var deductions = await db.Deductions
             .Where(item => item.PayrollRunId == run.Id)
             .ToListAsync(cancellationToken);
+        var statutoryOverrides = await db.PayrollStatutoryOverrides
+            .Where(item => item.PayrollRunId == run.Id)
+            .ToListAsync(cancellationToken);
 
         var employees = (await db.Employees
                 .Where(employee => employee.CompanyId == company.Id
@@ -249,7 +264,7 @@ public sealed class PayrollCalculationService(
                         .OrderBy(component => component.SortOrder)
                         .Select(component => new PayrollStructureLine(
                             component.Name, component.Type, component.ValueType,
-                            component.Value, component.SortOrder))
+                            component.Value, component.SortOrder, component.Kind))
                         .ToList(),
                     overtime.Where(entry => entry.EmployeeId == employee.Id)
                         .Select(entry => new PayrollOvertimeEntry(
@@ -261,7 +276,18 @@ public sealed class PayrollCalculationService(
                     deductions.Where(entry => entry.EmployeeId == employee.Id)
                         .Select(entry => new PayrollAmountEntry(DeductionName(entry.Type), entry.Amount))
                         .ToList(),
-                    previousNets.TryGetValue(employee.Id, out var previousNet) ? previousNet : null));
+                    previousNets.TryGetValue(employee.Id, out var previousNet) ? previousNet : null,
+                    new StatutoryPolicy(
+                        company.PfApplicable,
+                        company.PfUseWageCeiling,
+                        company.EsiApplicable,
+                        company.State,
+                        employee.PfCovered,
+                        employee.EsiCovered,
+                        employee.Gender),
+                    statutoryOverrides.Where(item => item.EmployeeId == employee.Id)
+                        .Select(item => new StatutoryOverride(item.Kind, item.Amount))
+                        .ToList()));
             }
 
             var row = ToRow(run, employee, result);
@@ -279,6 +305,67 @@ public sealed class PayrollCalculationService(
         await db.SaveChangesAsync(cancellationToken);
 
         return new PayrollRunResult(PayrollRunStatusCode.Success, ToDetail(run, rows));
+    }
+
+    public async Task<PayrollRunResult> SetStatutoryOverridesAsync(
+        Guid runId,
+        Guid employeeId,
+        IReadOnlyList<StatutoryOverrideInput>? input,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await GetContextAsync(true, cancellationToken);
+        if (context.Status != PayrollRunStatusCode.Success || context.Company is null)
+        {
+            return new PayrollRunResult(context.Status);
+        }
+
+        var run = await db.PayrollRuns.SingleOrDefaultAsync(
+            item => item.Id == runId && item.CompanyId == context.Company.Id,
+            cancellationToken);
+        if (run is null)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.NotFound);
+        }
+        if (run.Status is PayrollRunStatus.Finalized or PayrollRunStatus.Reversed)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.RunLocked);
+        }
+
+        var eligible = await db.Employees.AnyAsync(
+            employee => employee.Id == employeeId && employee.CompanyId == context.Company.Id,
+            cancellationToken);
+        if (!eligible)
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.NotFound);
+        }
+
+        var replacements = input ?? [];
+        if (replacements.Any(entry => !Enum.IsDefined(entry.Kind) || entry.Amount < 0))
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.InvalidInput);
+        }
+
+        var existing = await db.PayrollStatutoryOverrides
+            .Where(item => item.PayrollRunId == run.Id && item.EmployeeId == employeeId)
+            .ToListAsync(cancellationToken);
+        db.PayrollStatutoryOverrides.RemoveRange(existing);
+
+        foreach (var entry in replacements)
+        {
+            db.PayrollStatutoryOverrides.Add(new PayrollStatutoryOverride
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = context.Company.Id,
+                PayrollRunId = run.Id,
+                EmployeeId = employeeId,
+                Kind = entry.Kind,
+                Amount = decimal.Round(entry.Amount, 0, MidpointRounding.AwayFromZero)
+            });
+        }
+
+        AddAudit(AuditActions.PayrollStatutoryOverride, $"{run.Year}-{run.Month:D2}");
+        await db.SaveChangesAsync(cancellationToken);
+        return await CalculateAsync(run.Id, cancellationToken);
     }
 
     public async Task<PayrollRunResult> FinalizeAsync(
@@ -324,8 +411,7 @@ public sealed class PayrollCalculationService(
         run.Status = PayrollRunStatus.Finalized;
         run.FinalizedAt = DateTimeOffset.UtcNow;
         run.FinalizedByUserId = tenant.UserId;
-        run.CompanyName = context.Company.Name;
-        run.CompanyLogoPath = context.Company.LogoPath;
+        SnapshotCompanyIdentity(run, context.Company);
         foreach (var row in rows)
         {
             if (employees.TryGetValue(row.EmployeeId, out var employee))
@@ -462,6 +548,8 @@ public sealed class PayrollCalculationService(
             GrossEarnings = result.GrossEarnings,
             TotalDeductions = result.TotalDeductions,
             NetSalary = result.NetSalary,
+            EmployerPf = result.EmployerPf,
+            EmployerEsi = result.EmployerEsi,
             Warnings = result.Warnings.Count > 0 ? string.Join("\n", result.Warnings) : null,
             Errors = result.Errors.Count > 0 ? string.Join("\n", result.Errors) : null
         };
@@ -493,7 +581,9 @@ public sealed class PayrollCalculationService(
                     Name = line.Name,
                     Kind = line.Kind,
                     Amount = line.Amount,
-                    SortOrder = deductionOrder++
+                    SortOrder = deductionOrder++,
+                    StatutoryKind = line.StatutoryKind,
+                    ComputedAmount = line.ComputedAmount
                 });
             }
         }
@@ -524,14 +614,18 @@ public sealed class PayrollCalculationService(
                     .Select(line => new PayrollLineDetail(line.Name, line.Kind, line.Amount, line.SortOrder))
                     .ToList(),
                 row.Deductions.OrderBy(line => line.SortOrder)
-                    .Select(line => new PayrollLineDetail(line.Name, line.Kind, line.Amount, line.SortOrder))
+                    .Select(line => new PayrollLineDetail(
+                        line.Name, line.Kind, line.Amount, line.SortOrder,
+                        line.ComputedAmount, line.StatutoryKind))
                     .ToList(),
                 Split(row.Warnings),
                 Split(row.Errors),
                 row.PaymentStatus,
                 row.PaymentMode,
                 row.PaidOn,
-                row.PaymentReference))
+                row.PaymentReference,
+                row.EmployerPf,
+                row.EmployerEsi))
             .ToList());
 
     private static IReadOnlyList<string> Split(string? joined) =>
@@ -591,5 +685,20 @@ public sealed class PayrollCalculationService(
             Details = details,
             OccurredAt = DateTimeOffset.UtcNow
         });
+    }
+
+    private static void SnapshotCompanyIdentity(PayrollRun run, Company company)
+    {
+        run.CompanyName = company.Name;
+        run.CompanyLogoPath = company.LogoPath;
+        run.CompanyAddress = CompanyAddressFormatter.Format(company);
+        run.PfEstablishmentCode = TrimToNull(company.PfEstablishmentCode);
+        run.EsiCode = TrimToNull(company.EsiCode);
+    }
+
+    private static string? TrimToNull(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 }

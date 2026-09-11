@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { EmployeeForm } from "@/components/EmployeeForm";
 import { SalaryStructurePanel } from "@/components/SalaryStructurePanel";
 import { getEmployee, updateEmployee, type EmployeeDetail } from "@/lib/api";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function EditEmployeePage() {
   const params = useParams<{ id: string }>();
@@ -49,7 +50,11 @@ export default function EditEmployeePage() {
           </svg>
         </Link>
         <h1>Edit employee</h1>
-        <p>Update details without changing payroll history.</p>
+        <p>
+          {employee
+            ? `${employee.fullName} · ${employee.employeeCode}`
+            : "Update details without changing payroll history."}
+        </p>
       </header>
       {error ? (
         <p className="sa-alert" role="alert">
@@ -72,9 +77,16 @@ export default function EditEmployeePage() {
           <SalaryStructurePanel employee={employee} />
         </>
       ) : error ? null : (
-        <p className="sa-empty" role="status">
-          Loading employee…
-        </p>
+        <div className="space-y-4 py-4" role="status">
+          <div className="mp-kpi-grid">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
       )}
     </main>
   );

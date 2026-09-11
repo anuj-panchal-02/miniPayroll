@@ -6,8 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { SignOutButton } from "@/components/SignOutButton";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SuperadminNav } from "@/components/SuperadminNav";
-import { getMe, getToken, setToken } from "@/lib/api";
+import { getToken, setToken, type MeResponse } from "@/lib/api";
+import { clearSession, loadSession, readSession } from "@/lib/session";
 import {
+  LOGIN_PATH,
   SUPERADMIN_ROLE,
   guardRedirect,
   type RouteGuardOptions,
@@ -31,83 +33,72 @@ export function SuperadminShell({
 }: SuperadminShellProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const guardKey = JSON.stringify([
-    pathname,
-    requiredRole,
-    allowIncompleteSetup,
-  ]);
-  const [validatedGuardKey, setValidatedGuardKey] = useState<string | null>(
-    null,
-  );
+  const [session, setSession] = useState<MeResponse | null>(() => readSession());
 
   useEffect(() => {
     if (!getToken()) {
-      const redirect = guardRedirect(null, {
-        requiredRole,
-        allowIncompleteSetup,
-        currentPath: pathname,
-      });
-      if (redirect && redirect !== pathname) {
-        router.replace(redirect);
+      clearSession();
+      setSession(null);
+      if (pathname !== LOGIN_PATH) {
+        router.replace(LOGIN_PATH);
       }
       return;
     }
 
+    const cached = readSession();
+    if (cached) {
+      setSession(cached);
+      return;
+    }
+
     let cancelled = false;
-    async function check() {
-      try {
-        const me = await getMe();
-        if (cancelled) {
-          return;
+    loadSession()
+      .then((me) => {
+        if (!cancelled) {
+          setSession(me);
         }
-        const redirect = guardRedirect(me, {
-          requiredRole,
-          allowIncompleteSetup,
-          currentPath: pathname,
-        });
-        if (redirect) {
-          if (redirect !== pathname) {
-            router.replace(redirect);
-          }
-          return;
-        }
-        setValidatedGuardKey(guardKey);
-      } catch {
+      })
+      .catch(() => {
         if (cancelled) {
           return;
         }
         setToken(null);
-        if (pathname !== "/login") {
-          router.replace("/login");
+        setSession(null);
+        if (pathname !== LOGIN_PATH) {
+          router.replace(LOGIN_PATH);
         }
-      }
-    }
+      });
 
-    void check();
     return () => {
       cancelled = true;
     };
-  }, [
-    allowIncompleteSetup,
-    guardKey,
-    pathname,
-    requiredRole,
-    router,
-  ]);
+  }, [allowIncompleteSetup, pathname, requiredRole, router]);
 
-  if (validatedGuardKey !== guardKey) {
-    return (
-      <div className="sa">
-        <main className="sa-shell">
-          <p className="sa-empty" role="status">
-            Validating access…
-          </p>
-        </main>
-      </div>
-    );
-  }
+  const redirect = session
+    ? guardRedirect(session, {
+        requiredRole,
+        allowIncompleteSetup,
+        currentPath: pathname,
+      })
+    : null;
+
+  useEffect(() => {
+    if (redirect && redirect !== pathname) {
+      router.replace(redirect);
+    }
+  }, [pathname, redirect, router]);
 
   const showPlatformNav = requiredRole === SUPERADMIN_ROLE;
+  const showChildren = Boolean(session) && !redirect;
+  const main = showChildren ? (
+    children
+  ) : (
+    <main className="sa-shell">
+      <p className="sa-empty" role="status">
+        Validating access…
+      </p>
+    </main>
+  );
 
   return (
     <div className="sa">
@@ -128,10 +119,10 @@ export function SuperadminShell({
       {showPlatformNav ? (
         <div className="sa-layout">
           <SuperadminNav pathname={pathname} />
-          {children}
+          {main}
         </div>
       ) : (
-        children
+        main
       )}
     </div>
   );

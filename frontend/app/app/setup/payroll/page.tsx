@@ -3,16 +3,22 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SetupWizardShell } from "@/components/SetupWizardShell";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/Button";
 import { Choice } from "@/components/ui/Choice";
 import { Field } from "@/components/ui/Field";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   DailyRateMethod,
   getCompanySetup,
   updatePayrollSettings,
 } from "@/lib/api";
 import { weeklyOffDaysError, workingDaysError } from "@/lib/validation";
+import {
+  defaultStatutoryPayrollValues,
+  StatutoryPayrollFields,
+  type StatutoryPayrollValues,
+} from "@/components/StatutoryPayrollFields";
 
 const DAYS = [
   "Monday",
@@ -31,6 +37,10 @@ export default function PayrollSetupPage() {
   const [dailyRateMethod, setDailyRateMethod] = useState<DailyRateMethod>(
     DailyRateMethod.CalendarDays,
   );
+  const [statutory, setStatutory] = useState<StatutoryPayrollValues>(
+    defaultStatutoryPayrollValues(),
+  );
+  const [companyState, setCompanyState] = useState<string | null>(null);
   const [workingDaysMessage, setWorkingDaysMessage] = useState("");
   const [weeklyOffMessage, setWeeklyOffMessage] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -54,6 +64,16 @@ export default function PayrollSetupPage() {
           setup.dailyRateMethod === "FixedThirty"
             ? DailyRateMethod.FixedThirty
             : DailyRateMethod.CalendarDays,
+        );
+        setCompanyState(setup.state);
+        setStatutory(
+          defaultStatutoryPayrollValues({
+            pfApplicable: setup.pfApplicable,
+            pfUseWageCeiling: setup.pfUseWageCeiling,
+            esiApplicable: setup.esiApplicable,
+            pfEstablishmentCode: setup.pfEstablishmentCode ?? "",
+            esiCode: setup.esiCode ?? "",
+          }),
         );
       })
       .catch((reason) => {
@@ -97,6 +117,11 @@ export default function PayrollSetupPage() {
         dailyRateMethod,
         workingDaysPerMonth: Number(workingDays),
         weeklyOffDays,
+        pfApplicable: statutory.pfApplicable,
+        pfUseWageCeiling: statutory.pfUseWageCeiling,
+        esiApplicable: statutory.esiApplicable,
+        pfEstablishmentCode: statutory.pfEstablishmentCode.trim() || null,
+        esiCode: statutory.esiCode.trim() || null,
       });
       if (!isCurrentSubmission()) return;
       router.push("/app/setup/review");
@@ -117,7 +142,13 @@ export default function PayrollSetupPage() {
       title="Payroll settings"
       description="Choose the defaults used to calculate monthly payroll."
     >
-      {loading ? <p className="setup-loading" role="status">Loading payroll settings…</p> : null}
+      {loading ? (
+        <div className="space-y-3" role="status">
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : null}
       {loadError ? <p className="setup-alert" role="alert">{loadError}</p> : null}
       {!loading && !loadError ? (
         <form className="setup-form" noValidate autoComplete="off" onSubmit={submit}>
@@ -224,10 +255,15 @@ export default function PayrollSetupPage() {
             </div>
           </fieldset>
 
+          <StatutoryPayrollFields
+            values={statutory}
+            companyState={companyState}
+            onChange={setStatutory}
+          />
+
           {workingDaysMessage || weeklyOffMessage ? (
             <p className="setup-alert" role="alert">Review the highlighted payroll settings.</p>
           ) : null}
-          <ToastOutlet toast={toast} />
           <div className="setup-actions">
             <Button type="submit" loading={saving} loadingLabel="Saving…">
               Save and continue

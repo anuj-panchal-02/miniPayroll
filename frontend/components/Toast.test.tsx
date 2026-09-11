@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Toast, ToastOutlet, TOAST_DURATION_MS, useToast } from "./Toast";
+import { Toast, ToastOutlet, ToastProvider, TOAST_DURATION_MS, useToast } from "./Toast";
 
 describe("Toast", () => {
   afterEach(() => {
@@ -74,5 +74,32 @@ describe("useToast", () => {
     expect(screen.getByRole("alert").textContent).toBe("Could not save.");
     fireEvent.click(screen.getByRole("button", { name: "Succeed" }));
     expect(screen.getByRole("status").textContent).toBe("Saved.");
+  });
+
+  it("keeps a message after the providing tree's child is swapped", () => {
+    function Trigger() {
+      const toast = useToast();
+      return (
+        <button type="button" onClick={() => toast.showSuccess("Draft saved.")}>
+          Save
+        </button>
+      );
+    }
+
+    const { rerender } = render(
+      <ToastProvider>
+        <Trigger />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByRole("status").textContent).toBe("Draft saved.");
+
+    rerender(
+      <ToastProvider>
+        <p>Next screen</p>
+      </ToastProvider>,
+    );
+    expect(screen.getByText("Next screen")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Draft saved.");
   });
 });

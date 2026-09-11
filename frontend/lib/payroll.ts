@@ -27,6 +27,17 @@ export function formatRupees(value: number): string {
   return `₹${value.toLocaleString("en-IN")}`;
 }
 
+export function statutoryAppliedLabel(
+  applied: number,
+  computed: number | null | undefined,
+): string {
+  const computedAmount = computed ?? applied;
+  if (applied === computedAmount) {
+    return `${formatRupees(applied)} (computed)`;
+  }
+  return `${formatRupees(applied)} (computed ${formatRupees(computedAmount)})`;
+}
+
 export function billingFormula(
   billableEmployees: number,
   pricePerEmployee: number,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -13,9 +13,8 @@ import {
   type PayrollPeriodDetail,
   type PayrollRosterEmployee,
 } from "@/lib/api";
-import { ToastOutlet, useToast } from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 import { Alert } from "@/components/ui/Alert";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -27,6 +26,7 @@ import {
   attendanceBalances,
   parseQuantity,
   periodLabel,
+  runStatusLabel,
 } from "@/lib/payroll";
 
 type DraftRow = {
@@ -164,6 +164,14 @@ function buildPayload(rows: DraftRow[]): PayrollInputsPayload | string {
   return { attendance, overtime, bonuses, deductions };
 }
 
+function rowIdentityOk(row: DraftRow): boolean {
+  const working = parseQuantity(row.workingDays) ?? 0;
+  const present = parseQuantity(row.present) ?? 0;
+  const paid = parseQuantity(row.paidLeave) ?? 0;
+  const unpaid = parseQuantity(row.unpaidLeave) ?? 0;
+  return attendanceBalances(working, present, paid, unpaid);
+}
+
 export default function MonthlyInputsPage() {
   const params = useParams<{ year: string; month: string }>();
   const year = Number(params.year);
@@ -175,6 +183,7 @@ export default function MonthlyInputsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [activeExtrasEmployeeId, setActiveExtrasEmployeeId] = useState<string | null>(null);
+  const extrasEmployeeRef = useRef<DraftRow | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,10 +211,24 @@ export default function MonthlyInputsPage() {
     period?.run?.status === PayrollRunStatus.Finalized ||
     period?.run?.status === PayrollRunStatus.Reversed;
   const calculated = period?.run?.status === PayrollRunStatus.Calculated;
-  const missingStructure = useMemo(
-    () => rows.filter((row) => !row.hasStructure).map((row) => row.fullName),
+  const missingStructureCount = useMemo(
+    () => rows.filter((row) => !row.hasStructure).length,
     [rows],
   );
+  const identityFailCount = useMemo(
+    () => rows.filter((row) => !rowIdentityOk(row)).length,
+    [rows],
+  );
+  const blockerCount = missingStructureCount + identityFailCount;
+  const readiness = [
+    missingStructureCount === 0
+      ? "Salary structures complete"
+      : `${missingStructureCount} missing salary structure`,
+    identityFailCount === 0
+      ? "Attendance balances"
+      : `${identityFailCount} attendance identity`,
+  ];
+  const selectedLabel = periodLabel(year, month);
 
   function updateRow(employeeId: string, patch: Partial<DraftRow>) {
     setRows((current) =>
@@ -281,32 +304,42 @@ export default function MonthlyInputsPage() {
     }
   }
 
-  const activeEmployee = useMemo(
-    () => rows.find((r) => r.employeeId === activeExtrasEmployeeId) ?? null,
-    [rows, activeExtrasEmployeeId],
-  );
+  const extrasEmployee = useMemo(() => {
+    const current = rows.find((row) => row.employeeId === activeExtrasEmployeeId);
+    if (current) {
+      extrasEmployeeRef.current = current;
+      return current;
+    }
+    return extrasEmployeeRef.current;
+  }, [activeExtrasEmployeeId, rows]);
 
   return (
     <main className="sa-shell">
       <header className="sa-head sa-head--with-back">
-        <Link href="/app/payroll" className="sa-back" aria-label="Payroll">
-          <svg className="sa-back__icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M19 12H5m7 7-7-7 7-7"
-            />
-          </svg>
-        </Link>
         <h1>Monthly inputs</h1>
-        <p>{periodLabel(year, month)} attendance, overtime, bonuses, and deductions.</p>
+        <div className="sa-head__actions">
+          <Link href={`/app/payroll/${year}/${month}/review`} className="sa-compose__secondary">
+            Review
+          </Link>
+          <Link href="/app/payroll" className="sa-back" aria-label="Payroll">
+            <svg className="sa-back__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 12H5m7 7-7-7 7-7"
+              />
+            </svg>
+          </Link>
+        </div>
+        <p>
+          {selectedLabel} attendance, overtime, bonuses, and deductions.
+        </p>
       </header>
 
       <Alert>{error || null}</Alert>
-      <ToastOutlet toast={toast} />
 
       {calculated ? (
         <Alert tone="status">Saving will return this run to Draft so you can recalculate.</Alert>
@@ -315,16 +348,16 @@ export default function MonthlyInputsPage() {
         <Alert tone="status">This payroll run is finalized or reversed and cannot be changed.</Alert>
       ) : null}
 
-      {loading ? (
-        <div className="space-y-4 py-8">
-          <p className="sa-empty" role="status">
-            Loading monthly inputs…
-          </p>
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+      {loading && !period ? (
+        <div className="space-y-4 py-4" role="status">
+          <div className="mp-kpi-grid">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
           </div>
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
         </div>
       ) : !period?.run ? (
         <p className="sa-empty">
@@ -333,30 +366,41 @@ export default function MonthlyInputsPage() {
         </p>
       ) : (
         <>
-          {missingStructure.length > 0 ? (
-            <Alert tone="status">
-              {`Missing salary structure: ${missingStructure.join(", ")}.`}
-            </Alert>
-          ) : null}
+          <div className="mp-kpi-grid" role="region" aria-label={`${selectedLabel} snapshot`}>
+            <div className="mp-kpi-card">
+              <span className="mp-kpi-card__label">Status</span>
+              <span className="mp-kpi-card__value">{runStatusLabel(period.run.status)}</span>
+              <span className="mp-kpi-card__subtext">{selectedLabel}</span>
+            </div>
+            <div className="mp-kpi-card">
+              <span className="mp-kpi-card__label">Employees</span>
+              <span className="mp-kpi-card__value">{rows.length}</span>
+              <span className="mp-kpi-card__subtext">
+                {period.workingDaysPerMonth} working days default
+              </span>
+            </div>
+            <div className="mp-kpi-card">
+              <span className="mp-kpi-card__label">Readiness</span>
+              <span className="mp-kpi-card__value">
+                {blockerCount === 0 ? "Clear" : `${blockerCount} missing`}
+              </span>
+              <span className="mp-kpi-card__subtext">{readiness.join(" · ")}</span>
+            </div>
+          </div>
 
-          {/* Quick Toolbar */}
-          <div className="sa-payroll-toolbar flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={applyWorkingDays}
-                disabled={locked}
-              >
-                Apply {period.workingDaysPerMonth} working days to all
+          <section className="sa-payroll-card" aria-label={`${selectedLabel} inputs`}>
+            <h2 className="sa-payroll-card__title">{selectedLabel}</h2>
+            <p className="sa-payroll-card__lede">
+              {locked
+                ? "This run cannot be changed."
+                : "Edit attendance, then save."}
+            </p>
+            <div className="sa-payroll-card__actions">
+              <Button type="button" variant="secondary" onClick={applyWorkingDays} disabled={locked}>
+                Apply working days
               </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={markAllPresent}
-                disabled={locked}
-              >
-                Mark all 100% present
+              <Button type="button" variant="secondary" onClick={markAllPresent} disabled={locked}>
+                Mark all present
               </Button>
               <Button
                 type="button"
@@ -364,15 +408,20 @@ export default function MonthlyInputsPage() {
                 onClick={autoBalanceUnpaidLeave}
                 disabled={locked}
               >
-                Auto-balance unpaid leave
+                Balance unpaid leave
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void onSave()}
+                loading={busy}
+                loadingLabel="Saving…"
+                disabled={locked}
+              >
+                Save inputs
               </Button>
             </div>
-            <Link href={`/app/payroll/${year}/${month}/review`} className="sa-compose__secondary">
-              Review payroll →
-            </Link>
-          </div>
+          </section>
 
-          {/* Clean Grid Table */}
           <div className="sa-payroll-grid-wrap">
             <table className="sa-payroll-grid">
               <thead>
@@ -502,39 +551,28 @@ export default function MonthlyInputsPage() {
             </table>
           </div>
 
-          <div className="sa-payroll-toolbar">
-            <Button
-              type="button"
-              onClick={() => void onSave()}
-              loading={busy}
-              loadingLabel="Saving…"
-              disabled={locked}
-            >
-              Save inputs
-            </Button>
-          </div>
-
-          {/* Slide-over Extras Drawer */}
-          {activeEmployee ? (
-            <PayrollExtrasDrawer
-              open={Boolean(activeExtrasEmployeeId)}
-              onClose={() => setActiveExtrasEmployeeId(null)}
-              employeeName={activeEmployee.fullName}
-              employeeCode={activeEmployee.employeeCode}
-              locked={locked}
-              initialOvertime={activeEmployee.overtime}
-              initialBonuses={activeEmployee.bonuses}
-              initialDeductions={activeEmployee.deductions}
-              onSave={(overtime, bonuses, deductions) => {
-                updateRow(activeEmployee.employeeId, {
-                  overtime,
-                  bonuses,
-                  deductions,
-                });
-                toast.showSuccess(`Updated adjustments for ${activeEmployee.fullName}.`);
-              }}
-            />
-          ) : null}
+          <PayrollExtrasDrawer
+            open={Boolean(activeExtrasEmployeeId)}
+            onClose={() => setActiveExtrasEmployeeId(null)}
+            employeeName={extrasEmployee?.fullName ?? ""}
+            employeeCode={extrasEmployee?.employeeCode ?? ""}
+            locked={locked}
+            initialOvertime={extrasEmployee?.overtime ?? []}
+            initialBonuses={extrasEmployee?.bonuses ?? []}
+            initialDeductions={extrasEmployee?.deductions ?? []}
+            onSave={(overtime, bonuses, deductions) => {
+              const employeeId = extrasEmployee?.employeeId;
+              if (!employeeId) {
+                return;
+              }
+              updateRow(employeeId, {
+                overtime,
+                bonuses,
+                deductions,
+              });
+              toast.showSuccess(`Updated adjustments for ${extrasEmployee.fullName}.`);
+            }}
+          />
         </>
       )}
     </main>

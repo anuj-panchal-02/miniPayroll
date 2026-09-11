@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanySetupStep } from "@/lib/setup";
+import { ToastProvider } from "@/components/Toast";
 import CompanySetupPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -79,14 +80,22 @@ describe("CompanySetupPage", () => {
   });
 
   it("loads and prefills saved company details", async () => {
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
 
     expect(await screen.findByDisplayValue("Acme Ltd")).toBeTruthy();
     expect(screen.getByDisplayValue("payroll@acme.test")).toBeTruthy();
   });
 
   it("blocks invalid submission and focuses the first invalid field", async () => {
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     const name = await screen.findByLabelText(/company name/i);
     fireEvent.change(name, { target: { value: "" } });
 
@@ -99,7 +108,11 @@ describe("CompanySetupPage", () => {
   });
 
   it("uploads a newly selected logo before saving details and navigating", async () => {
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     await screen.findByDisplayValue("Acme Ltd");
     const file = new File(["logo"], "logo.png", { type: "image/png" });
     fireEvent.change(screen.getByLabelText(/company logo/i), {
@@ -119,7 +132,11 @@ describe("CompanySetupPage", () => {
 
   it("does not save details when a new logo upload fails", async () => {
     mocks.uploadCompanyLogo.mockRejectedValueOnce(new Error("Logo upload failed."));
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     await screen.findByDisplayValue("Acme Ltd");
     fireEvent.change(screen.getByLabelText(/company logo/i), {
       target: {
@@ -141,7 +158,11 @@ describe("CompanySetupPage", () => {
       state: "",
       logoUrl: "http://localhost:5238/uploads/logo.png",
     });
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     await screen.findByDisplayValue("Acme Ltd");
 
     await waitFor(() => expect(mocks.listPlatformStates).toHaveBeenCalled());
@@ -165,7 +186,11 @@ describe("CompanySetupPage", () => {
       ...setup,
       logoUrl: "http://localhost:5238/uploads/logo.png",
     });
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     await screen.findByAltText(/company logo preview/i);
 
     fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
@@ -180,7 +205,11 @@ describe("CompanySetupPage", () => {
       ...setup,
       logoUrl: "http://localhost:5238/uploads/logo.png",
     });
-    render(<CompanySetupPage />);
+    render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     const name = await screen.findByLabelText(/company name/i);
     fireEvent.change(name, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
@@ -202,7 +231,11 @@ describe("CompanySetupPage", () => {
         resolveSave = resolve;
       }),
     );
-    const view = render(<CompanySetupPage />);
+    const view = render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     await screen.findByDisplayValue("Acme Ltd");
     fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
     await waitFor(() => expect(mocks.updateCompanyDetails).toHaveBeenCalledOnce());
@@ -230,7 +263,11 @@ describe("CompanySetupPage", () => {
       configurable: true,
       value: revokeObjectURL,
     });
-    const view = render(<CompanySetupPage />);
+    const view = render(
+      <ToastProvider>
+        <CompanySetupPage />
+      </ToastProvider>,
+    );
     await screen.findByDisplayValue("Acme Ltd");
     const input = screen.getByLabelText(/company logo/i);
 

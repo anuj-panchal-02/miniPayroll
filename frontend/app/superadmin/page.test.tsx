@@ -37,10 +37,6 @@ vi.mock("@/lib/api", () => ({
   setToken: mocks.setToken,
 }));
 
-vi.mock("@/components/SuperadminShell", () => ({
-  SuperadminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 describe("SuperadminPage", () => {
   afterEach(cleanup);
 

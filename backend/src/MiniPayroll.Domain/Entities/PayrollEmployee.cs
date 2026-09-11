@@ -19,6 +19,8 @@ public class PayrollEmployee
     public decimal GrossEarnings { get; set; }
     public decimal TotalDeductions { get; set; }
     public decimal NetSalary { get; set; }
+    public decimal EmployerPf { get; set; }
+    public decimal EmployerEsi { get; set; }
 
     /// <summary>Newline-separated non-blocking warnings persisted with the calculation.</summary>
     public string? Warnings { get; set; }

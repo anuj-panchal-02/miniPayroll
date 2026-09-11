@@ -67,8 +67,16 @@ describe("PayrollPage", () => {
     expect(screen.getByLabelText("Month").getAttribute("aria-haspopup")).toBe("listbox");
     expect(screen.getByLabelText("Year").getAttribute("aria-haspopup")).toBe("listbox");
     expect(screen.queryByRole("combobox")).toBeNull();
-    expect(screen.getByText(/no run yet/i)).toBeTruthy();
-    expect(screen.getByText(/0 missing salary structure/i)).toBeTruthy();
+
+    const history = screen.getByRole("link", { name: "History" });
+    expect(history.getAttribute("href")).toBe("/app/payroll/history");
+    expect(history.closest("header")?.className).toContain("sa-head--with-back");
+
+    expect(screen.getByText("Status")).toBeTruthy();
+    expect(screen.getByText("No run")).toBeTruthy();
+    expect(screen.getByText("Employees")).toBeTruthy();
+    expect(screen.getByText("Readiness")).toBeTruthy();
+    expect(screen.getByText(/salary structures complete/i)).toBeTruthy();
   });
 
   it("starts a run and opens monthly inputs", async () => {
@@ -111,6 +119,7 @@ describe("PayrollPage", () => {
 
     expect(await screen.findByRole("link", { name: /monthly inputs/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: /review/i })).toBeTruthy();
+    expect(screen.getByText("Draft")).toBeTruthy();
     expect(screen.getByText(/1 missing salary structure/i)).toBeTruthy();
     expect(screen.getByText(/1 missing attendance/i)).toBeTruthy();
   });

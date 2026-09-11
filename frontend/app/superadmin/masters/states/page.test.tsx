@@ -23,10 +23,6 @@ vi.mock("@/lib/api", () => ({
   updatePlatformState: mocks.updatePlatformState,
 }));
 
-vi.mock("@/components/SuperadminShell", () => ({
-  SuperadminShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 const maharashtra = {
   id: "st-mh",
   name: "Maharashtra",
