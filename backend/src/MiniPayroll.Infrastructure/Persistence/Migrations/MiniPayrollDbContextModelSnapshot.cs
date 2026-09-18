@@ -278,7 +278,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("EsiApplicable")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("EsiCode")
                         .HasMaxLength(50)
@@ -297,7 +299,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<bool>("PfApplicable")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("PfEstablishmentCode")
                         .HasMaxLength(50)
@@ -438,7 +442,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("EsiCovered")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("EsiNumber")
                         .HasMaxLength(50)
@@ -467,7 +473,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("PfCovered")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("PfNumber")
                         .HasMaxLength(50)
@@ -547,6 +555,114 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("mp_TblEmployeeSalaryComponent", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Invoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateTimeOffset?>("DueAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ExternalInvoiceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("IssuedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("PeriodEnd")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Tax")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceNumber")
+                        .IsUnique()
+                        .HasFilter("[InvoiceNumber] IS NOT NULL");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("CompanyId", "PeriodStart", "PeriodEnd")
+                        .IsUnique()
+                        .HasFilter("[Status] <> 6");
+
+                    b.ToTable("mp_TblInvoice", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.InvoiceLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("mp_TblInvoiceLine", (string)null);
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.MonthlyAttendance", b =>
@@ -665,6 +781,132 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.HasIndex("SubscriptionId");
 
                     b.ToTable("mp_TblPayment", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PaymentIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProviderOrderId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ProviderPaymentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ProviderSubscriptionId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("ProviderOrderId")
+                        .IsUnique()
+                        .HasFilter("[ProviderOrderId] IS NOT NULL");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.ToTable("mp_TblPaymentIntent", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PaymentProviderEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("EventType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExternalEventId")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<Guid?>("IntentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("ProcessingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalEventId")
+                        .IsUnique();
+
+                    b.HasIndex("IntentId");
+
+                    b.ToTable("mp_TblPaymentProviderEvent", (string)null);
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollDeduction", b =>
@@ -857,6 +1099,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateOnly?>("EsiRuleEffectiveFrom")
+                        .HasColumnType("date");
+
                     b.Property<DateTimeOffset?>("FinalizedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -869,6 +1114,9 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<string>("PfEstablishmentCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateOnly?>("PfRuleEffectiveFrom")
+                        .HasColumnType("date");
 
                     b.Property<string>("ReversalReason")
                         .HasMaxLength(500)
@@ -884,6 +1132,13 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<string>("SourceFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SourceSnapshotJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -937,11 +1192,26 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<int>("DefaultEmployeeLimit")
                         .HasColumnType("int");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsPublic")
                         .HasColumnType("bit");
+
+                    b.Property<int>("MaxActiveEmployees")
+                        .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -951,12 +1221,96 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("PricePerEmployee")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("TrialDays")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
 
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("mp_TblPlan", (string)null);
+                    b.ToTable("mp_TblPlan", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_mp_TblPlan_MaxActiveEmployees", "[MaxActiveEmployees] >= 1");
+
+                            t.HasCheckConstraint("CK_mp_TblPlan_TrialDays", "[TrialDays] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlanFeature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("Limit")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("mp_TblPlanFeature", (string)null);
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlanPrice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("BillingCycle")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateTimeOffset>("EffectiveFrom")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("EffectiveTo")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId", "BillingCycle")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1 AND [EffectiveTo] IS NULL");
+
+                    b.HasIndex("PlanId", "BillingCycle", "EffectiveFrom");
+
+                    b.ToTable("mp_TblPlanPrice", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_mp_TblPlanPrice_Amount", "[Amount] >= 0");
+
+                            t.HasCheckConstraint("CK_mp_TblPlanPrice_Window", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                        });
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformCity", b =>
@@ -1085,8 +1439,20 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("BillingCycle")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("CancelAtPeriodEnd")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset?>("CurrentPeriodEnd")
                         .HasColumnType("datetimeoffset");
@@ -1103,20 +1469,71 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<int>("GracePeriodDays")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("NextBillingDate")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("TrialEndsAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("TrialStartedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId")
                         .IsUnique();
 
+                    b.HasIndex("NextBillingDate");
+
                     b.HasIndex("PlanId");
 
-                    b.ToTable("mp_TblSubscription", (string)null);
+                    b.HasIndex("Status");
+
+                    b.ToTable("mp_TblSubscription", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_mp_TblSubscription_BillingCycle", "[BillingCycle] IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_mp_TblSubscription_Status", "[Status] IN (0, 1, 2, 3, 4, 5, 6)");
+                        });
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.SubscriptionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "OccurredAt");
+
+                    b.HasIndex("SubscriptionId", "OccurredAt");
+
+                    b.ToTable("mp_TblSubscriptionEvent", (string)null);
                 });
 
             modelBuilder.Entity("MiniPayroll.Infrastructure.Identity.ApplicationRole", b =>
@@ -1362,6 +1779,42 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("SalaryStructure");
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Invoice", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Subscription", "Subscription")
+                        .WithMany("Invoices")
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.InvoiceLine", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Invoice", "Invoice")
+                        .WithMany("Lines")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.MonthlyAttendance", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.Employee", "Employee")
@@ -1417,6 +1870,42 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PaymentIntent", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Subscription", "Subscription")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PaymentProviderEvent", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.PaymentIntent", "Intent")
+                        .WithMany()
+                        .HasForeignKey("IntentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Intent");
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollDeduction", b =>
@@ -1490,6 +1979,28 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("PayrollRun");
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlanFeature", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Plan", "Plan")
+                        .WithMany("Features")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.PlanPrice", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Plan", "Plan")
+                        .WithMany("Prices")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
             modelBuilder.Entity("MiniPayroll.Domain.Entities.PlatformCity", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.PlatformState", "State")
@@ -1550,6 +2061,23 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Navigation("Plan");
                 });
 
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.SubscriptionEvent", b =>
+                {
+                    b.HasOne("MiniPayroll.Domain.Entities.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MiniPayroll.Domain.Entities.Subscription", "Subscription")
+                        .WithMany("Events")
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Subscription");
+                });
+
             modelBuilder.Entity("MiniPayroll.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.HasOne("MiniPayroll.Domain.Entities.Company", "Company")
@@ -1563,6 +2091,11 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Company", b =>
                 {
                     b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("MiniPayroll.Domain.Entities.Invoice", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.PayrollEmployee", b =>
@@ -1589,6 +2122,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Plan", b =>
                 {
+                    b.Navigation("Features");
+
+                    b.Navigation("Prices");
+
                     b.Navigation("Subscriptions");
                 });
 
@@ -1605,6 +2142,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MiniPayroll.Domain.Entities.Subscription", b =>
                 {
                     b.Navigation("BillingPeriods");
+
+                    b.Navigation("Events");
+
+                    b.Navigation("Invoices");
 
                     b.Navigation("Payments");
                 });

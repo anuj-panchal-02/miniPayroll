@@ -26,6 +26,8 @@ public sealed class BillingEndpointMappingTests
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<MiniPayrollDbContext>();
         builder.Services.AddScoped<CompanyAdminService>();
+        builder.Services.AddScoped<SubscriptionLifecycleService>();
+        builder.Services.AddScoped<InvoiceService>();
         builder.Services.AddScoped<PayrollCalculationService>();
         builder.Services.AddScoped<BillingService>();
         var app = builder.Build();

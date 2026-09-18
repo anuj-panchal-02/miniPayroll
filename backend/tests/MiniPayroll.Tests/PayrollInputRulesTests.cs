@@ -27,4 +27,26 @@ public class PayrollInputRulesTests
         Assert.True(PayrollInputRules.IsValidNotes(new string('x', 500)));
         Assert.False(PayrollInputRules.IsValidNotes(new string('x', 501)));
     }
+
+    [Fact]
+    public void Month_bounds_use_calendar_days_and_days_employed()
+    {
+        var august = new PayrollPeriod(2026, 8);
+        var february = new PayrollPeriod(2026, 2);
+        var longAgo = new DateOnly(2025, 1, 1);
+
+        Assert.Equal(31, august.DaysEmployed(longAgo, null));
+        Assert.Equal(4, august.DaysEmployed(new DateOnly(2026, 8, 28), null));
+        Assert.Equal(5, august.DaysEmployed(longAgo, new DateOnly(2026, 8, 5)));
+        Assert.Equal(28, february.DaysEmployed(longAgo, null));
+        Assert.Null(august.DaysEmployed(null, null));
+
+        Assert.False(PayrollInputRules.IsWithinMonthBounds(30, 30, 0, 0, february, longAgo, null));
+        Assert.False(PayrollInputRules.IsWithinMonthBounds(32, 32, 0, 0, august, longAgo, null));
+        Assert.False(PayrollInputRules.IsWithinMonthBounds(26, 0, 0, 27, august, longAgo, null));
+        Assert.False(PayrollInputRules.IsWithinMonthBounds(26, 16, 0, 10, august, new DateOnly(2026, 8, 28), null));
+        Assert.True(PayrollInputRules.IsWithinMonthBounds(26, 20, 0, 0, august, longAgo, null));
+        Assert.False(PayrollInputRules.IsHalfDayQuantity(30m, 28m));
+        Assert.True(PayrollInputRules.IsHalfDayQuantity(28m, 28m));
+    }
 }

@@ -37,6 +37,29 @@ public sealed class PlanSettingsServiceTests
         Assert.Equal(59m, loaded.Plan!.PricePerEmployee);
         await using var db = TestDb.Create(NullTenantContext.Instance, fixture.Database);
         Assert.Equal(1, await db.AuditLogs.CountAsync(item => item.Action == AuditActions.PlanPriceChange));
+        var prices = await db.PlanPrices.OrderBy(price => price.EffectiveFrom).ToListAsync();
+        Assert.Equal(59m, Assert.Single(prices).Amount);
+    }
+
+    [Fact]
+    public async Task Price_update_closes_the_previous_monthly_row()
+    {
+        var fixture = await FixtureAsync();
+        Assert.Equal(PlanSettingsStatus.Success, (await fixture.Plans.UpdateAsync(49m)).Status);
+        Assert.Equal(PlanSettingsStatus.Success, (await fixture.Plans.UpdateAsync(59m)).Status);
+
+        await using var db = TestDb.Create(NullTenantContext.Instance, fixture.Database);
+        var prices = await db.PlanPrices
+            .Where(price => price.BillingCycle == MiniPayroll.Domain.Enums.BillingCycle.Monthly)
+            .OrderBy(price => price.EffectiveFrom)
+            .ToListAsync();
+        Assert.Equal(2, prices.Count);
+        Assert.Equal(49m, prices[0].Amount);
+        Assert.False(prices[0].IsActive);
+        Assert.NotNull(prices[0].EffectiveTo);
+        Assert.Equal(59m, prices[1].Amount);
+        Assert.True(prices[1].IsActive);
+        Assert.Null(prices[1].EffectiveTo);
     }
 
     [Theory]
@@ -59,7 +82,10 @@ public sealed class PlanSettingsServiceTests
             db.Plans.Add(new Plan
             {
                 Id = Guid.NewGuid(),
+                Code = PlatformLimits.DefaultPlanCode,
                 Name = PlatformLimits.DefaultPlanName,
+                IsActive = true,
+                MaxActiveEmployees = 50,
                 PricePerEmployee = 49m,
                 DefaultEmployeeLimit = 50,
                 IsPublic = true

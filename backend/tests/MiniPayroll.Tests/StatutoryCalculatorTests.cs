@@ -53,6 +53,16 @@ public class StatutoryCalculatorTests
     }
 
     [Fact]
+    public void Requires_gender_only_for_states_with_gendered_slabs()
+    {
+        Assert.True(ProfessionalTaxSlabs.RequiresGender("Maharashtra"));
+        Assert.True(ProfessionalTaxSlabs.RequiresGender("MH"));
+        Assert.False(ProfessionalTaxSlabs.RequiresGender("Karnataka"));
+        Assert.False(ProfessionalTaxSlabs.RequiresGender("Delhi"));
+        Assert.False(ProfessionalTaxSlabs.RequiresGender(null));
+    }
+
+    [Fact]
     public void Lwf_skips_months_without_a_contribution()
     {
         Assert.Equal(50m, LwfCalculator.Calculate("Kerala", 6));
@@ -67,6 +77,23 @@ public class StatutoryCalculatorTests
         var result = StatutoryCalculator.Calculate(
             policy, On, 8, pfWages: 15000m, esiWages: 18000m, ptWages: 28000m,
             [new StatutoryOverride(StatutoryKind.PfEmployee, 0m)]);
+
+        var pf = Assert.Single(result, line => line.Kind == StatutoryKind.PfEmployee);
+        Assert.Equal(1800m, pf.Computed);
+        Assert.Equal(0m, pf.Applied);
+        Assert.Equal(1800m, pf.EmployerAmount);
+    }
+
+    [Fact]
+    public void Duplicate_overrides_for_the_same_kind_use_the_last_amount()
+    {
+        var policy = new StatutoryPolicy(true, true, true, "Maharashtra", true, true, Gender.Male);
+        var result = StatutoryCalculator.Calculate(
+            policy, On, 8, pfWages: 15000m, esiWages: 18000m, ptWages: 28000m,
+            [
+                new StatutoryOverride(StatutoryKind.PfEmployee, 100m),
+                new StatutoryOverride(StatutoryKind.PfEmployee, 0m)
+            ]);
 
         var pf = Assert.Single(result, line => line.Kind == StatutoryKind.PfEmployee);
         Assert.Equal(1800m, pf.Computed);

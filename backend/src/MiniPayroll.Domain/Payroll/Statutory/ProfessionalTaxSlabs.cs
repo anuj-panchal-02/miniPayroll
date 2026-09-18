@@ -3,12 +3,18 @@ using MiniPayroll.Domain.Enums;
 
 namespace MiniPayroll.Domain.Payroll.Statutory;
 
+/// <summary>
+/// Configured professional tax only for MH, KA, WB, GJ, TN, AP, TS, KL, OD, and AS.
+/// Other states are ₹0. Gender is required only where a slab has Gender set (today MH).
+/// </summary>
 public readonly record struct ProfessionalTaxSlab(
     string StateCode,
     Gender? Gender,
     decimal MaxSalaryExclusive,
     decimal Amount,
-    int? OnlyInMonth);
+    int? OnlyInMonth,
+    DateOnly? EffectiveFrom = null,
+    DateOnly? EffectiveTo = null);
 
 public static class ProfessionalTaxSlabs
 {
@@ -57,7 +63,18 @@ public static class ProfessionalTaxSlabs
         new("AS", null, decimal.MaxValue, 208m, null)
     ];
 
-    public static decimal AmountFor(string? companyState, Gender? gender, decimal salary, int month)
+    public static bool RequiresGender(string? companyState)
+    {
+        var code = IndianStateCatalog.CodeFor(companyState);
+        return code is not null && All.Any(slab => slab.StateCode == code && slab.Gender is not null);
+    }
+
+    public static decimal AmountFor(
+        string? companyState,
+        Gender? gender,
+        decimal salary,
+        int month,
+        DateOnly? on = null)
     {
         var code = IndianStateCatalog.CodeFor(companyState);
         if (code is null)
@@ -65,8 +82,10 @@ public static class ProfessionalTaxSlabs
             return 0m;
         }
 
+        var asOf = on ?? DateOnly.MaxValue;
         var slabs = All.Where(slab =>
                 slab.StateCode == code
+                && StatutoryRuleWindow.Covers(asOf, slab.EffectiveFrom, slab.EffectiveTo)
                 && (slab.Gender is null || slab.Gender == gender)
                 && (slab.OnlyInMonth is null || slab.OnlyInMonth == month))
             .OrderBy(slab => slab.MaxSalaryExclusive)

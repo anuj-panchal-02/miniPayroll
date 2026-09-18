@@ -13,12 +13,21 @@ public class PayrollRun
     /// <summary>Daily-rate method snapshotted from the company when the run was created.</summary>
     public DailyRateMethod DailyRateMethod { get; set; }
 
-    /// <summary>Company display name frozen at finalization for payslips.</summary>
+    /// <summary>Company display name frozen at create and calculate for payslips.</summary>
     public string? CompanyName { get; set; }
     public string? CompanyLogoPath { get; set; }
     public string? CompanyAddress { get; set; }
     public string? PfEstablishmentCode { get; set; }
     public string? EsiCode { get; set; }
+
+    /// <summary>Canonical JSON of calculation sources written when the run is Calculated.</summary>
+    public string? SourceSnapshotJson { get; set; }
+
+    /// <summary>SHA-256 of <see cref="SourceSnapshotJson"/> used to detect drift at finalize.</summary>
+    public string? SourceFingerprint { get; set; }
+
+    public DateOnly? PfRuleEffectiveFrom { get; set; }
+    public DateOnly? EsiRuleEffectiveFrom { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CalculatedAt { get; set; }

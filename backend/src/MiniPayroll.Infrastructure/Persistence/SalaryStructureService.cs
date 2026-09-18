@@ -4,6 +4,7 @@ using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Payroll.Statutory;
+using MiniPayroll.Domain.Subscriptions;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
@@ -57,7 +58,8 @@ public sealed record SalaryStructureResult(
 
 public sealed class SalaryStructureService(
     MiniPayrollDbContext db,
-    ITenantContext tenant)
+    ITenantContext tenant,
+    IEntitlementService? entitlements = null)
 {
     public static readonly IReadOnlySet<string> StandardPresetNames = new HashSet<string>(
         StringComparer.OrdinalIgnoreCase)
@@ -304,12 +306,14 @@ public sealed class SalaryStructureService(
         {
             return (SalaryStructureStatusCode.SetupIncomplete, company);
         }
-        if (requireMutation && !SubscriptionMutationRules.CanMutate(company.Subscription?.Status))
+        if (requireMutation && !(await Entitlements.GetSnapshot(company.Id, cancellationToken)).CanWrite)
         {
             return (SalaryStructureStatusCode.SubscriptionReadOnly, company);
         }
         return (SalaryStructureStatusCode.Success, company);
     }
+
+    private IEntitlementService Entitlements => entitlements ?? new EntitlementService(db, tenant);
 
     private void AddAudit(string employeeCode, DateOnly effectiveFrom)
     {

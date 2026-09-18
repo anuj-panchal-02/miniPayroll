@@ -214,8 +214,10 @@ public sealed class PayrollCalculationServiceTests
         var fixture = await FixtureAsync();
         await using var db = fixture.Db;
         var company = await db.Companies.SingleAsync();
+        var employee = await db.Employees.SingleAsync();
         company.PfApplicable = true;
         company.PfUseWageCeiling = true;
+        employee.PfCovered = true;
         await db.SaveChangesAsync();
 
         var runId = (await fixture.Payroll.CreateRunAsync(Year, Month)).Run!.Id;
@@ -246,6 +248,72 @@ public sealed class PayrollCalculationServiceTests
         Assert.Equal(0m, pf.Amount);
         Assert.Equal(1800m, pf.ComputedAmount);
         Assert.Equal(1800m, again.Run.Employees.Single().EmployerPf);
+    }
+
+    [Fact]
+    public async Task Recalculate_reads_live_statutory_policy_flags()
+    {
+        var fixture = await FixtureAsync();
+        await using var db = fixture.Db;
+        var runId = (await fixture.Payroll.CreateRunAsync(Year, Month)).Run!.Id;
+        await AddAttendanceAsync(db, fixture.Company.Id, runId, fixture.Employee.Id);
+
+        var before = await fixture.Payroll.CalculateAsync(runId);
+        Assert.DoesNotContain(
+            before.Run!.Employees.Single().Deductions,
+            line => line.StatutoryKind == StatutoryKind.PfEmployee);
+
+        var company = await db.Companies.SingleAsync();
+        var employee = await db.Employees.SingleAsync();
+        company.PfApplicable = true;
+        company.PfUseWageCeiling = true;
+        employee.PfCovered = true;
+        await db.SaveChangesAsync();
+
+        var after = await fixture.Payroll.CalculateAsync(runId);
+        var pf = Assert.Single(
+            after.Run!.Employees.Single().Deductions,
+            line => line.StatutoryKind == StatutoryKind.PfEmployee);
+        Assert.Equal(1800m, pf.Amount);
+        Assert.Equal(1800m, after.Run.Employees.Single().EmployerPf);
+    }
+
+    [Fact]
+    public async Task August_run_uses_the_structure_effective_on_the_last_calendar_day()
+    {
+        var fixture = await FixtureAsync();
+        await using var db = fixture.Db;
+        db.SalaryStructures.Add(new SalaryStructure
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = fixture.Company.Id,
+            EmployeeId = fixture.Employee.Id,
+            EffectiveFrom = new DateOnly(2026, 8, 15),
+            CreatedAt = DateTimeOffset.UtcNow,
+            Components =
+            [
+                new EmployeeSalaryComponent
+                {
+                    Id = Guid.NewGuid(),
+                    SalaryComponentId = Guid.NewGuid(),
+                    Name = "Basic Salary",
+                    Type = SalaryComponentType.Earning,
+                    ValueType = SalaryComponentValueType.FixedAmount,
+                    Value = 25000m,
+                    SortOrder = 0
+                }
+            ]
+        });
+        await db.SaveChangesAsync();
+
+        var runId = (await fixture.Payroll.CreateRunAsync(Year, Month)).Run!.Id;
+        await AddAttendanceAsync(db, fixture.Company.Id, runId, fixture.Employee.Id);
+        var result = await fixture.Payroll.CalculateAsync(runId);
+        var row = Assert.Single(result.Run!.Employees);
+
+        Assert.Equal(25000m, row.GrossEarnings);
+        Assert.Equal(25000m, row.NetSalary);
+        Assert.Contains(PayrollCalculationMessages.StructureChangedMidMonth, row.Warnings);
     }
 
     private sealed record Fixture(

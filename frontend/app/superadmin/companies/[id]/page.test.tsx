@@ -13,6 +13,12 @@ const mocks = vi.hoisted(() => ({
   getPlatformLimits: vi.fn(),
   createCompanyAdmin: vi.fn(),
   activateCompany: vi.fn(),
+  markCompanyPastDue: vi.fn(),
+  enterCompanyGrace: vi.fn(),
+  suspendCompany: vi.fn(),
+  cancelCompany: vi.fn(),
+  expireCompany: vi.fn(),
+  reactivateCompany: vi.fn(),
   updateCompanyLimit: vi.fn(),
   setToken: vi.fn(),
   listCompanyPayrollRuns: vi.fn(),
@@ -33,6 +39,12 @@ vi.mock("@/lib/api", () => ({
   getPlatformLimits: mocks.getPlatformLimits,
   createCompanyAdmin: mocks.createCompanyAdmin,
   activateCompany: mocks.activateCompany,
+  markCompanyPastDue: mocks.markCompanyPastDue,
+  enterCompanyGrace: mocks.enterCompanyGrace,
+  suspendCompany: mocks.suspendCompany,
+  cancelCompany: mocks.cancelCompany,
+  expireCompany: mocks.expireCompany,
+  reactivateCompany: mocks.reactivateCompany,
   updateCompanyLimit: mocks.updateCompanyLimit,
   setToken: mocks.setToken,
   listCompanyPayrollRuns: mocks.listCompanyPayrollRuns,
@@ -55,6 +67,13 @@ describe("CompanyDetailsPage", () => {
     mocks.getCompany.mockReset();
     mocks.getPlatformLimits.mockReset();
     mocks.createCompanyAdmin.mockReset();
+    mocks.activateCompany.mockReset();
+    mocks.markCompanyPastDue.mockReset();
+    mocks.enterCompanyGrace.mockReset();
+    mocks.suspendCompany.mockReset();
+    mocks.cancelCompany.mockReset();
+    mocks.expireCompany.mockReset();
+    mocks.reactivateCompany.mockReset();
     mocks.updateCompanyLimit.mockReset();
     mocks.listCompanyPayrollRuns.mockReset();
     mocks.reversePayrollRun.mockReset();
@@ -80,7 +99,7 @@ describe("CompanyDetailsPage", () => {
       name: "ABC Traders",
       contactEmail: "owner@abctraders.example",
       contactPhone: null,
-      status: "Pending",
+      status: "Trialing",
       employeeLimit: 50,
       planName: "Basic",
       isSetupComplete: false,
@@ -97,7 +116,7 @@ describe("CompanyDetailsPage", () => {
       name: "ABC Traders",
       contactEmail: "owner@abctraders.example",
       contactPhone: null,
-      status: "Pending",
+      status: "Trialing",
       employeeLimit: 20,
       planName: "Basic",
       isSetupComplete: false,
@@ -230,5 +249,59 @@ describe("CompanyDetailsPage", () => {
       );
     });
     expect(await screen.findByText("Payment recorded.")).toBeTruthy();
+  });
+
+  it("exposes named subscription actions instead of a status dropdown", async () => {
+    mocks.getCompany.mockResolvedValue({
+      id: "co-1",
+      name: "ABC Traders",
+      contactEmail: "owner@abctraders.example",
+      contactPhone: null,
+      status: "Active",
+      employeeLimit: 50,
+      planName: "Basic",
+      isSetupComplete: true,
+      activatedAt: "2026-08-01T00:00:00.000Z",
+      hasAdmin: true,
+      adminEmail: "owner@abctraders.example",
+      cancelAtPeriodEnd: false,
+    });
+    mocks.suspendCompany.mockResolvedValue({
+      id: "co-1",
+      name: "ABC Traders",
+      contactEmail: "owner@abctraders.example",
+      contactPhone: null,
+      status: "Suspended",
+      employeeLimit: 50,
+      planName: "Basic",
+      isSetupComplete: true,
+      activatedAt: "2026-08-01T00:00:00.000Z",
+      hasAdmin: true,
+      adminEmail: "owner@abctraders.example",
+      cancelAtPeriodEnd: false,
+    });
+
+    render(
+      <ToastProvider>
+        <CompanyDetailsPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Subscription" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark past due" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enter grace" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancel at period end" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancel now" })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: /status/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Activate company" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Suspend" }));
+    const confirm = await screen.findAllByRole("button", { name: "Suspend" });
+    fireEvent.click(confirm[confirm.length - 1]);
+
+    await waitFor(() => {
+      expect(mocks.suspendCompany).toHaveBeenCalledWith("co-1");
+    });
+    expect(await screen.findByText("Subscription suspended.")).toBeTruthy();
   });
 });

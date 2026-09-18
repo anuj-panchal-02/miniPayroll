@@ -7,6 +7,7 @@ import {
   getEmployee,
   getMe,
   getPlatformLimits,
+  getEntitlements,
   listEmployees,
   listPlatformCities,
   listPlatformStates,
@@ -272,6 +273,24 @@ describe("employee API", () => {
 
     expect(fetch).toHaveBeenCalledWith(
       `${API_URL}/api/employees`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("loads entitlements from /api/entitlements", async () => {
+    mockResponse({
+      currentUsage: 18,
+      maximumAllowed: 25,
+      remaining: 7,
+      canAdd: true,
+      canRunPayroll: true,
+      enabledFeatures: ["PAYROLL"],
+    });
+
+    await getEntitlements();
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_URL}/api/entitlements`,
       expect.objectContaining({ method: "GET" }),
     );
   });

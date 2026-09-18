@@ -263,14 +263,37 @@ public class EmployeeServiceTests
             (await service.CreateAsync(DraftInput("EMP-01"))).Status);
     }
 
+    [Fact]
+    public async Task Dateless_trial_cannot_create_an_employee()
+    {
+        var (db, service, _) = await CreateServiceAsync(status: SubscriptionStatus.Trialing);
+        await using var owned = db;
+
+        Assert.Equal(
+            EmployeeStatusCode.SubscriptionReadOnly,
+            (await service.CreateAsync(ValidInput("EMP-01"))).Status);
+    }
+
+    [Fact]
+    public async Task Open_trial_can_create_an_employee()
+    {
+        var (db, service, _) = await CreateServiceAsync(
+            status: SubscriptionStatus.Trialing,
+            trialEndsAt: DateTimeOffset.UtcNow.AddDays(7));
+        await using var owned = db;
+
+        Assert.Equal(EmployeeStatusCode.Success, (await service.CreateAsync(ValidInput("EMP-01"))).Status);
+    }
+
     private static async Task<(MiniPayrollDbContext Db, EmployeeService Service, StaticTenantContext Tenant)>
         CreateServiceAsync(
             bool setupComplete = true,
             SubscriptionStatus status = SubscriptionStatus.Active,
-            int limit = 9)
+            int limit = 9,
+            DateTimeOffset? trialEndsAt = null)
     {
         var database = UniqueDatabase();
-        var company = await SeedCompanyAsync(database, setupComplete, status, limit);
+        var company = await SeedCompanyAsync(database, setupComplete, status, limit, trialEndsAt);
         var tenant = NewTenant(company.Id);
         var db = TestDb.Create(tenant, database);
         return (db, new EmployeeService(db, tenant), tenant);
@@ -280,7 +303,8 @@ public class EmployeeServiceTests
         string database,
         bool setupComplete = true,
         SubscriptionStatus status = SubscriptionStatus.Active,
-        int limit = 9)
+        int limit = 9,
+        DateTimeOffset? trialEndsAt = null)
     {
         var company = new Company
         {
@@ -305,7 +329,8 @@ public class EmployeeServiceTests
             PlanId = plan.Id,
             Status = status,
             EmployeeLimit = limit,
-            GracePeriodDays = 7
+            GracePeriodDays = 7,
+            TrialEndsAt = trialEndsAt
         };
 
         await using var setup = TestDb.Create(NullTenantContext.Instance, database);

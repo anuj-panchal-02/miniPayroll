@@ -23,6 +23,16 @@ export function periodLabel(year: number, month: number): string {
   return `${MONTH_LABELS[month - 1] ?? month} ${year}`;
 }
 
+export function billingHoldMessage(
+  holdPeriod: string,
+  year: number,
+  month: number,
+): string {
+  const holdYear = Number(holdPeriod.slice(0, 4));
+  const holdMonth = Number(holdPeriod.slice(5, 7));
+  return `Pay ${periodLabel(holdYear, holdMonth)} before starting ${periodLabel(year, month)} payroll.`;
+}
+
 export function formatRupees(value: number): string {
   return `₹${value.toLocaleString("en-IN")}`;
 }
@@ -84,6 +94,73 @@ export function attendanceBalances(
     Math.round(present * 2) + Math.round(paidLeave * 2) + Math.round(unpaidLeave * 2) ===
     Math.round(workingDays * 2)
   );
+}
+
+export function calendarDaysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+export function daysEmployedInPeriod(
+  year: number,
+  month: number,
+  joiningDate: string | null | undefined,
+  exitDate: string | null | undefined,
+): number | null {
+  const joining = parseIsoDate(joiningDate);
+  if (!joining) {
+    return null;
+  }
+
+  const first = new Date(Date.UTC(year, month - 1, 1));
+  const last = new Date(Date.UTC(year, month, 0));
+  const exit = parseIsoDate(exitDate);
+  if (joining > last || (exit && exit < first)) {
+    return 0;
+  }
+
+  const from = joining > first ? joining : first;
+  const to = exit && exit < last ? exit : last;
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+}
+
+export function attendanceWithinMonthBounds(
+  workingDays: number,
+  present: number,
+  paidLeave: number,
+  unpaidLeave: number,
+  year: number,
+  month: number,
+  joiningDate: string | null | undefined,
+  exitDate: string | null | undefined,
+): boolean {
+  if (present < 0 || paidLeave < 0 || unpaidLeave < 0 || workingDays < 0) {
+    return false;
+  }
+
+  const calendarDays = calendarDaysInMonth(year, month);
+  if (workingDays > calendarDays) {
+    return false;
+  }
+
+  if (unpaidLeave > workingDays) {
+    return false;
+  }
+
+  const daysEmployed = daysEmployedInPeriod(year, month, joiningDate, exitDate);
+  return daysEmployed == null || unpaidLeave <= daysEmployed;
 }
 
 export function parseQuantity(value: string): number | null {

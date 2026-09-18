@@ -142,6 +142,36 @@ describe("MonthlyInputsPage", () => {
     expect(screen.getByRole("button", { name: /save inputs/i })).toHaveProperty("disabled", true);
   });
 
+  it("does not save working days above the calendar month", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue(period);
+    render(<MonthlyInputsPage />);
+
+    fireEvent.change(await screen.findByLabelText(/working days for ada lovelace/i), {
+      target: { value: "32" },
+    });
+    fireEvent.change(screen.getByLabelText(/present days for ada lovelace/i), {
+      target: { value: "32" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save inputs/i }));
+
+    expect(mocks.savePayrollInputs).not.toHaveBeenCalled();
+  });
+
+  it("does not save unpaid leave above working days", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue(period);
+    render(<MonthlyInputsPage />);
+
+    fireEvent.change(await screen.findByLabelText(/unpaid leave for ada lovelace/i), {
+      target: { value: "27" },
+    });
+    fireEvent.change(screen.getByLabelText(/present days for ada lovelace/i), {
+      target: { value: "0" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save inputs/i }));
+
+    expect(mocks.savePayrollInputs).not.toHaveBeenCalled();
+  });
+
   it("asks the admin to start payroll when no run exists", async () => {
     mocks.getPayrollPeriod.mockResolvedValue({ ...period, run: null });
     render(<MonthlyInputsPage />);

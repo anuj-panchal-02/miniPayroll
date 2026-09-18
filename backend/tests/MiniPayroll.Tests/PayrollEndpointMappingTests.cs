@@ -58,6 +58,10 @@ public sealed class PayrollEndpointMappingTests
             PayrollHttpStatus.For(PayrollRunStatusCode.ConcurrencyConflict));
         Assert.Equal(StatusCodes.Status409Conflict,
             PayrollHttpStatus.For(PayrollRunStatusCode.NotCalculated));
+        Assert.Equal(StatusCodes.Status409Conflict,
+            PayrollHttpStatus.For(PayrollRunStatusCode.SourceChanged));
+        Assert.Equal(StatusCodes.Status409Conflict,
+            PayrollHttpStatus.For(PayrollRunStatusCode.PriorPeriodUnpaid));
         Assert.Equal(StatusCodes.Status403Forbidden,
             PayrollHttpStatus.For(PayrollRunStatusCode.Forbidden));
     }

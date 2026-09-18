@@ -29,8 +29,8 @@ public class Employee
     public string? UpiId { get; set; }
     public decimal? OvertimeRate { get; set; }
     public Gender? Gender { get; set; }
-    public bool PfCovered { get; set; } = true;
-    public bool EsiCovered { get; set; } = true;
+    public bool PfCovered { get; set; }
+    public bool EsiCovered { get; set; }
     public string? Uan { get; set; }
     public string? PfNumber { get; set; }
     public string? EsiNumber { get; set; }

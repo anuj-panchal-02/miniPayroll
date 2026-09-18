@@ -239,8 +239,17 @@ a.sa-index__row:focus-visible {
   color: var(--color-success);
 }
 
-.sa-chip[data-status="Pending"] {
+.sa-chip[data-status="Pending"],
+.sa-chip[data-status="Trialing"],
+.sa-chip[data-status="Cancelled"],
+.sa-chip[data-status="Expired"] {
   color: var(--color-muted);
+}
+
+.sa-chip[data-status="PastDue"],
+.sa-chip[data-status="GracePeriod"],
+.sa-chip[data-status="Suspended"] {
+  color: var(--color-warning);
 }
 
 .sa-index__limit {
@@ -489,6 +498,12 @@ a.sa-index__row:focus-visible {
 .sa-activate,
 .sa-dashboard-actions {
   margin-top: var(--space-lg);
+}
+
+.sa-lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
 
 .sa-empty,

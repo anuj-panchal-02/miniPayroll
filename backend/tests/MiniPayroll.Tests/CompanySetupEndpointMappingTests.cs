@@ -79,6 +79,8 @@ public sealed class CompanySetupEndpointMappingTests
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<MiniPayrollDbContext>();
         builder.Services.AddScoped<CompanyAdminService>();
+        builder.Services.AddScoped<SubscriptionLifecycleService>();
+        builder.Services.AddScoped<InvoiceService>();
         var app = builder.Build();
         app.MapCompanyEndpoints();
 

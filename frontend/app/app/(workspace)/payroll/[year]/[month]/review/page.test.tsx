@@ -171,6 +171,21 @@ describe("PayrollReviewPage", () => {
     ).toBeTruthy();
   });
 
+  it("hides finalize and shows a drift banner when masters changed after calculate", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue({
+      ...calculated,
+      run: { ...calculated.run, sourceDrift: true },
+    });
+
+    render(<PayrollReviewPage />);
+
+    expect(
+      await screen.findByText(/employee, salary, or statutory data changed after calculate/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^finalize$/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /recalculate/i })).toBeTruthy();
+  });
+
   it("disables calculate on a finalized run", async () => {
     mocks.getPayrollPeriod.mockResolvedValue({
       ...calculated,

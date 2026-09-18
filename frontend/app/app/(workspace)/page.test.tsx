@@ -7,6 +7,7 @@ import CompanyDashboardPage from "./page";
 const mocks = vi.hoisted(() => ({
   listEmployees: vi.fn(),
   getWorkspaceBilling: vi.fn(),
+  getEntitlements: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -15,6 +16,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...actual,
     listEmployees: mocks.listEmployees,
     getWorkspaceBilling: mocks.getWorkspaceBilling,
+    getEntitlements: mocks.getEntitlements,
   };
 });
 
@@ -28,6 +30,14 @@ describe("CompanyDashboardPage", () => {
       employeeLimit: 9,
     });
     mocks.getWorkspaceBilling.mockReset();
+    mocks.getEntitlements.mockReset().mockResolvedValue({
+      currentUsage: 2,
+      maximumAllowed: 9,
+      remaining: 7,
+      canAdd: true,
+      canRunPayroll: true,
+      enabledFeatures: ["PAYROLL"],
+    });
   });
 
   it("shows the overdue banner when a period is unpaid past due", async () => {

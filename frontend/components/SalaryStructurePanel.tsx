@@ -8,6 +8,7 @@ import {
   toSalaryStructureInput,
   type SalaryStructureFields,
 } from "@/components/SalaryStructureEditor";
+import { parseIso, toIsoDate } from "@/components/ui/DateField";
 import {
   createSalaryStructure,
   listSalaryStructures,
@@ -74,11 +75,14 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
     setEditor(
       current
         ? salaryStructureFieldsFrom({
-            effectiveFrom: today(),
+            effectiveFrom: nextUnusedEffectiveDate(
+              structures.map((item) => item.effectiveFrom),
+              employee.joiningDate ?? "",
+            ),
             components: current.components,
           })
         : {
-            effectiveFrom: employee.joiningDate ?? today(),
+            effectiveFrom: employee.joiningDate ?? localToday(),
             components: [
               {
                 key: "basic",
@@ -95,7 +99,8 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
 
   async function saveRevision() {
     if (!editor) return;
-    const message = salaryStructureError(editor, employee.joiningDate ?? "");
+    const taken = structures.map((item) => item.effectiveFrom);
+    const message = salaryStructureError(editor, employee.joiningDate ?? "", taken);
     if (message) {
       setEditorError(message);
       return;
@@ -108,7 +113,9 @@ export function SalaryStructurePanel({ employee }: { employee: EmployeeDetail })
       setEditor(null);
       toast.showSuccess("Salary revision saved.");
     } catch (reason) {
-      toast.showError(reason instanceof Error ? reason.message : "Could not save the salary revision.");
+      const text = reason instanceof Error ? reason.message : "Could not save the salary revision.";
+      setEditorError(text);
+      toast.showError(text);
     } finally {
       setSaving(false);
     }
@@ -254,6 +261,27 @@ function formatComponentValue(component: SalaryStructureComponentDetail): string
   return rupees(component.value);
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+function localToday(): string {
+  return toIsoDate(new Date());
+}
+
+function addDays(iso: string, days: number): string {
+  const date = parseIso(iso);
+  if (!date) {
+    return iso;
+  }
+  date.setDate(date.getDate() + days);
+  return toIsoDate(date);
+}
+
+function nextUnusedEffectiveDate(used: string[], joiningDate: string): string {
+  const taken = new Set(used);
+  let candidate = localToday();
+  if (joiningDate && candidate < joiningDate) {
+    candidate = joiningDate;
+  }
+  while (taken.has(candidate)) {
+    candidate = addDays(candidate, 1);
+  }
+  return candidate;
 }

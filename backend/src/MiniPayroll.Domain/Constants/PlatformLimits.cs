@@ -12,5 +12,6 @@ public static class PlatformLimits
     public const int DefaultGracePeriodDays = 7;
     public const decimal DefaultPricePerEmployee = 49m;
     public const string DefaultPlanName = "Basic";
+    public const string DefaultPlanCode = "basic";
     public const string CurrencyCode = "INR";
 }

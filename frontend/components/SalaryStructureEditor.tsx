@@ -66,10 +66,17 @@ export function salaryStructureFieldsFrom(
   };
 }
 
-export function salaryStructureError(fields: SalaryStructureFields, joiningDate: string): string | null {
+export function salaryStructureError(
+  fields: SalaryStructureFields,
+  joiningDate: string,
+  takenEffectiveDates: readonly string[] = [],
+): string | null {
   if (!fields.effectiveFrom) return "Enter an effective date.";
   if (joiningDate && fields.effectiveFrom < joiningDate) {
     return "The salary effective date cannot be before the joining date.";
+  }
+  if (takenEffectiveDates.includes(fields.effectiveFrom)) {
+    return "A salary structure already exists for this effective date. Choose a later date.";
   }
   const basic = fields.components.filter((component) =>
     component.name.trim().toLowerCase() === "basic salary",

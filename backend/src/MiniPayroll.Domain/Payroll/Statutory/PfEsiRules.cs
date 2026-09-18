@@ -1,6 +1,11 @@
 namespace MiniPayroll.Domain.Payroll.Statutory;
 
-public readonly record struct PfRule(DateOnly EffectiveFrom, decimal EmployeeRate, decimal EmployerRate, decimal WageCeiling);
+public readonly record struct PfRule(
+    DateOnly EffectiveFrom,
+    decimal EmployeeRate,
+    decimal EmployerRate,
+    decimal WageCeiling,
+    DateOnly? EffectiveTo = null);
 
 public static class PfRules
 {
@@ -11,7 +16,10 @@ public static class PfRules
 
     public static PfRule For(DateOnly on)
     {
-        var match = All.LastOrDefault(rule => rule.EffectiveFrom <= on);
+        var match = All
+            .Where(rule => StatutoryRuleWindow.Covers(on, rule.EffectiveFrom, rule.EffectiveTo))
+            .OrderBy(rule => rule.EffectiveFrom)
+            .LastOrDefault();
         return match.EffectiveFrom == default ? All[0] : match;
     }
 }
@@ -20,7 +28,8 @@ public readonly record struct EsiRule(
     DateOnly EffectiveFrom,
     decimal EmployeeRate,
     decimal EmployerRate,
-    decimal EligibilityCeiling);
+    decimal EligibilityCeiling,
+    DateOnly? EffectiveTo = null);
 
 public static class EsiRules
 {
@@ -31,7 +40,10 @@ public static class EsiRules
 
     public static EsiRule For(DateOnly on)
     {
-        var match = All.LastOrDefault(rule => rule.EffectiveFrom <= on);
+        var match = All
+            .Where(rule => StatutoryRuleWindow.Covers(on, rule.EffectiveFrom, rule.EffectiveTo))
+            .OrderBy(rule => rule.EffectiveFrom)
+            .LastOrDefault();
         return match.EffectiveFrom == default ? All[0] : match;
     }
 }

@@ -138,7 +138,7 @@ public class CompanyAdminTests
             Id = Guid.NewGuid(),
             CompanyId = id,
             PlanId = Guid.NewGuid(),
-            Status = SubscriptionStatus.Pending,
+            Status = SubscriptionStatus.Trialing,
             EmployeeLimit = 9,
             GracePeriodDays = PlatformLimits.DefaultGracePeriodDays
         }

@@ -18,14 +18,20 @@ import {
   CreateAdminResponse,
   PayrollRunStatus,
   activateCompany,
+  cancelCompany,
   createCompanyAdmin,
+  enterCompanyGrace,
+  expireCompany,
   getCompany,
   getCompanyBilling,
   getPlatformLimits,
   listCompanyPayrollRuns,
+  markCompanyPastDue,
+  reactivateCompany,
   recordCompanyPayment,
   reversePayrollRun,
   setToken,
+  suspendCompany,
   updateCompanyLimit,
   type CompanyBilling,
   type PayrollHistoryItem,
@@ -75,6 +81,16 @@ export default function CompanyDetailsPage() {
   const [adminPassword, setAdminPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
+  const [pendingLifecycle, setPendingLifecycle] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    tone: "default" | "destructive";
+    success: string;
+    run: () => Promise<CompanyDetail>;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState<CreateAdminResponse | null>(null);
   const [employeeLimit, setEmployeeLimit] = useState("");
@@ -203,14 +219,23 @@ export default function CompanyDetailsPage() {
     dialogRef.current?.close();
   }
 
+  async function applySubscription(next: CompanyDetail) {
+    setCompany(next);
+    if (!next.activatedAt) {
+      return;
+    }
+    const nextBilling = await getCompanyBilling(id).catch(() => null);
+    if (nextBilling) {
+      applyBilling(nextBilling);
+    }
+  }
+
   async function confirmActivate() {
     closeActivateConfirm();
     setActivating(true);
     toast.dismiss();
     try {
-      const result = await activateCompany(id);
-      setCompany(result);
-      applyBilling(await getCompanyBilling(id));
+      await applySubscription(await activateCompany(id));
       toast.showSuccess("Company activated.");
     } catch (err) {
       toast.showError(err instanceof Error ? err.message : "Could not activate company");
@@ -220,6 +245,28 @@ export default function CompanyDetailsPage() {
       }
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function confirmLifecycle() {
+    if (!pendingLifecycle) {
+      return;
+    }
+    const action = pendingLifecycle;
+    setPendingLifecycle(null);
+    setLifecycleBusy(action.id);
+    toast.dismiss();
+    try {
+      await applySubscription(await action.run());
+      toast.showSuccess(action.success);
+    } catch (err) {
+      toast.showError(err instanceof Error ? err.message : action.title);
+      if (String(err).toLowerCase().includes("unauthorized")) {
+        setToken(null);
+        router.push("/login");
+      }
+    } finally {
+      setLifecycleBusy(null);
     }
   }
 
@@ -301,7 +348,37 @@ export default function CompanyDetailsPage() {
   }
 
   const canActivate =
-    company?.hasAdmin === true && company.status === "Pending";
+    company?.hasAdmin === true && company.status === "Trialing";
+  const status = company?.status ?? "";
+  const cancelAtPeriodEnd = company?.cancelAtPeriodEnd === true;
+  const canMarkPastDue = status === "Active";
+  const canEnterGrace = status === "Active" || status === "PastDue";
+  const canSuspend =
+    status === "Active" || status === "PastDue" || status === "GracePeriod";
+  const canCancelAtPeriodEnd =
+    (status === "Active" || status === "PastDue" || status === "GracePeriod")
+    && !cancelAtPeriodEnd;
+  const canCancelNow =
+    status === "Trialing"
+    || status === "Active"
+    || status === "PastDue"
+    || status === "GracePeriod"
+    || status === "Suspended";
+  const canExpire =
+    status === "Trialing"
+    || status === "PastDue"
+    || status === "GracePeriod"
+    || status === "Suspended";
+  const canReactivate =
+    status === "Suspended" || status === "Cancelled" || status === "Expired";
+  const hasLifecycleActions =
+    canMarkPastDue
+    || canEnterGrace
+    || canSuspend
+    || canCancelAtPeriodEnd
+    || canCancelNow
+    || canExpire
+    || canReactivate;
 
   const intro = !company
     ? null
@@ -549,41 +626,208 @@ export default function CompanyDetailsPage() {
               </form>
             )}
 
-            {canActivate ? (
-              <>
-                <div className="sa-activate">
-                  <Button
-                    type="button"
-                    loading={activating}
-                    loadingLabel="Activating"
-                    aria-haspopup="dialog"
-                    onClick={openActivateConfirm}
-                  >
-                    Activate company
-                  </Button>
+            {canActivate || hasLifecycleActions ? (
+              <FieldGroup
+                title="Subscription"
+                hint="Named Superadmin actions. Status is never edited as a free-form field."
+              >
+                <div className="sa-lifecycle-actions">
+                  {canActivate ? (
+                    <Button
+                      type="button"
+                      loading={activating}
+                      loadingLabel="Activating"
+                      aria-haspopup="dialog"
+                      onClick={openActivateConfirm}
+                    >
+                      Activate company
+                    </Button>
+                  ) : null}
+                  {canMarkPastDue ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={lifecycleBusy === "past-due"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "past-due",
+                          title: "Mark past due",
+                          description: "Marks billing overdue. The Company Admin can still work.",
+                          confirmLabel: "Mark past due",
+                          tone: "default",
+                          success: "Subscription marked past due.",
+                          run: () => markCompanyPastDue(id),
+                        })
+                      }
+                    >
+                      Mark past due
+                    </Button>
+                  ) : null}
+                  {canEnterGrace ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={lifecycleBusy === "grace"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "grace",
+                          title: "Enter grace",
+                          description: "Starts the grace window. Payroll stays available until you suspend.",
+                          confirmLabel: "Enter grace",
+                          tone: "default",
+                          success: "Subscription entered grace.",
+                          run: () => enterCompanyGrace(id),
+                        })
+                      }
+                    >
+                      Enter grace
+                    </Button>
+                  ) : null}
+                  {canSuspend ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={lifecycleBusy === "suspend"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "suspend",
+                          title: "Suspend subscription",
+                          description: "Blocks new employees and payroll. History stays readable.",
+                          confirmLabel: "Suspend",
+                          tone: "destructive",
+                          success: "Subscription suspended.",
+                          run: () => suspendCompany(id),
+                        })
+                      }
+                    >
+                      Suspend
+                    </Button>
+                  ) : null}
+                  {canCancelAtPeriodEnd ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      loading={lifecycleBusy === "cancel-end"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "cancel-end",
+                          title: "Cancel at period end",
+                          description: "Keeps access until the current period ends. The clock then cancels.",
+                          confirmLabel: "Schedule cancel",
+                          tone: "default",
+                          success: "Cancellation scheduled at period end.",
+                          run: () => cancelCompany(id, true),
+                        })
+                      }
+                    >
+                      Cancel at period end
+                    </Button>
+                  ) : null}
+                  {canCancelNow ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      loading={lifecycleBusy === "cancel-now"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "cancel-now",
+                          title: "Cancel now",
+                          description: "Ends access immediately. Company data is kept.",
+                          confirmLabel: "Cancel now",
+                          tone: "destructive",
+                          success: "Subscription cancelled.",
+                          run: () => cancelCompany(id, false),
+                        })
+                      }
+                    >
+                      Cancel now
+                    </Button>
+                  ) : null}
+                  {canExpire ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      loading={lifecycleBusy === "expire"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "expire",
+                          title: "Expire subscription",
+                          description: "Ends access. Employees, payroll, and billing snapshots stay.",
+                          confirmLabel: "Expire",
+                          tone: "destructive",
+                          success: "Subscription expired.",
+                          run: () => expireCompany(id),
+                        })
+                      }
+                    >
+                      Expire
+                    </Button>
+                  ) : null}
+                  {canReactivate ? (
+                    <Button
+                      type="button"
+                      loading={lifecycleBusy === "reactivate"}
+                      loadingLabel="Updating"
+                      onClick={() =>
+                        setPendingLifecycle({
+                          id: "reactivate",
+                          title: "Reactivate subscription",
+                          description: "Starts a new billing period and restores Company Admin access.",
+                          confirmLabel: "Reactivate",
+                          tone: "default",
+                          success: "Subscription reactivated.",
+                          run: () => reactivateCompany(id),
+                        })
+                      }
+                    >
+                      Reactivate
+                    </Button>
+                  ) : null}
                 </div>
-
-                <Dialog
-                  ref={dialogRef}
-                  className="sa-dialog"
-                  title="Activate company"
-                  description="This starts the billing period. The Company Admin can then sign in."
-                  titleId={titleId}
-                  descriptionId={copyId}
-                  onBackdropClick={closeActivateConfirm}
-                >
-                  <button
-                    type="button"
-                    className="sa-dialog__confirm"
-                    onClick={() => void confirmActivate()}
+                {canActivate ? (
+                  <Dialog
+                    ref={dialogRef}
+                    className="sa-dialog"
+                    title="Activate company"
+                    description="This starts the billing period. The Company Admin can then sign in."
+                    titleId={titleId}
+                    descriptionId={copyId}
+                    onBackdropClick={closeActivateConfirm}
                   >
-                    Activate
-                  </button>
-                  <button type="submit" className="sa-dialog__cancel">
-                    Cancel
-                  </button>
-                </Dialog>
-              </>
+                    <button
+                      type="button"
+                      className="sa-dialog__confirm"
+                      onClick={() => void confirmActivate()}
+                    >
+                      Activate
+                    </button>
+                    <button type="submit" className="sa-dialog__cancel">
+                      Cancel
+                    </button>
+                  </Dialog>
+                ) : null}
+                <ConfirmDialog
+                  open={pendingLifecycle !== null}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setPendingLifecycle(null);
+                    }
+                  }}
+                  title={pendingLifecycle?.title ?? "Update subscription"}
+                  description={pendingLifecycle?.description ?? ""}
+                  confirmLabel={pendingLifecycle?.confirmLabel ?? "Confirm"}
+                  tone={pendingLifecycle?.tone ?? "default"}
+                  confirmLoading={lifecycleBusy !== null}
+                  confirmLoadingLabel="Updating"
+                  onConfirm={() => void confirmLifecycle()}
+                />
+              </FieldGroup>
             ) : null}
           </>
         ) : null}

@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  getEntitlements,
   getWorkspaceBilling,
   listEmployees,
   type CompanyBilling,
   type EmployeeListState,
+  type Entitlements,
 } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -31,6 +33,7 @@ function overdueCopy(billing: CompanyBilling): string | null {
 
 export default function CompanyDashboardPage() {
   const [state, setState] = useState<EmployeeListState | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
   const [billing, setBilling] = useState<CompanyBilling | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -39,13 +42,15 @@ export default function CompanyDashboardPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [list, loadedBilling] = await Promise.all([
+        const [list, loadedBilling, loadedEntitlements] = await Promise.all([
           listEmployees(),
           getWorkspaceBilling().catch(() => null),
+          getEntitlements().catch(() => null),
         ]);
         if (!cancelled) {
           setState(list);
           setBilling(loadedBilling);
+          setEntitlements(loadedEntitlements);
         }
       } catch (reason) {
         if (!cancelled) {
@@ -72,9 +77,9 @@ export default function CompanyDashboardPage() {
   const currentYear = now.getFullYear();
   const calendarLabel = `${currentMonthName} ${currentYear}`;
 
-  const activeCount = state?.activeCount ?? 0;
-  const employeeLimit = state?.employeeLimit ?? 0;
-  const seatsRemaining = Math.max(0, employeeLimit - activeCount);
+  const activeCount = entitlements?.currentUsage ?? state?.activeCount ?? 0;
+  const employeeLimit = entitlements?.maximumAllowed ?? state?.employeeLimit ?? 0;
+  const seatsRemaining = entitlements?.remaining ?? state?.remaining;
   const draftCount = (state?.employees ?? []).filter((e) => e.status === 2).length;
 
   return (
@@ -86,7 +91,7 @@ export default function CompanyDashboardPage() {
         </Link>
         <p>
           {state
-            ? `${state.activeCount} of ${state.employeeLimit} active employee seats in use.`
+            ? `${activeCount} of ${employeeLimit} active employee seats in use.`
             : "Your company workspace after setup."}
         </p>
       </header>
@@ -112,7 +117,7 @@ export default function CompanyDashboardPage() {
               <span className="mp-kpi-card__subtext">
                 {draftCount > 0
                   ? `${draftCount} ${draftCount === 1 ? "draft" : "drafts"} pending activation`
-                  : `${seatsRemaining} ${seatsRemaining === 1 ? "seat" : "seats"} remaining`}
+                  : `${seatsRemaining ?? "—"} ${seatsRemaining === 1 ? "seat" : "seats"} remaining`}
               </span>
             </div>
             <div className="mp-kpi-card">
@@ -161,7 +166,7 @@ export default function CompanyDashboardPage() {
                   <div>
                     <dt>Seats</dt>
                     <dd>
-                      {state.activeCount} of {state.employeeLimit}
+                      {activeCount} of {employeeLimit}
                     </dd>
                   </div>
                 ) : null}

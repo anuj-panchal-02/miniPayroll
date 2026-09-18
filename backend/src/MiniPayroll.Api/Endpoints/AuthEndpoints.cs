@@ -63,17 +63,18 @@ public static class AuthEndpoints
 
         if (!isSuperadmin)
         {
-            var status = user.CompanyId is { } companyId
+            var access = user.CompanyId is { } companyId
                 ? await db.Subscriptions.AsNoTracking()
                     .IgnoreQueryFilters()
                     .Where(s => s.CompanyId == companyId)
-                    .Select(s => (SubscriptionStatus?)s.Status)
+                    .Select(s => new { s.Status, s.TrialEndsAt })
                     .FirstOrDefaultAsync(cancellationToken)
                 : null;
+            var status = access?.Status;
 
-            if (!CompanyAdminLoginAccess.IsAllowed(status))
+            if (!CompanyAdminLoginAccess.IsAllowed(status, access?.TrialEndsAt, DateTimeOffset.UtcNow))
             {
-                var message = status == SubscriptionStatus.Cancelled
+                var message = status is SubscriptionStatus.Cancelled or SubscriptionStatus.Expired
                     ? "This company can no longer sign in."
                     : "This company is not active yet. Sign in after it is activated.";
                 return Results.Json(new { error = message }, statusCode: StatusCodes.Status403Forbidden);

@@ -99,7 +99,7 @@ export default function SuperadminPage() {
             filterValue={status}
             filterOptions={[
               { value: "all", label: "All statuses" },
-              { value: "Pending", label: "Pending" },
+              { value: "Trialing", label: "Trialing" },
               { value: "Active", label: "Active" },
             ]}
             onFilterChange={setStatus}

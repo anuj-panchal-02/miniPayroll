@@ -85,6 +85,7 @@ export default function PayrollReviewPage() {
     period?.run?.status === PayrollRunStatus.Reversed;
   const canFinalize =
     period?.run?.status === PayrollRunStatus.Calculated &&
+    !period.run.sourceDrift &&
     (period.totals?.errorCount ?? 0) === 0 &&
     (period.results?.length ?? 0) > 0;
   const canDownload =
@@ -225,6 +226,12 @@ export default function PayrollReviewPage() {
           Inputs changed after the last calculation. Recalculate to refresh these figures.
         </Alert>
       ) : null}
+      {period?.run?.sourceDrift ? (
+        <Alert tone="status">
+          Employee, salary, or statutory data changed after calculate. Recalculate before
+          finalizing.
+        </Alert>
+      ) : null}
       {period?.run?.status === PayrollRunStatus.Finalized ? (
         <Alert tone="status">This payroll run is finalized. Figures are locked.</Alert>
       ) : null}
@@ -290,7 +297,9 @@ export default function PayrollReviewPage() {
                 ? "This run is locked."
                 : canFinalize
                   ? "Figures look complete. Finalize to lock them."
-                  : "Calculate to refresh gross, deductions, and net."}
+                  : period?.run?.sourceDrift
+                    ? "Masters changed after calculate. Recalculate before finalizing."
+                    : "Calculate to refresh gross, deductions, and net."}
             </p>
             <div className="sa-payroll-card__actions">
               <Button

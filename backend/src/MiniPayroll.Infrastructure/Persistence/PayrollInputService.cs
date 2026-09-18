@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using MiniPayroll.Domain.Auth;
+using MiniPayroll.Domain.Billing;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Payroll;
+using MiniPayroll.Domain.Subscriptions;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
@@ -87,7 +89,8 @@ public sealed record PayrollPeriodRunSummary(
     DailyRateMethod DailyRateMethod,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CalculatedAt,
-    DateTimeOffset? FinalizedAt);
+    DateTimeOffset? FinalizedAt,
+    bool SourceDrift = false);
 
 public sealed record PayrollTotals(
     decimal GrossEarnings,
@@ -104,11 +107,13 @@ public sealed record PayrollPeriodDetail(
     PayrollPeriodRunSummary? Run,
     IReadOnlyList<PayrollRosterEmployee> Employees,
     IReadOnlyList<PayrollEmployeeDetail> Results,
-    PayrollTotals? Totals);
+    PayrollTotals? Totals,
+    string? BillingHoldPeriod = null);
 
 public sealed record PayrollPeriodResult(
     PayrollRunStatusCode Status,
-    PayrollPeriodDetail? Period = null);
+    PayrollPeriodDetail? Period = null,
+    string? Error = null);
 
 public sealed record PayrollHistoryItem(
     Guid Id,
@@ -135,7 +140,9 @@ public sealed record PayrollPaymentPayload(
 
 public sealed class PayrollInputService(
     MiniPayrollDbContext db,
-    ITenantContext tenant)
+    ITenantContext tenant,
+    IEntitlementService? entitlements = null,
+    BillingService? billing = null)
 {
     public async Task<PayrollPeriodResult> GetPeriodAsync(
         int year,
@@ -288,6 +295,10 @@ public sealed class PayrollInputService(
         {
             return new PayrollPeriodResult(PayrollRunStatusCode.NotFound);
         }
+        if (await PriorHoldAsync(company, new PayrollPeriod(run.Year, run.Month), cancellationToken) is { } inputHold)
+        {
+            return inputHold;
+        }
         if (run.Status is PayrollRunStatus.Finalized or PayrollRunStatus.Reversed)
         {
             return new PayrollPeriodResult(PayrollRunStatusCode.RunLocked);
@@ -298,7 +309,7 @@ public sealed class PayrollInputService(
             .ToDictionary(employee => employee.Id);
         var payload = input ?? new PayrollInputsPayload(null, null, null, null);
 
-        if (!IsValid(payload, eligible.Keys))
+        if (!IsValid(payload, eligible, period))
         {
             return new PayrollPeriodResult(PayrollRunStatusCode.InvalidInput);
         }
@@ -382,6 +393,7 @@ public sealed class PayrollInputService(
         {
             run.Status = PayrollRunStatus.Draft;
             run.CalculatedAt = null;
+            PayrollSourceFingerprint.Clear(run);
         }
 
         AddAudit(AuditActions.PayrollInputsSave, $"{run.Year}-{run.Month:D2}");
@@ -400,17 +412,24 @@ public sealed class PayrollInputService(
             await BuildPeriodAsync(company, period, run, cancellationToken));
     }
 
-    internal static bool IsValid(PayrollInputsPayload payload, IReadOnlyCollection<Guid> eligibleIds)
+    internal static bool IsValid(
+        PayrollInputsPayload payload,
+        IReadOnlyDictionary<Guid, Employee> eligible,
+        PayrollPeriod period)
     {
         var attendanceIds = new HashSet<Guid>();
         foreach (var row in payload.Attendance ?? [])
         {
-            if (!eligibleIds.Contains(row.EmployeeId)
+            if (!eligible.TryGetValue(row.EmployeeId, out var employee)
                 || !attendanceIds.Add(row.EmployeeId)
-                || !PayrollInputRules.IsHalfDayQuantity(row.WorkingDays)
-                || !PayrollInputRules.IsHalfDayQuantity(row.Present)
-                || !PayrollInputRules.IsHalfDayQuantity(row.PaidLeave)
-                || !PayrollInputRules.IsHalfDayQuantity(row.UnpaidLeave))
+                || !PayrollInputRules.IsWithinMonthBounds(
+                    row.WorkingDays,
+                    row.Present,
+                    row.PaidLeave,
+                    row.UnpaidLeave,
+                    period,
+                    employee.JoiningDate,
+                    employee.ExitDate))
             {
                 return false;
             }
@@ -418,7 +437,7 @@ public sealed class PayrollInputService(
 
         foreach (var row in payload.Overtime ?? [])
         {
-            if (!eligibleIds.Contains(row.EmployeeId)
+            if (!eligible.ContainsKey(row.EmployeeId)
                 || !PayrollInputRules.IsPositiveAmount(row.Hours)
                 || (row.Rate is { } rate && !PayrollInputRules.IsPositiveAmount(rate))
                 || !PayrollInputRules.IsValidNotes(row.Notes))
@@ -429,7 +448,7 @@ public sealed class PayrollInputService(
 
         foreach (var row in payload.Bonuses ?? [])
         {
-            if (!eligibleIds.Contains(row.EmployeeId)
+            if (!eligible.ContainsKey(row.EmployeeId)
                 || !Enum.IsDefined(row.Type)
                 || !PayrollInputRules.IsPositiveAmount(row.Amount)
                 || !PayrollInputRules.IsValidNotes(row.Notes))
@@ -440,7 +459,7 @@ public sealed class PayrollInputService(
 
         foreach (var row in payload.Deductions ?? [])
         {
-            if (!eligibleIds.Contains(row.EmployeeId)
+            if (!eligible.ContainsKey(row.EmployeeId)
                 || !Enum.IsDefined(row.Type)
                 || !PayrollInputRules.IsPositiveAmount(row.Amount)
                 || !PayrollInputRules.IsValidNotes(row.Notes))
@@ -549,10 +568,12 @@ public sealed class PayrollInputService(
                 ? null
                 : new PayrollPeriodRunSummary(
                     run.Id, run.Status, run.DailyRateMethod, run.CreatedAt, run.CalculatedAt,
-                    run.FinalizedAt),
+                    run.FinalizedAt,
+                    await PayrollSourceLoader.HasDriftAsync(db, company, run, cancellationToken)),
             roster,
             resultDetails,
-            totals);
+            totals,
+            (await Billing.GetPriorPeriodHoldAsync(company.Id, period, cancellationToken)).PeriodKey);
     }
 
     private async Task<List<Employee>> LoadEligibleAsync(
@@ -623,12 +644,29 @@ public sealed class PayrollInputService(
         {
             return (PayrollRunStatusCode.SetupIncomplete, company);
         }
-        if (requireMutation && !SubscriptionMutationRules.CanMutate(company.Subscription?.Status))
+        if (requireMutation && !(await Entitlements.GetSnapshot(company.Id, cancellationToken)).CanWrite)
         {
             return (PayrollRunStatusCode.SubscriptionReadOnly, company);
         }
         return (PayrollRunStatusCode.Success, company);
     }
+
+    private async Task<PayrollPeriodResult?> PriorHoldAsync(
+        Company company,
+        PayrollPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var hold = await Billing.GetPriorPeriodHoldAsync(company.Id, period, cancellationToken);
+        return hold.IsHeld
+            ? new PayrollPeriodResult(
+                PayrollRunStatusCode.PriorPeriodUnpaid,
+                Error: PriorPeriodBillingHold.Message(hold.PeriodKey))
+            : null;
+    }
+
+    private IEntitlementService Entitlements => entitlements ?? new EntitlementService(db, tenant);
+
+    private BillingService Billing => billing ?? new BillingService(db, tenant);
 
     private void AddAudit(string action, string details)
     {

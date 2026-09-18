@@ -2,7 +2,16 @@ using MiniPayroll.Domain.Constants;
 
 namespace MiniPayroll.Domain.Payroll.Statutory;
 
-public readonly record struct LwfRule(string StateCode, decimal EmployeeAmount, int[] Months);
+/// <summary>
+/// Configured LWF only: MH ₹25 every month; KA ₹20 every month; KL ₹50 in June and December.
+/// Unlisted states and off months are ₹0. Do not add states here without an explicit product decision.
+/// </summary>
+public readonly record struct LwfRule(
+    string StateCode,
+    decimal EmployeeAmount,
+    int[] Months,
+    DateOnly? EffectiveFrom = null,
+    DateOnly? EffectiveTo = null);
 
 public static class LwfRules
 {
@@ -13,7 +22,7 @@ public static class LwfRules
         new("KL", 50m, [6, 12])
     ];
 
-    public static decimal AmountFor(string? companyState, int month)
+    public static decimal AmountFor(string? companyState, int month, DateOnly? on = null)
     {
         var code = IndianStateCatalog.CodeFor(companyState);
         if (code is null)
@@ -21,7 +30,10 @@ public static class LwfRules
             return 0m;
         }
 
-        var rule = All.FirstOrDefault(item => item.StateCode == code);
+        var asOf = on ?? DateOnly.MaxValue;
+        var rule = All.LastOrDefault(item =>
+            item.StateCode == code
+            && StatutoryRuleWindow.Covers(asOf, item.EffectiveFrom, item.EffectiveTo));
         if (rule.StateCode is null || !rule.Months.Contains(month))
         {
             return 0m;

@@ -61,6 +61,8 @@ export type CompanyDetail = {
   activatedAt: string | null;
   hasAdmin: boolean;
   adminEmail: string | null;
+  cancelAtPeriodEnd?: boolean;
+  trialEndsAt?: string | null;
 };
 
 export type PlatformLimitsResponse = {
@@ -366,6 +368,46 @@ export function activateCompany(id: string): Promise<CompanyDetail> {
   return api<CompanyDetail>(`/api/companies/${id}/activate`, { method: "POST" });
 }
 
+export function markCompanyPastDue(id: string): Promise<CompanyDetail> {
+  return api<CompanyDetail>(`/api/companies/${id}/subscription/past-due`, {
+    method: "POST",
+  });
+}
+
+export function enterCompanyGrace(id: string): Promise<CompanyDetail> {
+  return api<CompanyDetail>(`/api/companies/${id}/subscription/grace`, {
+    method: "POST",
+  });
+}
+
+export function suspendCompany(id: string): Promise<CompanyDetail> {
+  return api<CompanyDetail>(`/api/companies/${id}/subscription/suspend`, {
+    method: "POST",
+  });
+}
+
+export function cancelCompany(
+  id: string,
+  atPeriodEnd: boolean,
+): Promise<CompanyDetail> {
+  return api<CompanyDetail>(`/api/companies/${id}/subscription/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ atPeriodEnd }),
+  });
+}
+
+export function expireCompany(id: string): Promise<CompanyDetail> {
+  return api<CompanyDetail>(`/api/companies/${id}/subscription/expire`, {
+    method: "POST",
+  });
+}
+
+export function reactivateCompany(id: string): Promise<CompanyDetail> {
+  return api<CompanyDetail>(`/api/companies/${id}/subscription/reactivate`, {
+    method: "POST",
+  });
+}
+
 export function updateCompanyLimit(id: string, employeeLimit: number): Promise<CompanyDetail> {
   return api<CompanyDetail>(`/api/companies/${id}/limit`, {
     method: "PATCH",
@@ -508,6 +550,17 @@ export type EmployeeListState = {
   employees: EmployeeListItem[];
   activeCount: number;
   employeeLimit: number;
+  remaining?: number;
+  canAdd?: boolean;
+};
+
+export type Entitlements = {
+  currentUsage: number;
+  maximumAllowed: number;
+  remaining: number;
+  canAdd: boolean;
+  canRunPayroll: boolean;
+  enabledFeatures: string[];
 };
 
 export type EmployeeDetail = {
@@ -577,6 +630,10 @@ export type EmployeeInput = {
 
 export function listEmployees(): Promise<EmployeeListState> {
   return api<EmployeeListState>("/api/employees", { method: "GET" });
+}
+
+export function getEntitlements(): Promise<Entitlements> {
+  return api<Entitlements>("/api/entitlements", { method: "GET" });
 }
 
 export function getEmployee(id: string): Promise<EmployeeDetail> {
@@ -727,6 +784,7 @@ export type PayrollPeriodRunSummary = {
   createdAt: string;
   calculatedAt: string | null;
   finalizedAt: string | null;
+  sourceDrift?: boolean;
 };
 
 export type PayrollLineDetail = {
@@ -777,6 +835,7 @@ export type PayrollPeriodDetail = {
   employees: PayrollRosterEmployee[];
   results: PayrollEmployeeDetail[];
   totals: PayrollTotals | null;
+  billingHoldPeriod?: string | null;
 };
 
 export type PayrollRunDetail = {

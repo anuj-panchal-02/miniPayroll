@@ -160,6 +160,25 @@ public class PayrollCalculatorTests
     }
 
     [Fact]
+    public void Percentage_of_basic_rounds_to_two_decimals_before_the_rupee_line()
+    {
+        var structure = new[]
+        {
+            new PayrollStructureLine(
+                "Basic Salary", SalaryComponentType.Earning, SalaryComponentValueType.FixedAmount, 10000m, 0),
+            new PayrollStructureLine(
+                "HRA", SalaryComponentType.Earning, SalaryComponentValueType.PercentageOfBasic, 10.00499m, 1),
+        };
+        var result = PayrollCalculator.Calculate(Input(structure: structure));
+
+        // 10000 × 10.00499% = 1000.499 → 2 dp half-up 1000.50 → rupee 1001.
+        // Rounding the raw percentage to rupees in one step would be 1000.
+        Assert.Equal(10000m, result.Lines.Single(line => line.Name == "Basic Salary").Amount);
+        Assert.Equal(1001m, result.Lines.Single(line => line.Name == "HRA").Amount);
+        Assert.Equal(11001m, result.NetSalary);
+    }
+
+    [Fact]
     public void Attendance_identity_violation_blocks_calculation()
     {
         var result = PayrollCalculator.Calculate(Input(
@@ -250,12 +269,17 @@ public class PayrollCalculatorTests
 
         var first = PayrollCalculator.Calculate(input);
         var second = PayrollCalculator.Calculate(input);
+        var engine = PayrollCalculationEngine.Calculate(input);
 
         Assert.Equal(first.NetSalary, second.NetSalary);
         Assert.Equal(first.GrossEarnings, second.GrossEarnings);
         Assert.Equal(first.TotalDeductions, second.TotalDeductions);
+        Assert.Equal(first.NetSalary, engine.NetSalary);
         Assert.Equal(
             first.Lines.Select(line => (line.Name, line.Type, line.Kind, line.Amount)),
             second.Lines.Select(line => (line.Name, line.Type, line.Kind, line.Amount)));
+        Assert.Equal(
+            first.Lines.Select(line => (line.Name, line.Type, line.Kind, line.Amount)),
+            engine.Lines.Select(line => (line.Name, line.Type, line.Kind, line.Amount)));
     }
 }

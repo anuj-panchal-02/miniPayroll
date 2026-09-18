@@ -1,7 +1,7 @@
 # PRD: miniPayroll
 
 **Product Name:** miniPayroll  
-**Document Version:** 1.4  
+**Document Version:** 1.6  
 **Product Stage:** MVP  
 **Target Market:** Small businesses with 1–50 salaried employees  
 **Primary Market:** India  
@@ -9,9 +9,18 @@
 **Primary Business Model:** SaaS subscription charged per billable employee  
 **Primary SaaS Owner:** Superadmin-controlled onboarding and plan management
 
+### Changelog (v1.5 → v1.6)
+
+- Calculate snapshots the sources needed to reproduce a run (structure, statutory policy, rule versions, inputs, and identity used on the slip) and stores a fingerprint. Finalize never recalculates. If live masters drifted, finalize is rejected until the run is recalculated. Company identity is frozen at create and calculate, not overwritten at finalize.
+
+### Changelog (v1.4 → v1.5)
+
+- Locked the payroll engine contract. Professional Tax is a slab on earning lines (join/exit-prorated recurring pay + overtime + bonus) minus unpaid-leave rupees, not a full-month CTC amount. Percentage-of-basic rounds to 2 decimal places, then each payslip line to the nearest rupee. Statutory policy is live on every Draft/Calculated recalculate; result rows are wiped and rewritten while overrides persist. See **LOCKED PAYROLL RULES**.
+
 ### Changelog (v1.3 → v1.4)
 
 - Automated PF, ESI, Professional Tax, and LWF from Indian wage bases after earnings and unpaid leave. Salary structure is earnings-only (Basic, DA, HRA, and other allowances). TDS remains a manual one-time deduction. Filing, Form 16, and Superadmin rate editing remain out of scope.
+- Existing companies and employees stay **PF/ESI off** until payroll settings are saved (the statutory column default of true was unintentional). Finalized payslip snapshots are not rewritten. Recalculating a draft or calculated run after that backfill uses the saved flags. Maharashtra professional tax requires employee gender; missing gender blocks calculation instead of charging ₹0. Working days cannot exceed calendar days in the month; unpaid leave cannot exceed working days or days employed.
 
 ### Changelog (v1.2 → v1.3)
 
@@ -521,11 +530,11 @@ Filing (EPFO/ESIC/PT returns), Form 16, and automated TDS are out of scope.
 
 - **PF wages** = Basic + DA after join/exit proration, then reduced by the share of unpaid-leave deducted from those components. Employee PF = 12% of PF wages, capped at ₹15,000 unless the company opted for full wages. ₹0 if the company or employee is not PF-covered. Do **not** calendar-prorate a fixed PF amount.
 - **ESI wages** = recurring earnings after unpaid leave + overtime; **exclude bonuses**. Employee ESI = 0.75% and employer ESI = 3.25% when the employee is ESI-covered (coverage continues above the ₹21,000 eligibility band). ₹0 if not covered.
-- **Professional Tax** = full-month slab from the **company** state (and gender where the state requires it). No proration if the employee was employed in the period.
-- **LWF** = state table; skip months with no contribution.
+- **Professional Tax wages** = all earning lines on the slip (recurring pay after join/exit proration + overtime + bonus) minus the unpaid-leave rupee amount, not below ₹0. The slab is looked up from the **company** state and employee gender (Maharashtra requires gender; missing gender blocks calculate). Join, exit, unpaid leave, overtime, and bonus change PT only through that wage base — PT is **not** a fixed full-month amount. ₹0 / omitted line when the slab is ₹0. Configured PT states: MH, KA, WB, GJ, TN, AP, TS, KL, OD, AS; other states ₹0. Gender is required only where a slab has Gender (today MH).
+- **LWF** = state table; skip months with no contribution. LWF is not wage-prorated. Configured LWF: MH ₹25 every month; KA ₹20 every month; KL ₹50 in June and December; other states and off months ₹0.
 - **Employer PF (12%) and employer ESI** are company cost and do **not** reduce net salary.
 - **TDS** is entered manually on the run.
-- Overrides are stored on the run and reapplied on recalculate. Finalized snapshots stay immutable.
+- Overrides are stored on the run and reapplied on recalculate. Recalculate wipes and rewrites result snapshot rows; the override table is not wiped. Last override per kind wins. Employer PF/ESI stay on the computed formula. Finalized snapshots stay immutable.
 
 ---
 
@@ -669,7 +678,7 @@ Total Deductions
 Net Salary = Gross Earnings − Total Deductions
 ```
 
-Rounding: every component line is rounded to the nearest rupee (half up); Net Salary is the sum of rounded lines.
+Rounding: percentage-of-basic is computed from unprorated Basic Salary and rounded to 2 decimal places (half up). Every payslip component line is then rounded to the nearest rupee (half up). Net Salary is the sum of rounded lines.
 
 ## 19.3 Proration (joining or leaving mid-month)
 
@@ -682,7 +691,7 @@ Prorated Recurring Earnings
 
 - **Joining mid-month:** Days Employed = calendar days from joining date to month end, inclusive.
 - **Leaving mid-month:** Days Employed = calendar days from month start to exit date, inclusive.
-- Statutory deductions are **not** prorated by this ratio; they use this month’s wage bases (Section 19.5). One-time items are never prorated.
+- Statutory deductions are **not** multiplied by the join/exit ratio. PF, ESI, and Professional Tax use this month’s wage bases (Section 14). One-time items are never prorated.
 
 Anything beyond this (split periods, per-component proration rules, LOP calendars) is **complex proration** and explicitly out of scope for MVP.
 
@@ -692,7 +701,7 @@ If an employee's salary structure changes during a payroll month, the **entire m
 
 ## 19.5 Statutory calculation
 
-Statutory lines are computed **after** unpaid leave, from company policy and employee coverage. See Section 14. The review screen shows computed vs applied (override) amounts. Employer contributions are displayed as company cost and are not part of net salary.
+Statutory lines are computed **after** unpaid leave, from **live** company policy and employee coverage on every calculate of a Draft or Calculated run. See Section 14. Computed amounts are stored on result rows and replaced on recalculate. Company identity (name, address, logo, PF/ESI codes) is frozen on the run at create and finalize; policy flags, coverage, state, and gender are not. The review screen shows computed vs applied (override) amounts. Employer contributions are displayed as company cost and are not part of net salary.
 
 ---
 
@@ -817,7 +826,7 @@ The payslip renders the **snapshot component lines stored on the payroll run** �
 - A **miniPayroll** watermark on every page
 - Payslips belonging to a reversed run also carry a **Reversed** watermark and remain downloadable
 
-Payslips are downloadable as PDF, individually and as a single combined PDF for the whole run. Company address and PF/ESI codes are frozen on the payroll run at create and finalize so later company edits do not rewrite historical slips.
+Payslips are downloadable as PDF, individually and as a single combined PDF for the whole run. Company address and PF/ESI codes are frozen on the payroll run at create and finalize so later company edits do not rewrite historical slips. Statutory policy flags (PF/ESI applicable, coverage, state, gender) are **not** frozen on the run: a Draft or Calculated recalculate re-reads them. After finalize, stored lines do not change when live policy or salary changes.
 
 ---
 
@@ -1549,3 +1558,22 @@ Repeat Every Month
 ```
 
 This loop should remain the center of the product even as future HRMS capabilities are added.
+
+---
+
+# 42. LOCKED PAYROLL RULES
+
+This list is the contract for the payroll-engine refactor. Do not reopen these rules without an explicit product decision.
+
+1. Daily rate is company Method A (÷ calendar days) or Method B (÷ 30). Join/exit proration of recurring earnings is always `daysEmployed / calendarDays`, including when Method B is selected.
+2. Days employed are inclusive calendar days of overlap with the period. Unpaid leave cannot exceed working days or days employed; working days cannot exceed calendar days in the month.
+3. The month uses the salary structure with the latest `EffectiveFrom` on or before the last calendar day. Mid-month change warns; no split-month calculation.
+4. Percentage-of-basic is rounded to 2 decimal places half-up, then each payslip line (after proration) to the nearest rupee half-up. Net is the sum of rounded lines.
+5. PF wages = Basic + DA after join/exit proration, then LOP share; 12% with ₹15,000 ceiling unless full wages. Not a prorated fixed PF amount.
+6. ESI wages = recurring after LOP + overtime; exclude bonus. 0.75% / 3.25%; coverage continues above ₹21,000.
+7. PT wage base = earning lines (prorated recurring + OT + bonus) minus unpaid-leave rupees, floor 0. Slab from company state and gender. Join/exit/LOP/OT/bonus affect PT only through that base. Maharashtra missing gender blocks calculate.
+8. LWF = state/month table; not wage-prorated.
+9. Employer PF/ESI are company cost and do not reduce net. TDS is a manual one-time deduction.
+10. Statutory policy (flags, coverage, state, gender) is read live on every calculate of a Draft/Calculated run. Calculate persists a source snapshot and fingerprint (structure, policy, rule versions, run inputs, and the identity used on the slip). Result lines are wiped and rewritten. Overrides persist on the run and are reapplied; employer amounts stay computed. Finalize does not recalculate; if the live fingerprint differs, finalization is rejected until recalculate. Company identity (name, address, logo, PF/ESI codes) is frozen on the run at create and calculate, not overwritten at finalize.
+11. Negative net blocks finalization. Finalized snapshots and payslips are immutable; salary or policy edits after finalize do not rewrite them.
+

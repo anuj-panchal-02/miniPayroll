@@ -42,6 +42,22 @@ public sealed class SalaryStructureServiceTests
     }
 
     [Fact]
+    public async Task Duplicate_effective_date_is_rejected()
+    {
+        var (db, salaries, employee) = await CreateServiceAsync();
+        await using var owned = db;
+        var date = new DateOnly(2026, 8, 1);
+
+        Assert.Equal(SalaryStructureStatusCode.Success,
+            (await salaries.CreateAsync(employee.Id, Input(date, 20000m))).Status);
+        var duplicate = await salaries.CreateAsync(employee.Id, Input(date, 23000m));
+
+        Assert.Equal(SalaryStructureStatusCode.DuplicateEffectiveDate, duplicate.Status);
+        Assert.Equal(1, await db.SalaryStructures.CountAsync());
+        Assert.Equal(20000m, (await db.EmployeeSalaryComponents.SingleAsync()).Value);
+    }
+
+    [Fact]
     public async Task Tenant_cannot_read_another_companys_salary_structures()
     {
         var database = $"salary-structures-{Guid.NewGuid():N}";

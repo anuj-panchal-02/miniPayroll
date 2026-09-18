@@ -3,6 +3,7 @@ using MiniPayroll.Domain.Billing;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll;
 using MiniPayroll.Domain.Tenancy;
 using MiniPayroll.Infrastructure.Persistence;
 
@@ -139,6 +140,53 @@ public sealed class BillingServiceTests
         Assert.Equal(1, await db.AuditLogs.CountAsync(item => item.Action == AuditActions.BillingPaymentRecord));
         var subscription = await db.Subscriptions.SingleAsync(item => item.CompanyId == fixture.Company.Id);
         Assert.Equal(SubscriptionStatus.Active, subscription.Status);
+    }
+
+    [Fact]
+    public async Task Next_payroll_month_is_held_until_the_prior_period_is_settled()
+    {
+        var fixture = await FixtureAsync();
+        var hold = await fixture.Billing.GetPriorPeriodHoldAsync(
+            fixture.Company.Id, new PayrollPeriod(2026, 9));
+
+        Assert.True(hold.IsHeld);
+        Assert.Equal("2026-08", hold.PeriodKey);
+
+        Assert.Equal(
+            BillingStatusCode.Success,
+            (await fixture.Billing.RecordPaymentAsync(fixture.Company.Id, ValidPayment(amount: 49m))).Status);
+
+        var cleared = await fixture.Billing.GetPriorPeriodHoldAsync(
+            fixture.Company.Id, new PayrollPeriod(2026, 9));
+        Assert.False(cleared.IsHeld);
+    }
+
+    [Fact]
+    public async Task Record_payment_applies_the_matching_invoice()
+    {
+        var fixture = await FixtureAsync();
+        var invoices = new InvoiceService(
+            TestDb.Create(new StaticTenantContext { IsSuperadmin = true, UserId = Guid.NewGuid() }, fixture.Database),
+            new StaticTenantContext { IsSuperadmin = true, UserId = Guid.NewGuid() },
+            Clock);
+        var created = await invoices.CreateAsync(
+            fixture.Company.Id,
+            new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 8, 31, 23, 59, 59, TimeSpan.Zero),
+            1);
+        Assert.Equal(InvoiceCommandStatus.Success, created.Status);
+        Assert.Equal(
+            InvoiceCommandStatus.Success,
+            (await invoices.IssueAsync(fixture.Company.Id, created.Invoice!.Id)).Status);
+
+        Assert.Equal(
+            BillingStatusCode.Success,
+            (await fixture.Billing.RecordPaymentAsync(fixture.Company.Id, ValidPayment(amount: 49m))).Status);
+
+        await using var db = TestDb.Create(NullTenantContext.Instance, fixture.Database);
+        var invoice = await db.Invoices.SingleAsync(item => item.Id == created.Invoice.Id);
+        Assert.Equal(InvoiceStatus.Paid, invoice.Status);
+        Assert.Equal(49m, invoice.AmountPaid);
     }
 
     [Fact]

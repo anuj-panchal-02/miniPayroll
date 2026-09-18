@@ -63,6 +63,7 @@ public sealed class BillingService
     private readonly MiniPayrollDbContext db;
     private readonly ITenantContext tenant;
     private readonly TimeProvider time;
+    private readonly SubscriptionLifecycleService? subscriptions;
 
     public BillingService(MiniPayrollDbContext db, ITenantContext tenant)
         : this(db, tenant, TimeProvider.System)
@@ -70,10 +71,20 @@ public sealed class BillingService
     }
 
     public BillingService(MiniPayrollDbContext db, ITenantContext tenant, TimeProvider time)
+        : this(db, tenant, time, subscriptions: null)
+    {
+    }
+
+    public BillingService(
+        MiniPayrollDbContext db,
+        ITenantContext tenant,
+        TimeProvider time,
+        SubscriptionLifecycleService? subscriptions)
     {
         this.db = db;
         this.tenant = tenant;
         this.time = time;
+        this.subscriptions = subscriptions;
     }
 
     public async Task<BillingResult> GetAsync(
@@ -164,9 +175,52 @@ public sealed class BillingService
             Details = $"{BillingCalculator.FormatPeriod(period)} {request.Amount} {mode}",
             OccurredAt = now
         });
+
+        await ApplyMatchingInvoiceAsync(company, period, request.Amount, now, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
+        var nextPeriod = period.Month == 12
+            ? new PayrollPeriod(period.Year + 1, 1)
+            : new PayrollPeriod(period.Year, period.Month + 1);
+        var hold = await GetPriorPeriodHoldAsync(company.Id, nextPeriod, cancellationToken);
+        if (!hold.IsHeld)
+        {
+            await (subscriptions ?? new SubscriptionLifecycleService(db, tenant, time))
+                .ActivateFromTrustedPaymentAsync(company.Id, tenant.UserId, cancellationToken);
+        }
+
         return new BillingResult(BillingStatusCode.Success, await BuildAsync(company, cancellationToken));
+    }
+
+    public async Task<PriorPeriodHold> GetPriorPeriodHoldAsync(
+        Guid companyId,
+        PayrollPeriod opening,
+        CancellationToken cancellationToken = default)
+    {
+        var company = await LoadCompanyAsync(companyId, cancellationToken);
+        if (company is null)
+        {
+            return new PriorPeriodHold(false, null);
+        }
+
+        var previous = BillingCalculator.Previous(opening);
+        if (!previous.IsValid)
+        {
+            return PriorPeriodBillingHold.Evaluate(opening, company.ActivatedAt, 0m, 0m, false);
+        }
+
+        var key = BillingCalculator.FormatPeriod(previous);
+        var recordedPaid = await db.Payments
+            .Where(payment => payment.CompanyId == companyId && payment.BillingPeriod == key)
+            .SumAsync(payment => (decimal?)payment.Amount, cancellationToken) ?? 0m;
+        var invoicePaid = await HasPaidInvoiceAsync(companyId, previous, cancellationToken);
+        var amountDue = await AmountDueForAsync(company, previous, cancellationToken);
+        return PriorPeriodBillingHold.Evaluate(
+            opening,
+            company.ActivatedAt,
+            amountDue,
+            recordedPaid,
+            invoicePaid);
     }
 
     private async Task<BillingResult> BuildForCompanyAsync(
@@ -358,5 +412,109 @@ public sealed class BillingService
             BillingCalculator.BillingEnd(
                 now,
                 finalized.Select(run => new PayrollPeriod(run.Year, run.Month))));
+    }
+
+    private async Task ApplyMatchingInvoiceAsync(
+        Company company,
+        PayrollPeriod period,
+        decimal amount,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var invoice = await MatchingInvoiceAsync(company.Id, period, cancellationToken);
+        if (invoice is null
+            || !InvoiceStatusTransitions.CanExecute(invoice.Status, InvoiceCommand.ApplyPayment))
+        {
+            return;
+        }
+
+        var remaining = invoice.Total - invoice.AmountPaid;
+        var apply = remaining < amount ? remaining : amount;
+        if (apply <= 0)
+        {
+            return;
+        }
+
+        InvoiceLifecycle.ApplyPayment(invoice, apply, now);
+    }
+
+    private async Task<Invoice?> MatchingInvoiceAsync(
+        Guid companyId,
+        PayrollPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var start = new DateTimeOffset(period.Year, period.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var end = period.Month == 12
+            ? new DateTimeOffset(period.Year + 1, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            : new DateTimeOffset(period.Year, period.Month + 1, 1, 0, 0, 0, TimeSpan.Zero);
+        return await db.Invoices
+            .Where(invoice => invoice.CompanyId == companyId
+                && invoice.Status != InvoiceStatus.Void
+                && invoice.Status != InvoiceStatus.Refunded
+                && invoice.PeriodStart >= start
+                && invoice.PeriodStart < end)
+            .OrderByDescending(invoice => invoice.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<bool> HasPaidInvoiceAsync(
+        Guid companyId,
+        PayrollPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var start = new DateTimeOffset(period.Year, period.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var end = period.Month == 12
+            ? new DateTimeOffset(period.Year + 1, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            : new DateTimeOffset(period.Year, period.Month + 1, 1, 0, 0, 0, TimeSpan.Zero);
+        return await db.Invoices.AnyAsync(
+            invoice => invoice.CompanyId == companyId
+                && invoice.Status == InvoiceStatus.Paid
+                && invoice.PeriodStart >= start
+                && invoice.PeriodStart < end,
+            cancellationToken);
+    }
+
+    private async Task<decimal> AmountDueForAsync(
+        Company company,
+        PayrollPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var key = BillingCalculator.FormatPeriod(period);
+        var snapshot = await db.BillingPeriods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.CompanyId == company.Id && item.BillingPeriod == key,
+                cancellationToken);
+        if (snapshot is not null)
+        {
+            return snapshot.AmountDue;
+        }
+
+        var price = company.Subscription?.Plan?.PricePerEmployee ?? 0m;
+        var finalized = await db.PayrollRuns
+            .AsNoTracking()
+            .Where(run => run.CompanyId == company.Id
+                && run.Year == period.Year
+                && run.Month == period.Month
+                && run.Status == PayrollRunStatus.Finalized)
+            .Select(run => run.Id)
+            .ToListAsync(cancellationToken);
+        var finalizedCount = finalized.Count == 0
+            ? 0
+            : await db.PayrollEmployees
+                .AsNoTracking()
+                .Where(row => finalized.Contains(row.PayrollRunId))
+                .Select(row => row.EmployeeId)
+                .Distinct()
+                .CountAsync(cancellationToken);
+        var employees = await db.Employees
+            .AsNoTracking()
+            .Where(employee => employee.CompanyId == company.Id)
+            .Select(employee => new { employee.Status, employee.JoiningDate, employee.ExitDate })
+            .ToListAsync(cancellationToken);
+        var eligible = employees.Count(employee =>
+            PayrollEligibility.IsEligible(employee.Status, employee.JoiningDate, employee.ExitDate, period));
+        var billable = BillingCalculator.BillableEmployees(finalized.Count > 0, finalizedCount, eligible);
+        return BillingCalculator.AmountDue(price, billable.Count, period, company.ActivatedAt);
     }
 }

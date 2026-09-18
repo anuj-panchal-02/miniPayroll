@@ -45,6 +45,11 @@ public static class BillingCalculator
     public static string FormatPeriod(PayrollPeriod period) =>
         $"{period.Year}-{period.Month:D2}";
 
+    public static PayrollPeriod Previous(PayrollPeriod period) =>
+        period.Month == 1
+            ? new PayrollPeriod(period.Year - 1, 12)
+            : new PayrollPeriod(period.Year, period.Month - 1);
+
     public static BillableCount BillableEmployees(
         bool hasFinalizedRun,
         int finalizedDistinctEmployees,
@@ -168,7 +173,7 @@ public static class BillingCalculator
         return true;
     }
 
-    private static int Compare(PayrollPeriod left, PayrollPeriod right) =>
+    public static int Compare(PayrollPeriod left, PayrollPeriod right) =>
         left.Year != right.Year ? left.Year.CompareTo(right.Year) : left.Month.CompareTo(right.Month);
 
     private static decimal Round(decimal amount) =>

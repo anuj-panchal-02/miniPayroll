@@ -3,6 +3,7 @@ using MiniPayroll.Domain.Auth;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Subscriptions;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
@@ -95,18 +96,22 @@ public sealed record EmployeeDetail(
 public sealed record EmployeeListState(
     IReadOnlyList<EmployeeListItem> Employees,
     int ActiveCount,
-    int EmployeeLimit);
+    int EmployeeLimit,
+    int Remaining = 0,
+    bool CanAdd = false);
 
 public sealed record EmployeeResult(
     EmployeeStatusCode Status,
     EmployeeDetail? Employee = null,
     EmployeeListState? List = null,
-    int? EmployeeLimit = null);
+    int? EmployeeLimit = null,
+    EmployeeUsage? Usage = null);
 
 public sealed class EmployeeService(
     MiniPayrollDbContext db,
     ITenantContext tenant,
-    SalaryStructureService? salaryStructures = null)
+    SalaryStructureService? salaryStructures = null,
+    IEntitlementService? entitlements = null)
 {
     public const string LimitReachedMessage =
         "Employee limit reached. Your current plan supports {0} employees. Please contact your service provider to increase the limit.";
@@ -126,11 +131,15 @@ public sealed class EmployeeService(
             .ToListAsync(cancellationToken);
 
         var items = employees.Select(ToListItem).ToList();
-        var activeCount = employees.Count(employee => employee.Status == EmployeeStatus.Active);
-        var limit = context.Company.Subscription?.EmployeeLimit ?? 0;
+        var usage = await Entitlements.GetActiveEmployeeUsage(context.Company.Id, cancellationToken);
         return new EmployeeResult(
             EmployeeStatusCode.Success,
-            List: new EmployeeListState(items, activeCount, limit));
+            List: new EmployeeListState(
+                items,
+                usage.CurrentUsage,
+                usage.MaximumAllowed,
+                usage.Remaining,
+                usage.CanAdd));
     }
 
     public async Task<EmployeeResult> GetAsync(
@@ -212,13 +221,13 @@ public sealed class EmployeeService(
             return new EmployeeResult(EmployeeStatusCode.InvalidInput);
         }
 
-        var limit = context.Company.Subscription!.EmployeeLimit;
-        var activeCount = await db.Employees.CountAsync(
-            item => item.CompanyId == context.Company.Id && item.Status == EmployeeStatus.Active,
-            cancellationToken);
-        if (activeCount >= limit)
+        var usage = await Entitlements.GetActiveEmployeeUsage(context.Company.Id, cancellationToken);
+        if (!usage.CanAdd)
         {
-            return new EmployeeResult(EmployeeStatusCode.EmployeeLimitReached, EmployeeLimit: limit);
+            return new EmployeeResult(
+                EmployeeStatusCode.EmployeeLimitReached,
+                EmployeeLimit: usage.MaximumAllowed,
+                Usage: usage);
         }
 
         if (await CodeTakenAsync(context.Company.Id, employee.EmployeeCode, null, cancellationToken))
@@ -294,18 +303,16 @@ public sealed class EmployeeService(
             nextStatus = previousStatus;
         }
 
-        var limit = context.Company.Subscription!.EmployeeLimit;
         var becomingActive = previousStatus != EmployeeStatus.Active && nextStatus == EmployeeStatus.Active;
         if (becomingActive)
         {
-            var activeCount = await db.Employees.CountAsync(
-                item => item.CompanyId == context.Company.Id
-                    && item.Status == EmployeeStatus.Active
-                    && item.Id != employee.Id,
-                cancellationToken);
-            if (activeCount >= limit)
+            var usage = await Entitlements.GetActiveEmployeeUsage(context.Company.Id, cancellationToken);
+            if (!usage.CanAdd)
             {
-                return new EmployeeResult(EmployeeStatusCode.EmployeeLimitReached, EmployeeLimit: limit);
+                return new EmployeeResult(
+                    EmployeeStatusCode.EmployeeLimitReached,
+                    EmployeeLimit: usage.MaximumAllowed,
+                    Usage: usage);
             }
         }
 
@@ -376,7 +383,7 @@ public sealed class EmployeeService(
             return (EmployeeStatusCode.SetupIncomplete, company, company.Subscription?.EmployeeLimit);
         }
 
-        if (requireMutation && !SubscriptionMutationRules.CanMutate(company.Subscription?.Status))
+        if (requireMutation && !(await Entitlements.GetSnapshot(company.Id, cancellationToken)).CanWrite)
         {
             return (EmployeeStatusCode.SubscriptionReadOnly, company, company.Subscription?.EmployeeLimit);
         }
@@ -385,6 +392,8 @@ public sealed class EmployeeService(
     }
 
     private SalaryStructureService SalaryStructures => salaryStructures ?? new SalaryStructureService(db, tenant);
+
+    private IEntitlementService Entitlements => entitlements ?? new EntitlementService(db, tenant);
 
     private Task<bool> CodeTakenAsync(
         Guid companyId,

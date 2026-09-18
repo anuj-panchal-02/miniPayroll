@@ -1,4 +1,4 @@
-using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll;
 
 namespace MiniPayroll.Domain.Payroll.Statutory;
 
@@ -11,7 +11,8 @@ public static class StatutoryCalculator
         decimal pfWages,
         decimal esiWages,
         decimal ptWages,
-        IReadOnlyList<StatutoryOverride>? overrides)
+        IReadOnlyList<StatutoryOverride>? overrides,
+        IStatutoryRuleProvider? rules = null)
     {
         var overrideByKind = (overrides ?? [])
             .GroupBy(item => item.Kind)
@@ -20,11 +21,11 @@ public static class StatutoryCalculator
         var pfCovered = policy.PfApplicable && policy.PfCovered;
         var esiCovered = policy.EsiApplicable && policy.EsiCovered;
         var (pfEmployee, pfEmployer) = PfCalculator.Calculate(
-            pfWages, pfCovered, policy.PfUseWageCeiling, on);
-        var (esiEmployee, esiEmployer) = EsiCalculator.Calculate(esiWages, esiCovered, on);
+            pfWages, pfCovered, policy.PfUseWageCeiling, on, rules);
+        var (esiEmployee, esiEmployer) = EsiCalculator.Calculate(esiWages, esiCovered, on, rules);
         var pt = ProfessionalTaxCalculator.Calculate(
-            policy.CompanyState, policy.Gender, ptWages, month);
-        var lwf = LwfCalculator.Calculate(policy.CompanyState, month);
+            policy.CompanyState, policy.Gender, ptWages, month, on, rules);
+        var lwf = LwfCalculator.Calculate(policy.CompanyState, month, on, rules);
 
         return
         [
@@ -42,9 +43,6 @@ public static class StatutoryCalculator
         IReadOnlyDictionary<StatutoryKind, decimal> overrides)
     {
         var applied = overrides.TryGetValue(kind, out var amount) ? amount : computed;
-        return new StatutoryLineResult(kind, computed, Rupees(applied), employer);
+        return new StatutoryLineResult(kind, computed, PayrollMoney.Rupees(applied), employer);
     }
-
-    private static decimal Rupees(decimal amount) =>
-        decimal.Round(amount, 0, MidpointRounding.AwayFromZero);
 }

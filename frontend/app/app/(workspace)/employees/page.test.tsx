@@ -6,11 +6,13 @@ import EmployeesPage from "./page";
 
 const mocks = vi.hoisted(() => ({
   listEmployees: vi.fn(),
+  getEntitlements: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({
   EmployeeStatus: { Active: 0, Inactive: 1, Draft: 2 },
   listEmployees: mocks.listEmployees,
+  getEntitlements: mocks.getEntitlements,
 }));
 
 vi.mock("@/components/CompanyAdminShell", () => ({
@@ -22,6 +24,14 @@ describe("EmployeesPage", () => {
 
   beforeEach(() => {
     mocks.listEmployees.mockReset();
+    mocks.getEntitlements.mockReset().mockResolvedValue({
+      currentUsage: 0,
+      maximumAllowed: 9,
+      remaining: 9,
+      canAdd: true,
+      canRunPayroll: true,
+      enabledFeatures: ["PAYROLL"],
+    });
   });
 
   it("shows an empty state", async () => {

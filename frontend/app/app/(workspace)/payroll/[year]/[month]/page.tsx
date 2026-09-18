@@ -24,6 +24,8 @@ import {
 } from "@/components/PayrollExtrasDrawer";
 import {
   attendanceBalances,
+  attendanceWithinMonthBounds,
+  calendarDaysInMonth,
   parseQuantity,
   periodLabel,
   runStatusLabel,
@@ -34,6 +36,8 @@ type DraftRow = {
   employeeCode: string;
   fullName: string;
   hasStructure: boolean;
+  joiningDate: string | null;
+  exitDate: string | null;
   workingDays: string;
   present: string;
   paidLeave: string;
@@ -51,6 +55,8 @@ function toDraft(employee: PayrollRosterEmployee, workingDaysPerMonth: number): 
     employeeCode: employee.employeeCode,
     fullName: employee.fullName,
     hasStructure: employee.hasStructure,
+    joiningDate: employee.joiningDate,
+    exitDate: employee.exitDate,
     workingDays: String(working),
     present: String(attendance?.present ?? working),
     paidLeave: String(attendance?.paidLeave ?? 0),
@@ -81,11 +87,12 @@ function toDraft(employee: PayrollRosterEmployee, workingDaysPerMonth: number): 
   };
 }
 
-function buildPayload(rows: DraftRow[]): PayrollInputsPayload | string {
+function buildPayload(rows: DraftRow[], year: number, month: number): PayrollInputsPayload | string {
   const attendance = [];
   const overtime = [];
   const bonuses = [];
   const deductions = [];
+  const calendarDays = calendarDaysInMonth(year, month);
 
   for (const row of rows) {
     const working = parseQuantity(row.workingDays);
@@ -104,6 +111,26 @@ function buildPayload(rows: DraftRow[]): PayrollInputsPayload | string {
     }
     if (unpaidLeave == null || unpaidLeave < 0) {
       return `Enter valid unpaid leave for ${row.fullName}.`;
+    }
+    if (working > calendarDays) {
+      return `Working days cannot exceed ${calendarDays} calendar days for ${row.fullName}.`;
+    }
+    if (unpaidLeave > working) {
+      return `Unpaid leave cannot exceed working days for ${row.fullName}.`;
+    }
+    if (
+      !attendanceWithinMonthBounds(
+        working,
+        present,
+        paidLeave,
+        unpaidLeave,
+        year,
+        month,
+        row.joiningDate,
+        row.exitDate,
+      )
+    ) {
+      return `Unpaid leave cannot exceed days employed for ${row.fullName}.`;
     }
     if (!attendanceBalances(working, present, paidLeave, unpaidLeave)) {
       return `Attendance identity violated for ${row.fullName}.`;
@@ -176,6 +203,7 @@ export default function MonthlyInputsPage() {
   const params = useParams<{ year: string; month: string }>();
   const year = Number(params.year);
   const month = Number(params.month);
+  const calendarDays = calendarDaysInMonth(year, month);
   const [period, setPeriod] = useState<PayrollPeriodDetail | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [error, setError] = useState("");
@@ -286,7 +314,7 @@ export default function MonthlyInputsPage() {
 
   async function onSave() {
     if (!period?.run) return;
-    const payload = buildPayload(rows);
+    const payload = buildPayload(rows, year, month);
     if (typeof payload === "string") {
       toast.showError(payload);
       return;
@@ -465,7 +493,7 @@ export default function MonthlyInputsPage() {
                           type="number"
                           step="0.5"
                           min="0"
-                          max="31"
+                          max={calendarDays}
                           aria-label={`Working days for ${row.fullName}`}
                           value={row.workingDays}
                           disabled={locked}
@@ -480,7 +508,7 @@ export default function MonthlyInputsPage() {
                           type="number"
                           step="0.5"
                           min="0"
-                          max="31"
+                          max={calendarDays}
                           aria-label={`Present days for ${row.fullName}`}
                           value={row.present}
                           disabled={locked}
@@ -495,7 +523,7 @@ export default function MonthlyInputsPage() {
                           type="number"
                           step="0.5"
                           min="0"
-                          max="31"
+                          max={calendarDays}
                           aria-label={`Paid leave for ${row.fullName}`}
                           value={row.paidLeave}
                           disabled={locked}
@@ -510,7 +538,7 @@ export default function MonthlyInputsPage() {
                           type="number"
                           step="0.5"
                           min="0"
-                          max="31"
+                          max={calendarDays}
                           aria-label={`Unpaid leave for ${row.fullName}`}
                           value={row.unpaidLeave}
                           disabled={locked}

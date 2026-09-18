@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using MiniPayroll.Domain.Auth;
+using MiniPayroll.Domain.Billing;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Payroll;
 using MiniPayroll.Domain.Payroll.Statutory;
+using MiniPayroll.Domain.Subscriptions;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
@@ -59,13 +61,18 @@ public enum PayrollRunStatusCode
     DuplicateRun,
     NotFound,
     RunLocked,
-    InvalidInput,
+        InvalidInput,
     ConcurrencyConflict,
     NotCalculated,
-    Forbidden
+    SourceChanged,
+    Forbidden,
+    PriorPeriodUnpaid
 }
 
-public sealed record PayrollRunResult(PayrollRunStatusCode Status, PayrollRunDetail? Run = null);
+public sealed record PayrollRunResult(
+    PayrollRunStatusCode Status,
+    PayrollRunDetail? Run = null,
+    string? Error = null);
 
 public sealed record StatutoryOverrideInput(StatutoryKind Kind, decimal Amount);
 
@@ -73,7 +80,9 @@ public sealed record StatutoryOverridesPayload(IReadOnlyList<StatutoryOverrideIn
 
 public sealed class PayrollCalculationService(
     MiniPayrollDbContext db,
-    ITenantContext tenant)
+    ITenantContext tenant,
+    IEntitlementService? entitlements = null,
+    BillingService? billing = null)
 {
     public const string MissingAttendanceError = "Attendance not entered for this employee.";
 
@@ -92,6 +101,11 @@ public sealed class PayrollCalculationService(
         if (!period.IsValid)
         {
             return new PayrollRunResult(PayrollRunStatusCode.InvalidPeriod);
+        }
+
+        if (await PriorHoldAsync(context.Company, period, cancellationToken) is { } held)
+        {
+            return held;
         }
 
         if (await db.PayrollRuns.AnyAsync(
@@ -173,49 +187,24 @@ public sealed class PayrollCalculationService(
         {
             return new PayrollRunResult(PayrollRunStatusCode.NotFound);
         }
+        if (await PriorHoldAsync(company, new PayrollPeriod(run.Year, run.Month), cancellationToken) is { } calculateHold)
+        {
+            return calculateHold;
+        }
         if (run.Status is PayrollRunStatus.Finalized or PayrollRunStatus.Reversed)
         {
             return new PayrollRunResult(PayrollRunStatusCode.RunLocked);
         }
 
-        var period = new PayrollPeriod(run.Year, run.Month);
-
-        var attendanceByEmployee = await db.MonthlyAttendance
-            .Where(item => item.PayrollRunId == run.Id)
-            .ToDictionaryAsync(item => item.EmployeeId, cancellationToken);
-        var overtime = await db.Overtime
-            .Where(item => item.PayrollRunId == run.Id)
-            .ToListAsync(cancellationToken);
-        var bonuses = await db.Bonuses
-            .Where(item => item.PayrollRunId == run.Id)
-            .ToListAsync(cancellationToken);
-        var deductions = await db.Deductions
-            .Where(item => item.PayrollRunId == run.Id)
-            .ToListAsync(cancellationToken);
-        var statutoryOverrides = await db.PayrollStatutoryOverrides
-            .Where(item => item.PayrollRunId == run.Id)
-            .ToListAsync(cancellationToken);
-
-        var employees = (await db.Employees
-                .Where(employee => employee.CompanyId == company.Id
-                    && employee.Status != EmployeeStatus.Draft)
-                .OrderBy(employee => employee.EmployeeCode)
-                .ToListAsync(cancellationToken))
-            .Where(employee => PayrollEligibility.IsEligible(
-                employee.Status, employee.JoiningDate, employee.ExitDate, period))
-            .ToList();
-
-        var employeeIds = employees.Select(employee => employee.Id).ToList();
-        var structureByEmployee = (await db.SalaryStructures
-                .AsNoTracking()
-                .Include(structure => structure.Components)
-                .Where(structure => employeeIds.Contains(structure.EmployeeId)
-                    && structure.EffectiveFrom <= period.LastDay)
-                .ToListAsync(cancellationToken))
-            .GroupBy(structure => structure.EmployeeId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(structure => structure.EffectiveFrom).First());
+        var sources = await PayrollSourceLoader.LoadAsync(db, company.Id, run, cancellationToken);
+        var period = sources.Period;
+        var employees = sources.Employees;
+        var structureByEmployee = sources.Structures;
+        var attendanceByEmployee = sources.Attendance;
+        var overtime = sources.Overtime;
+        var bonuses = sources.Bonuses;
+        var deductions = sources.Deductions;
+        var statutoryOverrides = sources.Overrides;
 
         var (previousYear, previousMonth) = run.Month == 1
             ? (run.Year - 1, 12)
@@ -298,6 +287,17 @@ public sealed class PayrollCalculationService(
         var hasBlockingErrors = rows.Count == 0 || rows.Any(row => row.Errors is not null);
         run.Status = hasBlockingErrors ? PayrollRunStatus.Draft : PayrollRunStatus.Calculated;
         run.CalculatedAt = hasBlockingErrors ? null : DateTimeOffset.UtcNow;
+        SnapshotCompanyIdentity(run, company);
+        if (hasBlockingErrors)
+        {
+            PayrollSourceFingerprint.Clear(run);
+        }
+        else
+        {
+            PayrollSourceFingerprint.Apply(
+                run,
+                PayrollSourceLoader.Snapshot(run, company, sources));
+        }
 
         AddAudit(
             AuditActions.PayrollRunCalculate,
@@ -325,6 +325,10 @@ public sealed class PayrollCalculationService(
         if (run is null)
         {
             return new PayrollRunResult(PayrollRunStatusCode.NotFound);
+        }
+        if (await PriorHoldAsync(context.Company, new PayrollPeriod(run.Year, run.Month), cancellationToken) is { } overrideHold)
+        {
+            return overrideHold;
         }
         if (run.Status is PayrollRunStatus.Finalized or PayrollRunStatus.Reversed)
         {
@@ -385,6 +389,10 @@ public sealed class PayrollCalculationService(
         {
             return new PayrollRunResult(PayrollRunStatusCode.NotFound);
         }
+        if (await PriorHoldAsync(context.Company, new PayrollPeriod(run.Year, run.Month), cancellationToken) is { } finalizeHold)
+        {
+            return finalizeHold;
+        }
         if (run.Status is PayrollRunStatus.Finalized or PayrollRunStatus.Reversed)
         {
             return new PayrollRunResult(PayrollRunStatusCode.RunLocked);
@@ -404,21 +412,16 @@ public sealed class PayrollCalculationService(
             return new PayrollRunResult(PayrollRunStatusCode.NotCalculated);
         }
 
-        var employees = await db.Employees
-            .Where(employee => employee.CompanyId == context.Company.Id)
-            .ToDictionaryAsync(employee => employee.Id, cancellationToken);
+        var sources = await PayrollSourceLoader.LoadAsync(db, context.Company.Id, run, cancellationToken);
+        var live = PayrollSourceLoader.Snapshot(run, context.Company, sources);
+        if (PayrollSourceFingerprint.HasDrift(run.SourceFingerprint, live))
+        {
+            return new PayrollRunResult(PayrollRunStatusCode.SourceChanged);
+        }
 
         run.Status = PayrollRunStatus.Finalized;
         run.FinalizedAt = DateTimeOffset.UtcNow;
         run.FinalizedByUserId = tenant.UserId;
-        SnapshotCompanyIdentity(run, context.Company);
-        foreach (var row in rows)
-        {
-            if (employees.TryGetValue(row.EmployeeId, out var employee))
-            {
-                row.Designation = employee.Designation;
-            }
-        }
 
         AddAudit(AuditActions.PayrollRunFinalize, $"{run.Year}-{run.Month:D2}");
         try
@@ -667,12 +670,29 @@ public sealed class PayrollCalculationService(
         {
             return (PayrollRunStatusCode.SetupIncomplete, company);
         }
-        if (requireMutation && !SubscriptionMutationRules.CanMutate(company.Subscription?.Status))
+        if (requireMutation && !await Entitlements.CanRunPayroll(company.Id, cancellationToken))
         {
             return (PayrollRunStatusCode.SubscriptionReadOnly, company);
         }
         return (PayrollRunStatusCode.Success, company);
     }
+
+    private async Task<PayrollRunResult?> PriorHoldAsync(
+        Company company,
+        PayrollPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var hold = await Billing.GetPriorPeriodHoldAsync(company.Id, period, cancellationToken);
+        return hold.IsHeld
+            ? new PayrollRunResult(
+                PayrollRunStatusCode.PriorPeriodUnpaid,
+                Error: PriorPeriodBillingHold.Message(hold.PeriodKey))
+            : null;
+    }
+
+    private IEntitlementService Entitlements => entitlements ?? new EntitlementService(db, tenant);
+
+    private BillingService Billing => billing ?? new BillingService(db, tenant);
 
     private void AddAudit(string action, string details)
     {

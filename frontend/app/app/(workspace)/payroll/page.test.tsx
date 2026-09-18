@@ -98,6 +98,24 @@ describe("PayrollPage", () => {
     expect(mocks.push).toHaveBeenCalledWith(expect.stringMatching(/^\/app\/payroll\/\d+\/\d+$/));
   });
 
+  it("disables start when the previous billing period is unpaid", async () => {
+    mocks.getPayrollPeriod.mockResolvedValue({
+      year: 2026,
+      month: 9,
+      workingDaysPerMonth: 26,
+      run: null,
+      employees: [employee],
+      results: [],
+      totals: null,
+      billingHoldPeriod: "2026-08",
+    });
+
+    render(<PayrollPage />);
+
+    expect(await screen.findByText(/Pay August 2026 before starting/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /start payroll/i })).toHaveProperty("disabled", true);
+  });
+
   it("links to inputs and review when a run exists", async () => {
     mocks.getPayrollPeriod.mockResolvedValue({
       year: 2026,

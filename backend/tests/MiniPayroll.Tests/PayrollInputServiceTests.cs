@@ -150,6 +150,34 @@ public sealed class PayrollInputServiceTests
     }
 
     [Fact]
+    public async Task Attendance_outside_month_or_employment_bounds_is_rejected()
+    {
+        var fixture = await FixtureAsync();
+        await using var db = fixture.Db;
+        var augustRun = (await fixture.Payroll.CreateRunAsync(Year, Month)).Run!.Id;
+        var februaryRun = (await fixture.Payroll.CreateRunAsync(2026, 2)).Run!.Id;
+
+        var thirtyTwoDays = await fixture.Inputs.SaveInputsAsync(
+            augustRun, Payload(fixture.Employee.Id, working: 32, present: 32));
+        var unpaidAboveWorking = await fixture.Inputs.SaveInputsAsync(
+            augustRun, Payload(fixture.Employee.Id, working: 26, present: 0, paid: 0, unpaid: 27));
+        var februaryThirty = await fixture.Inputs.SaveInputsAsync(
+            februaryRun, Payload(fixture.Employee.Id, working: 30, present: 30));
+
+        var employee = await db.Employees.SingleAsync(item => item.Id == fixture.Employee.Id);
+        employee.JoiningDate = new DateOnly(2026, 8, 28);
+        await db.SaveChangesAsync();
+        var unpaidAboveEmployed = await fixture.Inputs.SaveInputsAsync(
+            augustRun, Payload(fixture.Employee.Id, working: 26, present: 16, paid: 0, unpaid: 10));
+
+        Assert.Equal(PayrollRunStatusCode.InvalidInput, thirtyTwoDays.Status);
+        Assert.Equal(PayrollRunStatusCode.InvalidInput, unpaidAboveWorking.Status);
+        Assert.Equal(PayrollRunStatusCode.InvalidInput, februaryThirty.Status);
+        Assert.Equal(PayrollRunStatusCode.InvalidInput, unpaidAboveEmployed.Status);
+        Assert.Equal(0, await db.MonthlyAttendance.CountAsync());
+    }
+
+    [Fact]
     public async Task Saving_inputs_on_a_calculated_run_returns_it_to_draft_and_keeps_results()
     {
         var fixture = await FixtureAsync();

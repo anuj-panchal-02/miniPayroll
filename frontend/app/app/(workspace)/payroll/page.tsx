@@ -15,7 +15,7 @@ import { Field } from "@/components/ui/Field";
 import { FieldGroup } from "@/components/ui/FieldGroup";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { MONTH_LABELS, periodLabel, runStatusLabel } from "@/lib/payroll";
+import { MONTH_LABELS, billingHoldMessage, periodLabel, runStatusLabel } from "@/lib/payroll";
 
 function currentPeriod() {
   const now = new Date();
@@ -103,6 +103,8 @@ export default function PayrollPage() {
     }
   }
 
+  const holdPeriod = period?.billingHoldPeriod ?? null;
+  const holdMessage = holdPeriod ? billingHoldMessage(holdPeriod, year, month) : "";
   const selectedLabel = periodLabel(year, month);
 
   return (
@@ -136,7 +138,7 @@ export default function PayrollPage() {
           />
         </Field>
       </FieldGroup>
-      <Alert>{error || null}</Alert>
+      <Alert>{error || holdMessage || null}</Alert>
       {loading && !period ? (
         <div className="space-y-4 py-4" role="status">
           <div className="mp-kpi-grid">
@@ -185,7 +187,13 @@ export default function PayrollPage() {
                   </Link>
                 </>
               ) : (
-                <Button type="button" onClick={() => void onStart()} loading={busy} loadingLabel="Starting…">
+                <Button
+                  type="button"
+                  onClick={() => void onStart()}
+                  loading={busy}
+                  loadingLabel="Starting…"
+                  disabled={Boolean(holdPeriod)}
+                >
                   Start payroll
                 </Button>
               )}

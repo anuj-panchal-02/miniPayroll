@@ -52,7 +52,11 @@ public static class EmployeeEndpoints
         return Results.Json(
             new EmployeeError(
                 ErrorMessage(result.Status, result.EmployeeLimit),
-                result.EmployeeLimit),
+                result.EmployeeLimit,
+                result.Usage?.CurrentUsage,
+                result.Usage?.MaximumAllowed,
+                result.Usage?.Remaining,
+                result.Usage?.CanAdd),
             statusCode: EmployeeHttpStatus.For(result.Status));
     }
 
@@ -90,4 +94,10 @@ public static class EmployeeHttpStatus
         };
 }
 
-public sealed record EmployeeError(string Error, int? EmployeeLimit);
+public sealed record EmployeeError(
+    string Error,
+    int? EmployeeLimit,
+    int? CurrentUsage = null,
+    int? MaximumAllowed = null,
+    int? Remaining = null,
+    bool? CanAdd = null);

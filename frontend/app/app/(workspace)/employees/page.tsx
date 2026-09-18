@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { EmployeeStatus, listEmployees, type EmployeeListState } from "@/lib/api";
+import {
+  EmployeeStatus,
+  getEntitlements,
+  listEmployees,
+  type EmployeeListState,
+  type Entitlements,
+} from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
 import { ListPager, usePager } from "@/components/ui/ListPager";
 import { ListToolbar } from "@/components/ui/ListToolbar";
@@ -21,6 +27,7 @@ function statusLabel(status: EmployeeStatus): string {
 
 export default function EmployeesPage() {
   const [state, setState] = useState<EmployeeListState | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -30,9 +37,13 @@ export default function EmployeesPage() {
     let cancelled = false;
     async function load() {
       try {
-        const list = await listEmployees();
+        const [list, loadedEntitlements] = await Promise.all([
+          listEmployees(),
+          getEntitlements().catch(() => null),
+        ]);
         if (!cancelled) {
           setState(list);
+          setEntitlements(loadedEntitlements);
           setError("");
         }
       } catch (reason) {
@@ -71,9 +82,9 @@ export default function EmployeesPage() {
   const filtering = Boolean(query.trim()) || status !== "all";
   const resultText = `${filtered.length} ${filtered.length === 1 ? "employee" : "employees"}`;
 
-  const activeCount = state?.activeCount ?? 0;
-  const employeeLimit = state?.employeeLimit ?? 0;
-  const seatsRemaining = Math.max(0, employeeLimit - activeCount);
+  const activeCount = entitlements?.currentUsage ?? state?.activeCount ?? 0;
+  const employeeLimit = entitlements?.maximumAllowed ?? state?.employeeLimit ?? 0;
+  const seatsRemaining = entitlements?.remaining ?? state?.remaining;
   const draftCount = (state?.employees ?? []).filter(
     (employee) => employee.status === EmployeeStatus.Draft,
   ).length;
@@ -87,7 +98,7 @@ export default function EmployeesPage() {
         </Link>
         <p>
           {state
-            ? `${state.activeCount} / ${state.employeeLimit} active seats.`
+            ? `${activeCount} / ${employeeLimit} active seats.`
             : "People on this company payroll."}
         </p>
       </header>
@@ -124,7 +135,9 @@ export default function EmployeesPage() {
               </div>
               <div className="mp-kpi-card">
                 <span className="mp-kpi-card__label">Seats</span>
-                <span className="mp-kpi-card__value">{seatsRemaining}</span>
+                <span className="mp-kpi-card__value">
+                  {seatsRemaining ?? "—"}
+                </span>
                 <span className="mp-kpi-card__subtext">
                   {seatsRemaining === 1 ? "seat remaining" : "seats remaining"}
                 </span>

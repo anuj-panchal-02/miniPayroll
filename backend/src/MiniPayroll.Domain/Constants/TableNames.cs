@@ -14,9 +14,16 @@ public static class TableNames
 
     public const string Company = "mp_TblCompany";
     public const string Plan = "mp_TblPlan";
+    public const string PlanPrice = "mp_TblPlanPrice";
+    public const string PlanFeature = "mp_TblPlanFeature";
     public const string Subscription = "mp_TblSubscription";
+    public const string SubscriptionEvent = "mp_TblSubscriptionEvent";
     public const string Payment = "mp_TblPayment";
     public const string BillingPeriod = "mp_TblBillingPeriod";
+    public const string Invoice = "mp_TblInvoice";
+    public const string InvoiceLine = "mp_TblInvoiceLine";
+    public const string PaymentIntent = "mp_TblPaymentIntent";
+    public const string PaymentProviderEvent = "mp_TblPaymentProviderEvent";
     public const string AuditLog = "mp_TblAuditLog";
     public const string Employee = "mp_TblEmployee";
     public const string SalaryComponent = "mp_TblSalaryComponent";
@@ -38,7 +45,7 @@ public static class TableNames
     public static readonly IReadOnlyList<string> All =
     [
         User, Role, UserRole, UserClaim, RoleClaim, UserLogin, UserToken,
-        Company, Plan, Subscription, Payment, BillingPeriod, AuditLog, Employee, SalaryComponent,
+        Company, Plan, PlanPrice, PlanFeature, Subscription, SubscriptionEvent, Payment, BillingPeriod, Invoice, InvoiceLine, PaymentIntent, PaymentProviderEvent, AuditLog, Employee, SalaryComponent,
         SalaryStructure, EmployeeSalaryComponent, PlatformState, PlatformCity,
         PayrollRun, MonthlyAttendance, Overtime, Bonus, Deduction,
         PayrollEmployee, PayrollEarning, PayrollDeduction, PayrollStatutoryOverride

@@ -119,4 +119,36 @@ describe("SalaryStructurePanel", () => {
     expect(await screen.findByRole("heading", { name: "Current structure" })).toBeTruthy();
     expect(screen.getAllByText("₹25,000").length).toBeGreaterThan(0);
   });
+
+  it("blocks saving a revision on a date that already exists", async () => {
+    mocks.listSalaryStructures.mockResolvedValue([
+      {
+        id: "sal-1",
+        employeeId: "abc",
+        effectiveFrom: "2026-08-01",
+        createdAt: "2026-08-01T00:00:00Z",
+        recurringEarnings: 20000,
+        recurringDeductions: 0,
+        components: [
+          {
+            id: "c-1",
+            name: "Basic Salary",
+            type: 0,
+            valueType: 0,
+            value: 20000,
+            sortOrder: 0,
+          },
+        ],
+      },
+    ]);
+    render(<SalaryStructurePanel employee={{ ...employee, joiningDate: "2026-08-01" }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add salary revision" }));
+    const dateValue = document.querySelector("input.mp-date-value");
+    expect(dateValue).toBeTruthy();
+    fireEvent.change(dateValue!, { target: { value: "2026-08-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save salary revision" }));
+
+    expect(mocks.createSalaryStructure).not.toHaveBeenCalled();
+    expect(await screen.findByText(/already exists for this effective date/i)).toBeTruthy();
+  });
 });

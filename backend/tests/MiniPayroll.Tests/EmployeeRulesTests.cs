@@ -41,6 +41,21 @@ public class EmployeeRulesTests
         Assert.True(EmployeeRules.IsValid(ValidEmployee()));
     }
 
+    [Fact]
+    public void Active_employee_requires_male_or_female_gender()
+    {
+        var employee = ValidEmployee();
+        employee.Gender = null;
+
+        Assert.False(EmployeeRules.IsValid(employee));
+
+        employee.Gender = Gender.Male;
+        Assert.True(EmployeeRules.IsValid(employee));
+
+        employee.Gender = Gender.Female;
+        Assert.True(EmployeeRules.IsValid(employee));
+    }
+
     [Theory]
     [InlineData("E")]
     [InlineData("EMP 01")]

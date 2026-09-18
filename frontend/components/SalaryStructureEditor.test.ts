@@ -47,6 +47,13 @@ describe("salary structure editor", () => {
     });
   });
 
+  it("rejects a date that already has a structure", () => {
+    const fields = newSalaryStructureFields("2026-08-01");
+    fields.components[0].value = "23000";
+
+    expect(salaryStructureError(fields, "2026-08-01", ["2026-08-01"])).toMatch(/already exists/i);
+  });
+
   it("rejects statutory amount lines on the structure", () => {
     const fields = newSalaryStructureFields("2026-01-15");
     fields.components[0].value = "25000";

@@ -29,9 +29,16 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
 
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Plan> Plans => Set<Plan>();
+    public DbSet<PlanPrice> PlanPrices => Set<PlanPrice>();
+    public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SubscriptionEvent> SubscriptionEvents => Set<SubscriptionEvent>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<BillingPeriodSnapshot> BillingPeriods => Set<BillingPeriodSnapshot>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<PaymentIntent> PaymentIntents => Set<PaymentIntent>();
+    public DbSet<PaymentProviderEvent> PaymentProviderEvents => Set<PaymentProviderEvent>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<SalaryComponent> SalaryComponents => Set<SalaryComponent>();
@@ -86,6 +93,8 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .HasDefaultValue(CompanySetupStep.CompanyDetails)
                 .IsRequired();
             entity.Property(c => c.WeeklyOffDays).HasMaxLength(100).IsRequired();
+            entity.Property(c => c.PfApplicable).HasDefaultValue(false);
+            entity.Property(c => c.EsiApplicable).HasDefaultValue(false);
             entity.Property(c => c.PfEstablishmentCode).HasMaxLength(50);
             entity.Property(c => c.EsiCode).HasMaxLength(50);
             entity.Property(c => c.RowVersion).IsRowVersion();
@@ -95,16 +104,62 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
 
         builder.Entity<Plan>(entity =>
         {
-            entity.ToTable(TableNames.Plan);
+            entity.ToTable(TableNames.Plan, table =>
+            {
+                table.HasCheckConstraint("CK_mp_TblPlan_TrialDays", "[TrialDays] >= 0");
+                table.HasCheckConstraint("CK_mp_TblPlan_MaxActiveEmployees", "[MaxActiveEmployees] >= 1");
+            });
+            entity.Property(p => p.Code).HasMaxLength(50).IsRequired();
             entity.Property(p => p.Name).HasMaxLength(100).IsRequired();
+            entity.Property(p => p.Description).HasMaxLength(500);
             entity.Property(p => p.PricePerEmployee).HasColumnType("decimal(18,2)");
+            entity.HasIndex(p => p.Code).IsUnique();
             entity.HasIndex(p => p.Name).IsUnique();
+        });
+
+        builder.Entity<PlanPrice>(entity =>
+        {
+            entity.ToTable(TableNames.PlanPrice, table =>
+            {
+                table.HasCheckConstraint("CK_mp_TblPlanPrice_Amount", "[Amount] >= 0");
+                table.HasCheckConstraint(
+                    "CK_mp_TblPlanPrice_Window",
+                    "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+            });
+            entity.Property(p => p.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(p => p.Currency).HasMaxLength(3).IsRequired();
+            entity.HasIndex(p => new { p.PlanId, p.BillingCycle, p.EffectiveFrom });
+            entity.HasIndex(p => new { p.PlanId, p.BillingCycle })
+                .IsUnique()
+                .HasFilter("[IsActive] = 1 AND [EffectiveTo] IS NULL");
+            entity.HasOne(p => p.Plan)
+                .WithMany(plan => plan.Prices)
+                .HasForeignKey(p => p.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<PlanFeature>(entity =>
+        {
+            entity.ToTable(TableNames.PlanFeature);
+            entity.Property(f => f.Code).HasMaxLength(50).IsRequired();
+            entity.Property(f => f.Limit);
+            entity.HasIndex(f => new { f.PlanId, f.Code }).IsUnique();
+            entity.HasOne(f => f.Plan)
+                .WithMany(plan => plan.Features)
+                .HasForeignKey(f => f.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<Subscription>(entity =>
         {
-            entity.ToTable(TableNames.Subscription);
+            entity.ToTable(TableNames.Subscription, table =>
+            {
+                table.HasCheckConstraint("CK_mp_TblSubscription_BillingCycle", "[BillingCycle] IN (0, 1)");
+                table.HasCheckConstraint("CK_mp_TblSubscription_Status", "[Status] IN (0, 1, 2, 3, 4, 5, 6)");
+            });
             entity.HasIndex(s => s.CompanyId).IsUnique();
+            entity.HasIndex(s => s.Status);
+            entity.HasIndex(s => s.NextBillingDate);
             entity.HasOne(s => s.Company)
                 .WithOne(c => c.Subscription)
                 .HasForeignKey<Subscription>(s => s.CompanyId)
@@ -114,6 +169,22 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .HasForeignKey(s => s.PlanId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(s => _tenant.IsSuperadmin || s.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<SubscriptionEvent>(entity =>
+        {
+            entity.ToTable(TableNames.SubscriptionEvent);
+            entity.HasIndex(e => new { e.SubscriptionId, e.OccurredAt });
+            entity.HasIndex(e => new { e.CompanyId, e.OccurredAt });
+            entity.HasOne(e => e.Subscription)
+                .WithMany(s => s.Events)
+                .HasForeignKey(e => e.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Company>()
+                .WithMany()
+                .HasForeignKey(e => e.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(e => _tenant.IsSuperadmin || e.CompanyId == _tenant.CompanyId);
         });
 
         builder.Entity<Payment>(entity =>
@@ -151,6 +222,98 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(period =>
                 _tenant.IsSuperadmin || period.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<Invoice>(entity =>
+        {
+            entity.ToTable(TableNames.Invoice);
+            entity.Property(invoice => invoice.InvoiceNumber).HasMaxLength(20);
+            entity.Property(invoice => invoice.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(invoice => invoice.ExternalInvoiceId).HasMaxLength(100);
+            entity.Property(invoice => invoice.Subtotal).HasColumnType("decimal(18,2)");
+            entity.Property(invoice => invoice.Tax).HasColumnType("decimal(18,2)");
+            entity.Property(invoice => invoice.Total).HasColumnType("decimal(18,2)");
+            entity.Property(invoice => invoice.AmountPaid).HasColumnType("decimal(18,2)");
+            entity.HasIndex(invoice => invoice.InvoiceNumber)
+                .IsUnique()
+                .HasFilter("[InvoiceNumber] IS NOT NULL");
+            entity.HasIndex(invoice => new { invoice.CompanyId, invoice.PeriodStart, invoice.PeriodEnd })
+                .IsUnique()
+                .HasFilter("[Status] <> 6");
+            entity.HasOne(invoice => invoice.Company)
+                .WithMany()
+                .HasForeignKey(invoice => invoice.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(invoice => invoice.Subscription)
+                .WithMany(subscription => subscription.Invoices)
+                .HasForeignKey(invoice => invoice.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(invoice =>
+                _tenant.IsSuperadmin || invoice.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<InvoiceLine>(entity =>
+        {
+            entity.ToTable(TableNames.InvoiceLine);
+            entity.Property(line => line.Description).HasMaxLength(200).IsRequired();
+            entity.Property(line => line.Quantity).HasColumnType("decimal(18,2)");
+            entity.Property(line => line.UnitPrice).HasColumnType("decimal(18,2)");
+            entity.Property(line => line.Amount).HasColumnType("decimal(18,2)");
+            entity.HasOne(line => line.Invoice)
+                .WithMany(invoice => invoice.Lines)
+                .HasForeignKey(line => line.InvoiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Company>()
+                .WithMany()
+                .HasForeignKey(line => line.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(line =>
+                _tenant.IsSuperadmin || line.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<PaymentIntent>(entity =>
+        {
+            entity.ToTable(TableNames.PaymentIntent);
+            entity.Property(intent => intent.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(intent => intent.IdempotencyKey).HasMaxLength(100).IsRequired();
+            entity.Property(intent => intent.ProviderOrderId).HasMaxLength(64);
+            entity.Property(intent => intent.ProviderPaymentId).HasMaxLength(64);
+            entity.Property(intent => intent.ProviderSubscriptionId).HasMaxLength(64);
+            entity.Property(intent => intent.Amount).HasColumnType("decimal(18,2)");
+            entity.HasIndex(intent => intent.IdempotencyKey).IsUnique();
+            entity.HasIndex(intent => intent.ProviderOrderId)
+                .IsUnique()
+                .HasFilter("[ProviderOrderId] IS NOT NULL");
+            entity.HasOne(intent => intent.Company)
+                .WithMany()
+                .HasForeignKey(intent => intent.CompanyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(intent => intent.Subscription)
+                .WithMany()
+                .HasForeignKey(intent => intent.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(intent => intent.Invoice)
+                .WithMany()
+                .HasForeignKey(intent => intent.InvoiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(intent =>
+                _tenant.IsSuperadmin || intent.CompanyId == _tenant.CompanyId);
+        });
+
+        builder.Entity<PaymentProviderEvent>(entity =>
+        {
+            entity.ToTable(TableNames.PaymentProviderEvent);
+            entity.Property(item => item.Provider).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.ExternalEventId).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.PayloadHash).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Error).HasMaxLength(500);
+            entity.HasIndex(item => item.ExternalEventId).IsUnique();
+            entity.HasOne(item => item.Intent)
+                .WithMany()
+                .HasForeignKey(item => item.IntentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(item =>
+                _tenant.IsSuperadmin || item.CompanyId == _tenant.CompanyId);
         });
 
         builder.Entity<AuditLog>(entity =>
@@ -196,6 +359,8 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.Property(e => e.UpiId).HasMaxLength(100);
             entity.Property(e => e.OvertimeRate).HasColumnType("decimal(18,2)");
             entity.Property(e => e.Uan).HasMaxLength(12);
+            entity.Property(e => e.PfCovered).HasDefaultValue(false);
+            entity.Property(e => e.EsiCovered).HasDefaultValue(false);
             entity.Property(e => e.PfNumber).HasMaxLength(50);
             entity.Property(e => e.EsiNumber).HasMaxLength(50);
             entity.HasIndex(e => new { e.CompanyId, e.EmployeeCode }).IsUnique();
@@ -284,6 +449,7 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.Property(run => run.PfEstablishmentCode).HasMaxLength(CompanySetupRules.EstablishmentCodeMaxLength);
             entity.Property(run => run.EsiCode).HasMaxLength(CompanySetupRules.EstablishmentCodeMaxLength);
             entity.Property(run => run.ReversalReason).HasMaxLength(500);
+            entity.Property(run => run.SourceFingerprint).HasMaxLength(64);
             entity.Property(run => run.RowVersion).IsRowVersion();
             // Only one non-reversed run per company per period (PRD §20).
             entity.HasIndex(run => new { run.CompanyId, run.Year, run.Month })

@@ -85,12 +85,12 @@ public static class PayrollEndpoints
     private static IResult ToHttp(PayrollRunResult result) =>
         result.Status == PayrollRunStatusCode.Success
             ? Results.Ok(result.Run)
-            : Error(result.Status);
+            : Error(result.Status, result.Error);
 
     private static IResult ToHttp(PayrollPeriodResult result) =>
         result.Status == PayrollRunStatusCode.Success
             ? Results.Ok(result.Period)
-            : Error(result.Status);
+            : Error(result.Status, result.Error);
 
     private static IResult ToHttp(PayrollHistoryResult result) =>
         result.Status == PayrollRunStatusCode.Success
@@ -102,8 +102,8 @@ public static class PayrollEndpoints
             ? Results.File(result.File.Content, "application/pdf", result.File.FileName)
             : Error(result.Status);
 
-    private static IResult Error(PayrollRunStatusCode status) =>
-        Results.Json(new { error = ErrorMessage(status) },
+    private static IResult Error(PayrollRunStatusCode status, string? error = null) =>
+        Results.Json(new { error = error ?? ErrorMessage(status) },
             statusCode: PayrollHttpStatus.For(status));
 
     private static string ErrorMessage(PayrollRunStatusCode status) => status switch
@@ -116,8 +116,10 @@ public static class PayrollEndpoints
         PayrollRunStatusCode.Forbidden => "You are not allowed to perform this action.",
         PayrollRunStatusCode.RunLocked => "This payroll run is finalized or reversed and cannot be changed.",
         PayrollRunStatusCode.ConcurrencyConflict => "This payroll run was changed by someone else. Reload and try again.",
+        PayrollRunStatusCode.SourceChanged => "Employee, salary, or statutory data changed after calculate. Recalculate before finalizing.",
         PayrollRunStatusCode.SetupIncomplete => "Complete company setup before running payroll.",
         PayrollRunStatusCode.SubscriptionReadOnly => "This company cannot run payroll right now.",
+        PayrollRunStatusCode.PriorPeriodUnpaid => "The previous subscription period is unpaid.",
         PayrollRunStatusCode.CompanyNotFound => "The tenant company was not found.",
         _ => "The payroll request could not be completed."
     };
@@ -133,8 +135,10 @@ public static class PayrollHttpStatus
         PayrollRunStatusCode.DuplicateRun or PayrollRunStatusCode.RunLocked
             or PayrollRunStatusCode.NotCalculated
             or PayrollRunStatusCode.ConcurrencyConflict
+            or PayrollRunStatusCode.SourceChanged
             or PayrollRunStatusCode.SetupIncomplete
-            or PayrollRunStatusCode.SubscriptionReadOnly => StatusCodes.Status409Conflict,
+            or PayrollRunStatusCode.SubscriptionReadOnly
+            or PayrollRunStatusCode.PriorPeriodUnpaid => StatusCodes.Status409Conflict,
         PayrollRunStatusCode.Forbidden => StatusCodes.Status403Forbidden,
         _ => StatusCodes.Status500InternalServerError
     };

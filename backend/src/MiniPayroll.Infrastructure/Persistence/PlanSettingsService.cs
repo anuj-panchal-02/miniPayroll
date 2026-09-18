@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using MiniPayroll.Domain.Billing;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
+using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Subscriptions;
 using MiniPayroll.Domain.Tenancy;
 
 namespace MiniPayroll.Infrastructure.Persistence;
@@ -53,7 +55,8 @@ public sealed class PlanSettingsService(MiniPayrollDbContext db, ITenantContext 
             return new PlanSettingsResult(PlanSettingsStatus.NotFound);
         }
 
-        plan.PricePerEmployee = pricePerEmployee;
+        var price = PlanPricing.Revise(plan, BillingCycle.Monthly, pricePerEmployee, DateTimeOffset.UtcNow);
+        db.PlanPrices.Add(price);
         db.AuditLogs.Add(new AuditLog
         {
             Id = Guid.NewGuid(),
@@ -67,9 +70,11 @@ public sealed class PlanSettingsService(MiniPayrollDbContext db, ITenantContext 
     }
 
     private Task<Plan?> LoadBasicAsync(CancellationToken cancellationToken) =>
-        db.Plans.SingleOrDefaultAsync(
-            plan => plan.Name == PlatformLimits.DefaultPlanName,
-            cancellationToken);
+        db.Plans
+            .Include(plan => plan.Prices)
+            .SingleOrDefaultAsync(
+                plan => plan.Code == PlatformLimits.DefaultPlanCode,
+                cancellationToken);
 
     private static PlatformPlan ToPlan(Plan plan) =>
         new(plan.Id, plan.Name, plan.PricePerEmployee);
