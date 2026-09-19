@@ -67,6 +67,21 @@ body {
   padding-inline: max(0px, env(safe-area-inset-left)) max(0px, env(safe-area-inset-right));
 }
 
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-rule);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral);
+}
+
 button,
 input,
 select,
@@ -76,7 +91,7 @@ textarea {
 }
 
 ::selection {
-  background: color-mix(in oklch, var(--color-accent) 22%, var(--color-paper));
+  background: color-mix(in oklch, var(--color-accent) 30%, var(--color-paper));
   color: var(--color-ink);
 }
 

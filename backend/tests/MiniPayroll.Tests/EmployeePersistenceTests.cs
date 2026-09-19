@@ -45,6 +45,49 @@ public class EmployeePersistenceTests
     }
 
     [Fact]
+    public void Converter_returns_empty_when_payload_cannot_be_unprotected()
+    {
+        var directory = Directory.CreateTempSubdirectory("mp-decrypt-");
+        try
+        {
+            var protector = DataProtectionProvider.Create(directory)
+                .CreateProtector(EncryptedStringConverter.Purpose);
+            var converter = new EncryptedStringConverter(protector);
+
+            var plain = converter.ConvertFromProvider("CfDJ8-not-a-valid-payload");
+
+            Assert.Equal(string.Empty, plain);
+        }
+        finally
+        {
+            directory.Delete(true);
+        }
+    }
+
+    [Fact]
+    public void Converter_returns_empty_when_ciphertext_was_protected_by_another_key_ring()
+    {
+        var left = Directory.CreateTempSubdirectory("mp-decrypt-left-");
+        var right = Directory.CreateTempSubdirectory("mp-decrypt-right-");
+        try
+        {
+            var foreignCipher = DataProtectionProvider.Create(left)
+                .CreateProtector(EncryptedStringConverter.Purpose)
+                .Protect("123456789012");
+            var converter = new EncryptedStringConverter(
+                DataProtectionProvider.Create(right)
+                    .CreateProtector(EncryptedStringConverter.Purpose));
+
+            Assert.Equal(string.Empty, converter.ConvertFromProvider(foreignCipher));
+        }
+        finally
+        {
+            left.Delete(true);
+            right.Delete(true);
+        }
+    }
+
+    [Fact]
     public void Ifsc_column_is_wide_enough_for_data_protection_ciphertext()
     {
         using var db = TestDb.Create(NullTenantContext.Instance);

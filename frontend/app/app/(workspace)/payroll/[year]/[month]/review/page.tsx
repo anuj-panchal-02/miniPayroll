@@ -218,6 +218,7 @@ export default function PayrollReviewPage() {
           {period?.run ? ` · ${runStatusLabel(period.run.status)}` : ""}.
         </p>
       </header>
+      <div className="sa-stack">
 
       <Alert>{error || null}</Alert>
 
@@ -290,7 +291,7 @@ export default function PayrollReviewPage() {
             </div>
           ) : null}
 
-          <section className="sa-payroll-card" aria-label={`${periodLabel(year, month)} review`}>
+          <section className="sa-card" aria-label={`${periodLabel(year, month)} review`}>
             <h2 className="sa-payroll-card__title">{periodLabel(year, month)}</h2>
             <p className="sa-payroll-card__lede">
               {locked
@@ -331,8 +332,9 @@ export default function PayrollReviewPage() {
           {period.results.length === 0 ? (
             <p className="sa-empty">Calculate payroll to see gross, deductions, and net by employee.</p>
           ) : (
-            <Table className="sa-payroll-review mt-6" aria-label="Payroll results">
-              <TableHeader>
+            <div className="sa-card" style={{ padding: 0, overflow: 'hidden' }}>
+              <Table className="sa-payroll-review" aria-label="Payroll results">
+                <TableHeader>
                 <TableRow>
                   <TableHead className="text-left">Employee</TableHead>
                   <TableHead className="sa-payroll-review__num text-right">Gross</TableHead>
@@ -431,7 +433,7 @@ export default function PayrollReviewPage() {
                                     <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Deductions</h4>
                                     <StatutoryDeductionList
                                       employee={employee}
-                                      runId={period.run.id}
+                                      runId={period.run!.id}
                                       locked={locked}
                                       busy={busy}
                                       onSaved={load}
@@ -479,6 +481,7 @@ export default function PayrollReviewPage() {
                 </TableFooter>
               ) : null}
             </Table>
+            </div>
           )}
         </>
       )}
@@ -493,6 +496,7 @@ export default function PayrollReviewPage() {
         confirmLoading={busy}
         confirmLoadingLabel="Finalizing…"
       />
+      </div>
     </main>
   );
 }

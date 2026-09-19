@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using MiniPayroll.Domain.Billing;
 using MiniPayroll.Domain.Billing.Payments;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
@@ -32,7 +33,11 @@ public sealed record PaymentReconciliationResult(
     string? ProviderOrderId = null,
     string? ProviderPaymentId = null,
     string? ProviderSubscriptionId = null,
-    string? Error = null);
+    string? Error = null,
+    string? ProviderPaymentLinkId = null,
+    Guid? InvoiceId = null,
+    decimal? Amount = null,
+    string? BillingPeriod = null);
 
 public sealed class PaymentReconciliationService(
     MiniPayrollDbContext db,
@@ -114,6 +119,173 @@ public sealed class PaymentReconciliationService(
             checkout.ClientKey,
             checkout.ProviderOrderId,
             checkout.ProviderPaymentId);
+    }
+
+    public async Task<PaymentReconciliationResult> StartPaymentLinkAsync(
+        Guid companyId,
+        string billingPeriod,
+        CancellationToken cancellationToken = default)
+    {
+        if (!tenant.IsSuperadmin)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.Forbidden,
+                Error: "Only Superadmin can create payment links.");
+        }
+
+        if (!BillingCalculator.TryParsePeriod(billingPeriod, out var period))
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.InvalidInput,
+                Error: "Billing period is invalid.");
+        }
+
+        var billing = new BillingService(db, tenant, time ?? TimeProvider.System);
+        var loaded = await billing.GetAsync(companyId, cancellationToken);
+        if (loaded.Status != BillingStatusCode.Success || loaded.Billing is null)
+        {
+            return loaded.Status == BillingStatusCode.CompanyNotFound
+                ? new PaymentReconciliationResult(
+                    PaymentReconciliationStatus.CompanyNotFound,
+                    Error: "The company was not found.")
+                : new PaymentReconciliationResult(
+                    PaymentReconciliationStatus.Forbidden,
+                    Error: "You are not allowed to create payment links.");
+        }
+
+        var key = BillingCalculator.FormatPeriod(period);
+        var summary = loaded.Billing.Periods.FirstOrDefault(item => item.BillingPeriod == key);
+        if (summary is null)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.InvalidInput,
+                Error: "Choose a billing period from activation through this month.");
+        }
+
+        if (summary.Remaining <= 0)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.InvalidInput,
+                Error: "This billing period has nothing remaining to collect.");
+        }
+
+        if (summary.BillableEmployees <= 0)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.InvalidInput,
+                Error: "This billing period has no billable employees.");
+        }
+
+        var baseKey = $"plink:{companyId:D}:{key}";
+        var existing = await IntentByKeyAsync(baseKey, cancellationToken);
+        if (existing is { Status: PaymentIntentStatus.Created }
+            && existing.CheckoutUrl is not null
+            && existing.Amount == summary.Remaining)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.Success,
+                existing.CheckoutUrl,
+                ProviderPaymentLinkId: existing.ProviderPaymentLinkId,
+                InvoiceId: existing.InvoiceId,
+                Amount: existing.Amount,
+                BillingPeriod: key);
+        }
+
+        var idempotencyKey = existing is null || existing.Amount == summary.Remaining
+            ? baseKey
+            : $"{baseKey}:{Now().ToUnixTimeSeconds()}";
+
+        var ensured = await invoices.EnsureIssuedForPeriodAsync(
+            companyId,
+            period,
+            summary.BillableEmployees,
+            summary.AmountDue,
+            summary.PaidAmount,
+            cancellationToken);
+        if (ensured.Status != InvoiceCommandStatus.Success || ensured.Invoice is null)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.InvalidInput,
+                Error: "Could not prepare an invoice for this billing period.");
+        }
+
+        var invoice = ensured.Invoice;
+        var openOnInvoice = invoice.Total - invoice.AmountPaid;
+        var amount = Math.Min(summary.Remaining, openOnInvoice);
+        if (amount <= 0)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.InvalidInput,
+                Error: "This billing period has nothing remaining to collect.");
+        }
+
+        var company = await LoadCompanyAsync(companyId, cancellationToken);
+        if (company?.Subscription is null)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.CompanyNotFound,
+                Error: "The company was not found.");
+        }
+
+        var replay = await IntentByKeyAsync(idempotencyKey, cancellationToken);
+        if (replay is { Status: PaymentIntentStatus.Created, CheckoutUrl: not null }
+            && replay.Amount == amount)
+        {
+            return new PaymentReconciliationResult(
+                PaymentReconciliationStatus.Duplicate,
+                replay.CheckoutUrl,
+                ProviderPaymentLinkId: replay.ProviderPaymentLinkId,
+                InvoiceId: replay.InvoiceId,
+                Amount: replay.Amount,
+                BillingPeriod: key);
+        }
+
+        var now = Now();
+        var intent = new PaymentIntent
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.Id,
+            SubscriptionId = company.Subscription.Id,
+            InvoiceId = invoice.Id,
+            Amount = amount,
+            Currency = invoice.Currency,
+            IdempotencyKey = idempotencyKey,
+            Status = PaymentIntentStatus.Created,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.PaymentIntents.Add(intent);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var link = await gateway.CreatePaymentLinkAsync(
+            new PaymentLinkRequest(
+                company.Id,
+                amount,
+                intent.Currency,
+                idempotencyKey,
+                invoice.Id,
+                key,
+                $"miniPayroll {key}"),
+            cancellationToken);
+        if (link.Status is not PaymentProviderStatus.Succeeded and not PaymentProviderStatus.Duplicate)
+        {
+            return FromProvider(link.Status, link.Error);
+        }
+
+        intent.ProviderPaymentLinkId = link.ProviderPaymentLinkId;
+        intent.CheckoutUrl = link.CheckoutUrl;
+        intent.UpdatedAt = Now();
+        await db.SaveChangesAsync(cancellationToken);
+
+        return new PaymentReconciliationResult(
+            link.Status == PaymentProviderStatus.Duplicate
+                ? PaymentReconciliationStatus.Duplicate
+                : PaymentReconciliationStatus.Success,
+            link.CheckoutUrl,
+            ProviderPaymentLinkId: link.ProviderPaymentLinkId,
+            InvoiceId: invoice.Id,
+            Amount: amount,
+            BillingPeriod: key);
     }
 
     public async Task<PaymentReconciliationResult> VerifyAsync(
@@ -293,6 +465,7 @@ public sealed class PaymentReconciliationService(
             webhook.ProviderOrderId,
             webhook.ProviderPaymentId,
             webhook.ProviderSubscriptionId,
+            webhook.ProviderPaymentLinkId,
             cancellationToken);
         if (stored is null)
         {
@@ -349,7 +522,8 @@ public sealed class PaymentReconciliationService(
                     Currency: webhook.Currency,
                     ProviderOrderId: webhook.ProviderOrderId,
                     ProviderSubscriptionId: webhook.ProviderSubscriptionId,
-                    CompanyId: webhook.CompanyId),
+                    CompanyId: webhook.CompanyId,
+                    ProviderPaymentLinkId: webhook.ProviderPaymentLinkId),
                 persist: false,
                 cancellationToken),
             PaymentWebhookEventType.PaymentFailed => await ApplyPaymentFailedAsync(intent, webhook, cancellationToken),
@@ -460,11 +634,14 @@ public sealed class PaymentReconciliationService(
                 verified.ProviderOrderId,
                 verified.ProviderPaymentId,
                 verified.ProviderSubscriptionId,
+                verified.ProviderPaymentLinkId,
                 cancellationToken);
             if (failed is not null && failed.Status != PaymentIntentStatus.Verified)
             {
                 failed.Status = PaymentIntentStatus.Failed;
                 failed.ProviderPaymentId ??= verified.ProviderPaymentId;
+                failed.ProviderPaymentLinkId ??= verified.ProviderPaymentLinkId;
+                failed.ProviderOrderId ??= verified.ProviderOrderId;
                 failed.UpdatedAt = Now();
                 if (persist)
                 {
@@ -479,6 +656,7 @@ public sealed class PaymentReconciliationService(
             verified.ProviderOrderId,
             verified.ProviderPaymentId,
             verified.ProviderSubscriptionId,
+            verified.ProviderPaymentLinkId,
             cancellationToken);
         if (intent is null)
         {
@@ -526,6 +704,7 @@ public sealed class PaymentReconciliationService(
         intent.ProviderPaymentId ??= verified.ProviderPaymentId;
         intent.ProviderOrderId ??= verified.ProviderOrderId;
         intent.ProviderSubscriptionId ??= verified.ProviderSubscriptionId;
+        intent.ProviderPaymentLinkId ??= verified.ProviderPaymentLinkId;
 
         if (intent.InvoiceId is { } invoiceId)
         {
@@ -690,8 +869,20 @@ public sealed class PaymentReconciliationService(
         string? orderId,
         string? paymentId,
         string? subscriptionId,
+        string? paymentLinkId,
         CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(paymentLinkId))
+        {
+            var byLink = await Intents().FirstOrDefaultAsync(
+                item => item.ProviderPaymentLinkId == paymentLinkId,
+                cancellationToken);
+            if (byLink is not null)
+            {
+                return byLink;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(orderId))
         {
             var byOrder = await Intents().FirstOrDefaultAsync(item => item.ProviderOrderId == orderId, cancellationToken);
@@ -723,9 +914,13 @@ public sealed class PaymentReconciliationService(
     private static PaymentReconciliationResult Replay(PaymentIntent intent) =>
         new(
             PaymentReconciliationStatus.Duplicate,
+            intent.CheckoutUrl,
             ProviderOrderId: intent.ProviderOrderId,
             ProviderPaymentId: intent.ProviderPaymentId,
-            ProviderSubscriptionId: intent.ProviderSubscriptionId);
+            ProviderSubscriptionId: intent.ProviderSubscriptionId,
+            ProviderPaymentLinkId: intent.ProviderPaymentLinkId,
+            InvoiceId: intent.InvoiceId,
+            Amount: intent.Amount);
 
     private static PaymentReconciliationResult FromProvider(PaymentProviderStatus status, string? error) =>
         new(

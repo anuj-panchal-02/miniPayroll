@@ -267,7 +267,7 @@
 @media (hover: hover) {
   .mp-field__well:not(.is-inactive):not(.is-disabled):not(.is-error):not(:has(:disabled)):not(:has([aria-invalid="true"])):hover {
     border-color: var(--color-rule-2);
-    box-shadow: none;
+    box-shadow: 0 2px 8px oklch(18% 0.01 260 / 0.03);
   }
 }
 
@@ -686,7 +686,7 @@
 .setup-button:active,
 .sa-dialog__cancel:active,
 .sa-dialog__confirm:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
 .mp-btn:disabled,
@@ -1304,11 +1304,12 @@
 .mp-kpi-card {
   display: grid;
   gap: var(--space-3xs);
-  padding: var(--space-md);
+  padding: var(--space-lg);
   border: 1px solid var(--color-rule);
-  border-radius: var(--radius-input);
+  border-radius: var(--radius-xl);
   background: var(--color-paper);
-  box-shadow: var(--shadow-whisper);
+  box-shadow: 0 4px 20px oklch(18% 0.01 260 / 0.03);
+  transition: box-shadow var(--dur-hover) var(--ease-out), transform var(--dur-hover) var(--ease-out);
 }
 
 .mp-kpi-card__label {

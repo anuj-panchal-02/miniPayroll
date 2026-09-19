@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: oklch(99% 0.005 260);
+        color: oklch(18% 0.01 260);
+        font-family: 'Inter', system-ui, sans-serif;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+      
+      .scene {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        opacity: 0;
+      }
+
+      /* Scene 1 */
+      #scene-1 .hook-text {
+        font-size: 80px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+      .accent {
+        color: oklch(62% 0.2 150);
+      }
+
+      /* Scene 2 */
+      #scene-2 {
+        font-size: 64px;
+        font-weight: 500;
+        text-align: center;
+        padding: 0 200px;
+      }
+      #bloat-text {
+        color: oklch(45% 0.01 260);
+        position: relative;
+      }
+      #bloat-strike {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 0%;
+        height: 6px;
+        background: oklch(52% 0.18 25); /* error red */
+        transform: translateY(-50%);
+      }
+      #clean-text {
+        margin-top: 40px;
+        font-size: 72px;
+        font-weight: 600;
+        opacity: 0;
+      }
+
+      /* Scene 3 */
+      #scene-3 {
+        padding: 100px;
+        align-items: center;
+        justify-content: center;
+      }
+      .ui-window {
+        width: 1400px;
+        height: 800px;
+        background: #fff;
+        border: 2px solid oklch(90% 0.01 260);
+        border-radius: 16px;
+        box-shadow: 0 12px 32px oklch(18% 0.01 260 / 0.08);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .ui-header {
+        height: 80px;
+        border-bottom: 2px solid oklch(90% 0.01 260);
+        display: flex;
+        align-items: center;
+        padding: 0 40px;
+        font-size: 24px;
+        font-weight: 600;
+        background: oklch(97% 0.01 260);
+      }
+      .ui-table {
+        flex: 1;
+        padding: 40px;
+      }
+      .ui-row {
+        display: flex;
+        align-items: center;
+        padding: 24px 0;
+        border-bottom: 1px solid oklch(90% 0.01 260);
+        font-size: 20px;
+      }
+      .ui-col-name { flex: 2; font-weight: 600; }
+      .ui-col-present { flex: 1; color: oklch(45% 0.01 260); }
+      .ui-col-leave { flex: 1; color: oklch(45% 0.01 260); }
+      .ui-col-status { flex: 1; display: flex; justify-content: flex-end; }
+      
+      .badge-draft {
+        background: oklch(90% 0.01 260);
+        color: oklch(45% 0.01 260);
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .badge-locked {
+        background: oklch(94% 0.03 150);
+        color: oklch(46% 0.11 150);
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 16px;
+        font-weight: 600;
+        display: none;
+      }
+      
+      #cursor {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 32px;
+        height: 32px;
+        background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="black" stroke="white" stroke-width="2"><path d="M5.5 3L18 15.5l-5.5 1 4 5-3 1.5-4-5-4.5 4.5V3z"/></svg>') no-repeat center center;
+        z-index: 100;
+        opacity: 0;
+      }
+
+      /* Scene 4 */
+      #scene-4 .outro-text {
+        font-size: 96px;
+        font-weight: 600;
+        letter-spacing: -0.04em;
+        margin-bottom: 40px;
+      }
+      #scene-4 .logo {
+        font-size: 48px;
+        font-weight: 600;
+        color: oklch(62% 0.2 150);
+        opacity: 0;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="18"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Music -->
+      <audio id="music" data-start="0" data-duration="18" data-track-index="0" data-volume="0.8" src="assets/music/happy-beats-business-moves-vol-1-by-ende-dot-app.mp3"></audio>
+
+      <!-- Scene 1: Hook -->
+      <div id="scene-1" class="scene clip" data-start="0" data-duration="4" data-track-index="1">
+        <div class="hook-text">Payroll suites got <span class="accent">too large</span>.</div>
+      </div>
+
+      <!-- Scene 2: The Bloat -->
+      <div id="scene-2" class="scene clip" data-start="3.5" data-duration="4.5" data-track-index="2">
+        <div id="bloat-text">
+          HR, leave, tax, and modules nobody opens.
+          <div id="bloat-strike"></div>
+        </div>
+        <div id="clean-text">Attendance in. Figures out.<br>Payslips in hand.</div>
+      </div>
+
+      <!-- Scene 3: The Process -->
+      <div id="scene-3" class="scene clip" data-start="7" data-duration="7" data-track-index="3">
+        <div class="ui-window">
+          <div class="ui-header">
+            Monthly Inputs
+          </div>
+          <div class="ui-table">
+            <div class="ui-row">
+              <div class="ui-col-name">Rajesh Kumar</div>
+              <div class="ui-col-present">22 Days</div>
+              <div class="ui-col-leave">0 Days</div>
+              <div class="ui-col-status">
+                <div class="badge-draft">Draft</div>
+                <div class="badge-locked">Locked</div>
+              </div>
+            </div>
+            <div class="ui-row">
+              <div class="ui-col-name">Anjali Sharma</div>
+              <div class="ui-col-present">20 Days</div>
+              <div class="ui-col-leave">2 Days</div>
+              <div class="ui-col-status">
+                <div class="badge-draft">Draft</div>
+                <div class="badge-locked">Locked</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="cursor"></div>
+      </div>
+
+      <!-- Scene 4: Outro -->
+      <div id="scene-4" class="scene clip" data-start="13" data-duration="5" data-track-index="4">
+        <div class="outro-text">Payroll without the suite.</div>
+        <div class="logo">miniPayroll</div>
+      </div>
+    </div>
+    
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+
+      // Scene 1
+      tl.to("#scene-1", { opacity: 1, duration: 0.5 }, 0);
+      tl.from("#scene-1 .hook-text", { y: 20, opacity: 0, duration: 0.8, ease: "power2.out" }, 0.2);
+      tl.to("#scene-1", { opacity: 0, duration: 0.5 }, 3.5);
+
+      // Scene 2
+      tl.to("#scene-2", { opacity: 1, duration: 0.5 }, 3.5);
+      tl.from("#bloat-text", { y: 20, opacity: 0, duration: 0.6, ease: "power2.out" }, 3.7);
+      tl.to("#bloat-strike", { width: "100%", duration: 0.4, ease: "power2.inOut" }, 4.5);
+      tl.to("#bloat-text", { opacity: 0.3, duration: 0.3 }, 4.7);
+      tl.to("#clean-text", { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" }, 5.0);
+      tl.to("#scene-2", { opacity: 0, duration: 0.5 }, 7.0);
+
+      // Scene 3
+      tl.to("#scene-3", { opacity: 1, duration: 0.5 }, 7.0);
+      tl.from(".ui-window", { scale: 0.95, y: 40, opacity: 0, duration: 0.8, ease: "power3.out" }, 7.2);
+      
+      // Cursor animation
+      tl.to("#cursor", { opacity: 1, duration: 0.3 }, 7.8);
+      tl.fromTo("#cursor", { x: 800, y: 800 }, { x: 1400, y: 350, duration: 1.2, ease: "power2.inOut" }, 7.8);
+      
+      // Click simulation 1
+      tl.to("#cursor", { scale: 0.8, duration: 0.1 }, 9.0);
+      tl.to("#cursor", { scale: 1, duration: 0.1 }, 9.1);
+      
+      tl.to(".ui-row:nth-child(1) .badge-draft", { display: "none", duration: 0 }, 9.1);
+      tl.to(".ui-row:nth-child(1) .badge-locked", { display: "block", duration: 0 }, 9.1);
+      tl.from(".ui-row:nth-child(1) .badge-locked", { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 9.1);
+      
+      // Cursor move 2
+      tl.to("#cursor", { x: 1400, y: 430, duration: 0.8, ease: "power2.inOut" }, 9.8);
+      
+      // Click simulation 2
+      tl.to("#cursor", { scale: 0.8, duration: 0.1 }, 10.6);
+      tl.to("#cursor", { scale: 1, duration: 0.1 }, 10.7);
+      
+      tl.to(".ui-row:nth-child(2) .badge-draft", { display: "none", duration: 0 }, 10.7);
+      tl.to(".ui-row:nth-child(2) .badge-locked", { display: "block", duration: 0 }, 10.7);
+      tl.from(".ui-row:nth-child(2) .badge-locked", { scale: 0.8, opacity: 0, duration: 0.3, ease: "back.out(2)" }, 10.7);
+
+      tl.to("#cursor", { opacity: 0, duration: 0.3 }, 11.5);
+      tl.to("#scene-3", { opacity: 0, duration: 0.5 }, 13.0);
+
+      // Scene 4
+      tl.to("#scene-4", { opacity: 1, duration: 0.5 }, 13.0);
+      tl.from("#scene-4 .outro-text", { opacity: 0, y: 20, duration: 0.8, ease: "power2.out" }, 13.2);
+      tl.to("#scene-4 .logo", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.5)" }, 14.5);
+
+      tl.to("#scene-4", { opacity: 0, duration: 1 }, 17.0); // fade out to black/bg
+
+      tl.seek(0);
+    </script>
+  </body>
+</html>

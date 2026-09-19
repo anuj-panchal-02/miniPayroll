@@ -41,7 +41,8 @@ public sealed record BillingPeriodSummary(
     bool IsPastGrace,
     decimal PaidAmount,
     decimal Remaining,
-    IReadOnlyList<BillingPaymentItem> Payments);
+    IReadOnlyList<BillingPaymentItem> Payments,
+    string? PaymentLinkUrl = null);
 
 public sealed record CompanyBilling(
     string PlanName,
@@ -391,6 +392,28 @@ public sealed class BillingService
         if (created)
         {
             await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var openLinks = await db.PaymentIntents
+            .AsNoTracking()
+            .Where(intent => intent.CompanyId == company.Id
+                && intent.Status == PaymentIntentStatus.Created
+                && intent.CheckoutUrl != null
+                && intent.ProviderPaymentLinkId != null)
+            .OrderByDescending(intent => intent.CreatedAt)
+            .ToListAsync(cancellationToken);
+        if (openLinks.Count > 0)
+        {
+            summaries = summaries
+                .Select(summary =>
+                {
+                    var prefix = $"plink:{company.Id:D}:{summary.BillingPeriod}";
+                    var link = openLinks.FirstOrDefault(intent =>
+                        intent.IdempotencyKey == prefix
+                        || intent.IdempotencyKey.StartsWith(prefix + ":", StringComparison.Ordinal));
+                    return link is null ? summary : summary with { PaymentLinkUrl = link.CheckoutUrl };
+                })
+                .ToList();
         }
 
         return new CompanyBilling(planName, price, grace, summaries);

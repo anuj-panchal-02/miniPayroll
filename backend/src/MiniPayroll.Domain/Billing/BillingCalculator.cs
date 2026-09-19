@@ -65,16 +65,10 @@ public static class BillingCalculator
         DateTimeOffset? activatedAt)
     {
         var full = pricePerEmployee * billableEmployees;
-        if (!TryProrationFactor(period, activatedAt, out var factor))
-        {
-            return Round(full);
-        }
-
-        return Round(full * factor);
+        return Round(full);
     }
 
-    public static bool IsProrated(PayrollPeriod period, DateTimeOffset? activatedAt) =>
-        TryProrationFactor(period, activatedAt, out var factor) && factor < 1m;
+    public static bool IsProrated(PayrollPeriod period, DateTimeOffset? activatedAt) => false;
 
     public static PayrollPeriod CalendarMonth(DateTimeOffset utcNow) =>
         new(utcNow.UtcDateTime.Year, utcNow.UtcDateTime.Month);
@@ -151,27 +145,7 @@ public static class BillingCalculator
         DateTimeOffset utcNow) =>
         remaining > 0 && utcNow > dueDate.AddDays(Math.Max(gracePeriodDays, 0));
 
-    private static bool TryProrationFactor(
-        PayrollPeriod period,
-        DateTimeOffset? activatedAt,
-        out decimal factor)
-    {
-        factor = 1m;
-        if (activatedAt is not { } activated)
-        {
-            return false;
-        }
 
-        var activationDate = DateOnly.FromDateTime(activated.UtcDateTime);
-        if (activationDate < period.FirstDay || activationDate > period.LastDay)
-        {
-            return false;
-        }
-
-        var remainingDays = period.LastDay.DayNumber - activationDate.DayNumber + 1;
-        factor = remainingDays / (decimal)period.CalendarDays;
-        return true;
-    }
 
     public static int Compare(PayrollPeriod left, PayrollPeriod right) =>
         left.Year != right.Year ? left.Year.CompareTo(right.Year) : left.Month.CompareTo(right.Month);

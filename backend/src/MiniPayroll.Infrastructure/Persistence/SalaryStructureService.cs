@@ -21,6 +21,15 @@ public sealed record SalaryStructureInput(
     DateOnly? EffectiveFrom,
     IReadOnlyList<SalaryStructureComponentInput>? Components);
 
+public sealed record BulkSalaryStructureInput(
+    string? EmployeeCode,
+    DateOnly? EffectiveFrom,
+    IReadOnlyList<SalaryStructureComponentInput>? Components);
+
+public sealed record BulkSalaryStructureResult(
+    SalaryStructureStatusCode Status,
+    string? ErrorMessage = null);
+
 public sealed record SalaryStructureComponentDetail(
     Guid Id,
     string Name,
@@ -158,6 +167,101 @@ public sealed class SalaryStructureService(
         AddAudit(employee.EmployeeCode, structure.EffectiveFrom);
         await db.SaveChangesAsync(cancellationToken);
         return new SalaryStructureResult(SalaryStructureStatusCode.Success, ToDetail(structure));
+    }
+
+    public async Task<BulkSalaryStructureResult> BulkCreateAsync(
+        List<BulkSalaryStructureInput>? inputs,
+        CancellationToken cancellationToken = default)
+    {
+        if (inputs is null || inputs.Count == 0)
+        {
+            return new BulkSalaryStructureResult(SalaryStructureStatusCode.InvalidInput);
+        }
+
+        var context = await GetContextAsync(true, cancellationToken);
+        if (context.Status != SalaryStructureStatusCode.Success || context.Company is null)
+        {
+            return new BulkSalaryStructureResult(context.Status);
+        }
+
+        var usage = await Entitlements.GetActiveEmployeeUsage(context.Company.Id, cancellationToken);
+        var remainingCapacity = usage.CanAdd ? usage.Remaining : 0;
+
+        var employeeCodes = inputs.Select(i => i.EmployeeCode).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList();
+        var employees = await db.Employees
+            .Where(e => e.CompanyId == context.Company.Id && employeeCodes.Contains(e.EmployeeCode))
+            .ToDictionaryAsync(e => e.EmployeeCode, e => e, cancellationToken);
+
+        foreach (var input in inputs)
+        {
+            if (string.IsNullOrWhiteSpace(input.EmployeeCode) || !employees.TryGetValue(input.EmployeeCode, out var employee))
+            {
+                return new BulkSalaryStructureResult(SalaryStructureStatusCode.EmployeeNotFound, $"Employee Code '{input.EmployeeCode}' not found.");
+            }
+
+            var structureInput = new SalaryStructureInput(input.EffectiveFrom, input.Components);
+            
+            if (structureInput.EffectiveFrom < employee.JoiningDate)
+            {
+                return new BulkSalaryStructureResult(SalaryStructureStatusCode.InvalidInput, $"Effective date ({structureInput.EffectiveFrom}) cannot be before joining date ({employee.JoiningDate}) for '{input.EmployeeCode}'.");
+            }
+
+            if (!IsValid(structureInput, employee.JoiningDate))
+            {
+                return new BulkSalaryStructureResult(SalaryStructureStatusCode.InvalidInput, $"Invalid salary structure for Employee Code '{input.EmployeeCode}'. Include one fixed Basic Salary and valid component values.");
+            }
+
+            if (await db.SalaryStructures.AnyAsync(
+                structure => structure.EmployeeId == employee.Id
+                    && structure.EffectiveFrom == structureInput.EffectiveFrom!.Value,
+                cancellationToken))
+            {
+                return new BulkSalaryStructureResult(SalaryStructureStatusCode.DuplicateEffectiveDate, $"A salary structure already exists for '{input.EmployeeCode}' on this effective date.");
+            }
+
+            var structure = await AddStructureAsync(employee, structureInput, cancellationToken);
+            AddAudit(employee.EmployeeCode, structure.EffectiveFrom);
+
+            if (employee.Status == EmployeeStatus.Draft)
+            {
+                var originalStatus = employee.Status;
+                var originalDraftStep = employee.DraftStep;
+
+                employee.Status = EmployeeStatus.Active;
+                employee.DraftStep = null;
+
+                if (EmployeeRules.IsValid(employee) 
+                    && await LocationCatalogLookups.HasActivePairAsync(db, employee.State, employee.City, cancellationToken))
+                {
+                    if (remainingCapacity > 0)
+                    {
+                        remainingCapacity--;
+                        db.AuditLogs.Add(new AuditLog
+                        {
+                            Id = Guid.NewGuid(),
+                            CompanyId = tenant.CompanyId,
+                            ActorUserId = tenant.UserId,
+                            Action = AuditActions.EmployeeUpdate,
+                            Details = employee.EmployeeCode,
+                            OccurredAt = DateTimeOffset.UtcNow
+                        });
+                    }
+                    else
+                    {
+                        employee.Status = originalStatus;
+                        employee.DraftStep = originalDraftStep;
+                    }
+                }
+                else
+                {
+                    employee.Status = originalStatus;
+                    employee.DraftStep = originalDraftStep;
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return new BulkSalaryStructureResult(SalaryStructureStatusCode.Success);
     }
 
     public async Task<bool> AddInitialStructureAsync(

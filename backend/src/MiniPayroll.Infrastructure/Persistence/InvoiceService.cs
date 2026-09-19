@@ -3,6 +3,7 @@ using MiniPayroll.Domain.Billing;
 using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
+using MiniPayroll.Domain.Payroll;
 using MiniPayroll.Domain.Subscriptions;
 using MiniPayroll.Domain.Tenancy;
 
@@ -216,6 +217,111 @@ public sealed class InvoiceService(
         }
 
         db.AuditLogs.Add(Audit(companyId, AuditActions.InvoiceIssue, Now()));
+        await db.SaveChangesAsync(cancellationToken);
+        return new InvoiceCommandResult(InvoiceCommandStatus.Success, ToResponse(invoice));
+    }
+
+    public async Task<InvoiceCommandResult> EnsureIssuedForPeriodAsync(
+        Guid companyId,
+        PayrollPeriod period,
+        int billableEmployees,
+        decimal amountDue,
+        decimal recordedPaid,
+        CancellationToken cancellationToken = default)
+    {
+        if (!tenant.IsSuperadmin)
+        {
+            return new InvoiceCommandResult(InvoiceCommandStatus.Forbidden);
+        }
+
+        if (!period.IsValid || billableEmployees <= 0 || amountDue <= 0)
+        {
+            return new InvoiceCommandResult(InvoiceCommandStatus.InvalidInput);
+        }
+
+        var company = await LoadCompanyAsync(companyId, cancellationToken);
+        if (company?.Subscription is null)
+        {
+            return new InvoiceCommandResult(InvoiceCommandStatus.CompanyNotFound);
+        }
+
+        var start = new DateTimeOffset(period.Year, period.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var endExclusive = period.Month == 12
+            ? new DateTimeOffset(period.Year + 1, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            : new DateTimeOffset(period.Year, period.Month + 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var end = endExclusive.AddSeconds(-1);
+
+        var existing = await Query(companyId)
+            .Include(item => item.Lines)
+            .Where(invoice => invoice.PeriodStart >= start
+                && invoice.PeriodStart < endExclusive
+                && invoice.Status != InvoiceStatus.Void
+                && invoice.Status != InvoiceStatus.Refunded)
+            .OrderByDescending(invoice => invoice.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        Invoice invoice;
+        if (existing is not null)
+        {
+            if (existing.Status == InvoiceStatus.Paid)
+            {
+                return new InvoiceCommandResult(InvoiceCommandStatus.InvalidInput, ToResponse(existing));
+            }
+
+            invoice = existing;
+            if (invoice.Status == InvoiceStatus.Draft)
+            {
+                var year = Now().Year;
+                var numbers = await db.Invoices
+                    .IgnoreQueryFilters()
+                    .Where(item => item.InvoiceNumber != null)
+                    .Select(item => item.InvoiceNumber!)
+                    .ToListAsync(cancellationToken);
+                var number = InvoiceNumbering.Format(year, InvoiceNumbering.NextSequence(numbers, year));
+                var issued = InvoiceLifecycle.Issue(invoice, number, Now());
+                if (issued.Status != InvoiceLifecycleStatus.Success)
+                {
+                    return new InvoiceCommandResult(Map(issued.Status));
+                }
+
+                db.AuditLogs.Add(Audit(companyId, AuditActions.InvoiceIssue, Now()));
+            }
+        }
+        else
+        {
+            var created = await CreateAsync(companyId, start, end, billableEmployees, cancellationToken);
+            if (created.Status != InvoiceCommandStatus.Success || created.Invoice is null)
+            {
+                return created;
+            }
+
+            var issued = await IssueAsync(companyId, created.Invoice.Id, cancellationToken);
+            if (issued.Status != InvoiceCommandStatus.Success || issued.Invoice is null)
+            {
+                return issued;
+            }
+
+            invoice = await Query(companyId)
+                .Include(item => item.Lines)
+                .FirstAsync(item => item.Id == created.Invoice.Id, cancellationToken);
+        }
+
+        var syncPaid = Math.Min(recordedPaid, invoice.Total) - invoice.AmountPaid;
+        if (syncPaid > 0)
+        {
+            var applied = InvoiceLifecycle.ApplyPayment(invoice, syncPaid, Now());
+            if (applied.Status != InvoiceLifecycleStatus.Success)
+            {
+                return new InvoiceCommandResult(Map(applied.Status));
+            }
+        }
+
+        if (InvoiceStatusTransitions.CanExecute(invoice.Status, InvoiceCommand.MarkPaymentPending))
+        {
+            InvoiceLifecycle.MarkPaymentPending(invoice);
+            db.AuditLogs.Add(Audit(companyId, AuditActions.InvoicePaymentPending, Now()));
+        }
+
         await db.SaveChangesAsync(cancellationToken);
         return new InvoiceCommandResult(InvoiceCommandStatus.Success, ToResponse(invoice));
     }

@@ -12,6 +12,20 @@ public sealed record RazorpayOrderRecord(
     string Currency,
     IReadOnlyDictionary<string, string> Notes);
 
+public sealed record RazorpayPaymentLinkCreateRequest(
+    int AmountPaise,
+    string Currency,
+    string Description,
+    string ReferenceId,
+    IReadOnlyDictionary<string, string> Notes);
+
+public sealed record RazorpayPaymentLinkRecord(
+    string Id,
+    string ShortUrl,
+    int AmountPaise,
+    string Currency,
+    IReadOnlyDictionary<string, string> Notes);
+
 public sealed record RazorpayPaymentRecord(
     string Id,
     string? OrderId,

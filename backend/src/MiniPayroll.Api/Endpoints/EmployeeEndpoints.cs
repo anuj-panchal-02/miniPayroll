@@ -14,6 +14,7 @@ public static class EmployeeEndpoints
         group.MapGet(string.Empty, List);
         group.MapGet("/{id:guid}", Get);
         group.MapPost(string.Empty, Create);
+        group.MapPost("/bulk", BulkCreate);
         group.MapPatch("/{id:guid}", Update);
         return routes;
     }
@@ -35,6 +36,12 @@ public static class EmployeeEndpoints
         CancellationToken cancellationToken) =>
         ToHttp(await employees.CreateAsync(input, cancellationToken));
 
+    private static async Task<IResult> BulkCreate(
+        List<EmployeeInput>? input,
+        EmployeeService employees,
+        CancellationToken cancellationToken) =>
+        ToHttp(await employees.BulkCreateAsync(input, cancellationToken));
+
     private static async Task<IResult> Update(
         Guid id,
         EmployeeInput? input,
@@ -51,7 +58,7 @@ public static class EmployeeEndpoints
 
         return Results.Json(
             new EmployeeError(
-                ErrorMessage(result.Status, result.EmployeeLimit),
+                result.ErrorMessage ?? ErrorMessage(result.Status, result.EmployeeLimit),
                 result.EmployeeLimit,
                 result.Usage?.CurrentUsage,
                 result.Usage?.MaximumAllowed,

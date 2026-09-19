@@ -6,6 +6,7 @@ public sealed class FakePaymentProvider : IPaymentProvider
 {
     private readonly Queue<PaymentProviderStatus> outcomes = new();
     private readonly Dictionary<string, PaymentCheckoutResult> checkouts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PaymentLinkResult> paymentLinks = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PaymentRecurringResult> recurring = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PaymentCancelRecurringResult> cancellations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PaymentVerificationResult> payments = new(StringComparer.Ordinal);
@@ -53,6 +54,37 @@ public sealed class FakePaymentProvider : IPaymentProvider
         }
 
         checkouts[request.IdempotencyKey] = result;
+        return Task.FromResult(result);
+    }
+
+    public Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (paymentLinks.TryGetValue(request.IdempotencyKey, out var existing))
+        {
+            return Task.FromResult(existing with { Status = PaymentProviderStatus.Duplicate });
+        }
+
+        var outcome = Dequeue();
+        var result = outcome switch
+        {
+            PaymentProviderStatus.Succeeded => new PaymentLinkResult(
+                PaymentProviderStatus.Succeeded,
+                $"https://rzp.io/i/{NextId("plink")}",
+                NextId("plink")),
+            PaymentProviderStatus.Failed => new PaymentLinkResult(
+                PaymentProviderStatus.Failed,
+                Error: "Payment link failed."),
+            PaymentProviderStatus.Timeout => new PaymentLinkResult(
+                PaymentProviderStatus.Timeout,
+                Error: "Payment link timed out."),
+            _ => new PaymentLinkResult(
+                PaymentProviderStatus.Unavailable,
+                Error: "Payment provider unavailable.")
+        };
+        paymentLinks[request.IdempotencyKey] = result;
         return Task.FromResult(result);
     }
 

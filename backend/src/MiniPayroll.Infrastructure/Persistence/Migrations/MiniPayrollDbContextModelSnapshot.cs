@@ -792,6 +792,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -816,6 +820,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("ProviderPaymentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ProviderPaymentLinkId")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
@@ -844,6 +852,10 @@ namespace MiniPayroll.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProviderOrderId")
                         .IsUnique()
                         .HasFilter("[ProviderOrderId] IS NOT NULL");
+
+                    b.HasIndex("ProviderPaymentLinkId")
+                        .IsUnique()
+                        .HasFilter("[ProviderPaymentLinkId] IS NOT NULL");
 
                     b.HasIndex("SubscriptionId");
 

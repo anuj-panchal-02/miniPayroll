@@ -23,6 +23,27 @@ public sealed class SdkRazorpayClient(IOptions<RazorpayOptions> options) : IRazo
             return MapOrder(created);
         }, cancellationToken);
 
+    public Task<RazorpayPaymentLinkRecord> CreatePaymentLinkAsync(
+        RazorpayPaymentLinkCreateRequest request,
+        CancellationToken cancellationToken = default) =>
+        Run(() =>
+        {
+            var created = Client().PaymentLink.Create(new Dictionary<string, object>
+            {
+                ["amount"] = request.AmountPaise,
+                ["currency"] = request.Currency,
+                ["description"] = request.Description,
+                ["reference_id"] = request.ReferenceId,
+                ["notify"] = new Dictionary<string, object>
+                {
+                    ["sms"] = false,
+                    ["email"] = false
+                },
+                ["notes"] = Notes(request.Notes)
+            });
+            return MapPaymentLink(created);
+        }, cancellationToken);
+
     public Task<RazorpayOrderRecord> FetchOrderAsync(
         string orderId,
         CancellationToken cancellationToken = default) =>
@@ -171,6 +192,14 @@ public sealed class SdkRazorpayClient(IOptions<RazorpayOptions> options) : IRazo
             ReadPaise(order, "amount"),
             ReadString(order, "currency"),
             ReadNotes(order));
+
+    private static RazorpayPaymentLinkRecord MapPaymentLink(PaymentLink link) =>
+        new(
+            ReadString(link, "id"),
+            ReadString(link, "short_url"),
+            ReadPaise(link, "amount"),
+            ReadString(link, "currency"),
+            ReadNotes(link));
 
     private static RazorpayPaymentRecord MapPayment(Payment payment) =>
         new(

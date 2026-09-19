@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   reversePayrollRun: vi.fn(),
   getCompanyBilling: vi.fn(),
   recordCompanyPayment: vi.fn(),
+  createCompanyPaymentLink: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -51,6 +52,7 @@ vi.mock("@/lib/api", () => ({
   reversePayrollRun: mocks.reversePayrollRun,
   getCompanyBilling: mocks.getCompanyBilling,
   recordCompanyPayment: mocks.recordCompanyPayment,
+  createCompanyPaymentLink: mocks.createCompanyPaymentLink,
   PayrollRunStatus: { Draft: 0, Calculated: 1, Finalized: 2, Reversed: 3 },
   BillableSource: { FinalizedPayroll: 0, ActiveHeadcount: 1 },
   BonusType: { Festival: 0, Performance: 1, Attendance: 2, Incentive: 3, Other: 4 },
@@ -79,6 +81,7 @@ describe("CompanyDetailsPage", () => {
     mocks.reversePayrollRun.mockReset();
     mocks.getCompanyBilling.mockReset();
     mocks.recordCompanyPayment.mockReset();
+    mocks.createCompanyPaymentLink.mockReset();
     mocks.getToken.mockReturnValue("token");
     mocks.listCompanyPayrollRuns.mockResolvedValue([]);
     mocks.getCompanyBilling.mockResolvedValue({
@@ -249,6 +252,86 @@ describe("CompanyDetailsPage", () => {
       );
     });
     expect(await screen.findByText("Payment recorded.")).toBeTruthy();
+  });
+
+  it("creates a Razorpay payment link and shows copy", async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    mocks.getCompany.mockResolvedValue({
+      id: "co-1",
+      name: "ABC Traders",
+      contactEmail: "owner@abctraders.example",
+      contactPhone: null,
+      status: "Active",
+      employeeLimit: 50,
+      planName: "Basic",
+      isSetupComplete: true,
+      activatedAt: "2026-08-01T00:00:00.000Z",
+      hasAdmin: true,
+      adminEmail: "owner@abctraders.example",
+      cancelAtPeriodEnd: false,
+    });
+    const august = {
+      billingPeriod: "2026-08",
+      year: 2026,
+      month: 8,
+      billableEmployees: 2,
+      billableSource: 0,
+      pricePerEmployee: 49,
+      amountDue: 98,
+      prorated: false,
+      isEstimated: true,
+      dueDate: "2026-08-31T23:59:59+00:00",
+      isOverdue: false,
+      isPastGrace: false,
+      paidAmount: 0,
+      remaining: 98,
+      payments: [],
+      paymentLinkUrl: null as string | null,
+    };
+    const linkUrl = "https://rzp.io/i/test";
+    mocks.getCompanyBilling.mockImplementation(async () => ({
+      planName: "Basic",
+      pricePerEmployee: 49,
+      gracePeriodDays: 7,
+      periods: [{ ...august, paymentLinkUrl: linkUrl }],
+    }));
+    // First paint before the link exists.
+    mocks.getCompanyBilling.mockResolvedValueOnce({
+      planName: "Basic",
+      pricePerEmployee: 49,
+      gracePeriodDays: 7,
+      periods: [august],
+    });
+    mocks.createCompanyPaymentLink.mockResolvedValue({
+      paymentLinkUrl: linkUrl,
+      providerPaymentLinkId: "plink_1",
+      invoiceId: "inv-1",
+      amount: 98,
+      billingPeriod: "2026-08",
+    });
+
+    render(
+      <ToastProvider>
+        <CompanyDetailsPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByRole("button", { name: "Create payment link" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Record offline payment" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create payment link" }));
+
+    await waitFor(() => {
+      expect(mocks.createCompanyPaymentLink).toHaveBeenCalledWith("co-1", {
+        billingPeriod: "2026-08",
+      });
+    });
+    expect(await screen.findByDisplayValue(linkUrl)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(linkUrl);
+    });
   });
 
   it("exposes named subscription actions instead of a status dropdown", async () => {

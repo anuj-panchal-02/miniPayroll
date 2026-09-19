@@ -7,7 +7,7 @@ namespace MiniPayroll.Domain.Constants;
 public static class PlatformLimits
 {
     public const int MinEmployeeLimit = 1;
-    public const int HardEmployeeCap = 50;
+    public const int HardEmployeeCap = 1000000;
     public const int DefaultEmployeeLimit = HardEmployeeCap;
     public const int DefaultGracePeriodDays = 7;
     public const decimal DefaultPricePerEmployee = 49m;

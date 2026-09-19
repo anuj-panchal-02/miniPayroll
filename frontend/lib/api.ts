@@ -241,6 +241,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     const message =
+      payload?.errorMessage ??
       payload?.error ??
       payload?.title ??
       (Array.isArray(payload?.errors) ? payload.errors.join(", ") : null) ??
@@ -493,6 +494,9 @@ export const StatutoryKind = {
   LwfEmployee: 3,
 } as const;
 export type StatutoryKind = (typeof StatutoryKind)[keyof typeof StatutoryKind];
+export const EmploymentType = {
+  FullTimeMonthly: 0,
+} as const;
 export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
 
 export const SalaryComponentType = {
@@ -647,6 +651,13 @@ export function createEmployee(input: EmployeeInput): Promise<EmployeeDetail> {
   });
 }
 
+export function bulkCreateEmployees(inputs: EmployeeInput[]): Promise<void> {
+  return api<void>("/api/employees/bulk", {
+    method: "POST",
+    body: JSON.stringify(inputs),
+  });
+}
+
 export function updateEmployee(
   id: string,
   input: EmployeeInput,
@@ -669,6 +680,23 @@ export function getEffectiveSalaryStructure(
   return api<SalaryStructureDetail>(`/api/employees/${employeeId}/salary-structure${query}`);
 }
 
+export type BulkSalaryStructureInput = {
+  employeeCode: string;
+  effectiveFrom: string;
+  components: SalaryStructureComponentInput[];
+};
+
+export type SalaryComponent = {
+  id: string;
+  name: string;
+  type: SalaryComponentType;
+  isStandardPreset?: boolean;
+};
+
+export function listSalaryComponents(): Promise<SalaryComponent[]> {
+  return api<SalaryComponent[]>("/api/salary-components");
+}
+
 export function createSalaryStructure(
   employeeId: string,
   input: SalaryStructureInput,
@@ -676,6 +704,13 @@ export function createSalaryStructure(
   return api<SalaryStructureDetail>(`/api/employees/${employeeId}/salary-structures`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function bulkCreateSalaryStructures(inputs: BulkSalaryStructureInput[]): Promise<void> {
+  return api<void>("/api/employees/bulk-salary-structures", {
+    method: "POST",
+    body: JSON.stringify(inputs),
   });
 }
 
@@ -997,6 +1032,7 @@ export type BillingPeriodSummary = {
   paidAmount: number;
   remaining: number;
   payments: BillingPaymentItem[];
+  paymentLinkUrl?: string | null;
 };
 
 export type CompanyBilling = {
@@ -1044,6 +1080,28 @@ export function recordCompanyPayment(
   input: RecordCompanyPaymentInput,
 ): Promise<CompanyBilling> {
   return api<CompanyBilling>(`/api/companies/${companyId}/payments`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export type CreateCompanyPaymentLinkInput = {
+  billingPeriod: string;
+};
+
+export type CompanyPaymentLink = {
+  paymentLinkUrl: string;
+  providerPaymentLinkId: string;
+  invoiceId: string;
+  amount: number;
+  billingPeriod: string;
+};
+
+export function createCompanyPaymentLink(
+  companyId: string,
+  input: CreateCompanyPaymentLinkInput,
+): Promise<CompanyPaymentLink> {
+  return api<CompanyPaymentLink>(`/api/companies/${companyId}/billing/payment-links`, {
     method: "POST",
     body: JSON.stringify(input),
   });

@@ -6,6 +6,10 @@ public interface IPaymentProvider
         PaymentCheckoutRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<PaymentRecurringResult> CreateRecurringAsync(
         PaymentRecurringRequest request,
         CancellationToken cancellationToken = default);

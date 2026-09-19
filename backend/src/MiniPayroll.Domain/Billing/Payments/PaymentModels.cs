@@ -16,6 +16,21 @@ public sealed record PaymentCheckoutResult(
     string? ProviderOrderId = null,
     string? ClientKey = null);
 
+public sealed record PaymentLinkRequest(
+    Guid CompanyId,
+    decimal Amount,
+    string Currency,
+    string IdempotencyKey,
+    Guid InvoiceId,
+    string BillingPeriod,
+    string? Description = null);
+
+public sealed record PaymentLinkResult(
+    PaymentProviderStatus Status,
+    string? CheckoutUrl = null,
+    string? ProviderPaymentLinkId = null,
+    string? Error = null);
+
 public sealed record PaymentRecurringRequest(
     Guid CompanyId,
     string PlanCode,
@@ -58,7 +73,8 @@ public sealed record PaymentVerificationResult(
     string? Currency = null,
     string? ProviderOrderId = null,
     string? ProviderSubscriptionId = null,
-    Guid? CompanyId = null);
+    Guid? CompanyId = null,
+    string? ProviderPaymentLinkId = null);
 
 public sealed record PaymentStatusRequest(string ProviderPaymentId);
 
@@ -83,4 +99,5 @@ public sealed record PaymentWebhookEvent(
     string? ProviderOrderId = null,
     string? ProviderSubscriptionId = null,
     string? Currency = null,
-    Guid? CompanyId = null);
+    Guid? CompanyId = null,
+    string? ProviderPaymentLinkId = null);

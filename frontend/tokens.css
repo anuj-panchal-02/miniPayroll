@@ -5,16 +5,16 @@
  */
 
 :root {
-  --color-paper: oklch(97.2% 0.01 72);
-  --color-paper-2: oklch(94.6% 0.012 72);
-  --color-paper-3: oklch(91.2% 0.014 70);
-  --color-rule: oklch(86% 0.012 70);
-  --color-rule-2: oklch(78% 0.014 68);
-  --color-neutral: oklch(52% 0.012 60);
-  --color-muted: oklch(42% 0.014 55);
-  --color-ink-2: oklch(32% 0.016 50);
-  --color-ink: oklch(20% 0.016 48);
-  --color-accent: oklch(58% 0.16 150);
+  --color-paper: oklch(99% 0.005 260);
+  --color-paper-2: oklch(97% 0.01 260);
+  --color-paper-3: oklch(94% 0.01 260);
+  --color-rule: oklch(90% 0.01 260);
+  --color-rule-2: oklch(82% 0.01 260);
+  --color-neutral: oklch(55% 0.01 260);
+  --color-muted: oklch(45% 0.01 260);
+  --color-ink-2: oklch(35% 0.01 260);
+  --color-ink: oklch(18% 0.01 260);
+  --color-accent: oklch(62% 0.2 150);
   --color-accent-ink: oklch(98.5% 0.01 150);
   --color-accent-soft: oklch(94% 0.04 150);
   --color-focus: oklch(48% 0.15 150);
@@ -52,7 +52,7 @@
   --text-lg: 1.375rem;
   --text-xl: 1.75rem;
   --text-display: clamp(2.5rem, 5vw + 1rem, 4.25rem);
-  --tracking-display: -0.03em;
+  --tracking-display: -0.04em;
   --tracking-mono: 0.06em;
   --tracking-body: -0.01em;
 
@@ -85,7 +85,8 @@
 
   --page-gutter: clamp(1rem, 4vw, 2.5rem);
 
-  --shadow-whisper: 0 1px 2px oklch(20% 0.016 48 / 0.05);
+  --shadow-whisper: 0 1px 2px oklch(18% 0.01 260 / 0.05);
+  --shadow-elevated: 0 12px 32px oklch(18% 0.01 260 / 0.08), 0 4px 12px oklch(18% 0.01 260 / 0.04);
 
   --z-base: 1;
   --z-raised: 10;

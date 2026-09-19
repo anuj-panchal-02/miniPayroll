@@ -9,6 +9,11 @@ public sealed class PaymentGatewayService(IPaymentProvider provider)
         CancellationToken cancellationToken = default) =>
         provider.CreateCheckoutAsync(request, cancellationToken);
 
+    public Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default) =>
+        provider.CreatePaymentLinkAsync(request, cancellationToken);
+
     public Task<PaymentRecurringResult> CreateRecurringAsync(
         PaymentRecurringRequest request,
         CancellationToken cancellationToken = default) =>

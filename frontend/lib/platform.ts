@@ -2,7 +2,7 @@ export const DEFAULT_PLAN_NAME = "Basic";
 
 /** Keep in sync with MiniPayroll.Domain.Constants.PlatformLimits. Raise HardEmployeeCap there (and here as fallback) when the product supports more employees. */
 export const MIN_EMPLOYEE_LIMIT = 1;
-export const HARD_EMPLOYEE_CAP = 50;
+export const HARD_EMPLOYEE_CAP = 1000000;
 export const DEFAULT_EMPLOYEE_LIMIT = HARD_EMPLOYEE_CAP;
 
 export type PlatformLimits = {

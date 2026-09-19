@@ -10,9 +10,12 @@ import {
   type Entitlements,
 } from "@/lib/api";
 import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
 import { ListPager, usePager } from "@/components/ui/ListPager";
 import { ListToolbar } from "@/components/ui/ListToolbar";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { BulkUploadDialog } from "@/components/BulkUploadDialog";
+import { BulkUploadSalaryDialog } from "@/components/BulkUploadSalaryDialog";
 import { pageSlice } from "@/lib/paging";
 
 function statusLabel(status: EmployeeStatus): string {
@@ -32,6 +35,24 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [bulkUploadSalaryOpen, setBulkUploadSalaryOpen] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const [list, loadedEntitlements] = await Promise.all([
+        listEmployees(),
+        getEntitlements().catch(() => null),
+      ]);
+      setState(list);
+      setEntitlements(loadedEntitlements);
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not load employees.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -93,9 +114,13 @@ export default function EmployeesPage() {
     <main className="sa-shell">
       <header className="sa-head sa-head--with-back">
         <h1>Employees</h1>
-        <Link href="/app/employees/new" className="sa-compose__submit">
-          Add employee
-        </Link>
+        <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "center" }}>
+          <Button variant="ghost" onClick={() => setBulkUploadOpen(true)}>Bulk Upload</Button>
+          <Button variant="ghost" onClick={() => setBulkUploadSalaryOpen(true)}>Upload Salaries</Button>
+          <Link href="/app/employees/new" className="sa-compose__submit" style={{ margin: 0 }}>
+            Add employee
+          </Link>
+        </div>
         <p>
           {state
             ? `${activeCount} / ${employeeLimit} active seats.`
@@ -226,6 +251,17 @@ export default function EmployeesPage() {
           )}
         </>
       )}
+
+      <BulkUploadDialog 
+        open={bulkUploadOpen} 
+        onOpenChange={setBulkUploadOpen} 
+        onSuccess={loadData} 
+      />
+      <BulkUploadSalaryDialog 
+        open={bulkUploadSalaryOpen} 
+        onOpenChange={setBulkUploadSalaryOpen} 
+        onSuccess={loadData}
+      />
     </main>
   );
 }

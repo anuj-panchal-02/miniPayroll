@@ -7,6 +7,7 @@ using MiniPayroll.Domain.Constants;
 using MiniPayroll.Domain.Entities;
 using MiniPayroll.Domain.Enums;
 using MiniPayroll.Domain.Subscriptions;
+using MiniPayroll.Infrastructure.Payments;
 using MiniPayroll.Infrastructure.Persistence;
 
 namespace MiniPayroll.Api.Endpoints;
@@ -34,6 +35,7 @@ public static class CompanyEndpoints
         group.MapGet("/{id:guid}/payroll-runs", ListPayrollRuns);
         group.MapPost("/{id:guid}/payroll-runs/{runId:guid}/reverse", ReversePayroll);
         group.MapGet("/{id:guid}/billing", GetBilling);
+        group.MapPost("/{id:guid}/billing/payment-links", CreatePaymentLink);
         group.MapPost("/{id:guid}/payments", RecordPayment);
         group.MapGet("/{id:guid}/invoices", ListInvoices);
         group.MapPost("/{id:guid}/invoices", CreateInvoice);
@@ -547,6 +549,35 @@ public static class CompanyEndpoints
         return BillingHttp(await billing.RecordPaymentAsync(id, request, cancellationToken));
     }
 
+    private static async Task<IResult> CreatePaymentLink(
+        Guid id,
+        CreatePaymentLinkRequest? request,
+        [FromServices] PaymentReconciliationService payments,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.BillingPeriod))
+        {
+            return BillingError(BillingStatusCode.InvalidInput);
+        }
+
+        var result = await payments.StartPaymentLinkAsync(id, request.BillingPeriod, cancellationToken);
+        return result.Status is PaymentReconciliationStatus.Success or PaymentReconciliationStatus.Duplicate
+            ? Results.Ok(new
+            {
+                paymentLinkUrl = result.CheckoutUrl,
+                providerPaymentLinkId = result.ProviderPaymentLinkId,
+                invoiceId = result.InvoiceId,
+                amount = result.Amount,
+                billingPeriod = result.BillingPeriod
+            })
+            : PaymentLinkError(result);
+    }
+
+    private static IResult PaymentLinkError(PaymentReconciliationResult result) =>
+        Results.Json(
+            new { error = result.Error ?? "The payment link could not be created." },
+            statusCode: PaymentHttpStatus.For(result.Status));
+
     private static IResult BillingHttp(BillingResult result) =>
         result.Status == BillingStatusCode.Success
             ? Results.Ok(result.Billing)
@@ -597,6 +628,8 @@ public static class CompanyEndpoints
     public sealed record CancelSubscriptionRequest(bool AtPeriodEnd);
 
     public sealed record ChangePlanRequest(string PlanCode, BillingCycle? BillingCycle);
+
+    public sealed record CreatePaymentLinkRequest(string BillingPeriod);
 
     public sealed record CreateInvoiceRequest(
         DateTimeOffset PeriodStart,

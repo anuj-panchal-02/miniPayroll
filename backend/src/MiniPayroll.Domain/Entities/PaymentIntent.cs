@@ -14,6 +14,8 @@ public class PaymentIntent
     public string? ProviderOrderId { get; set; }
     public string? ProviderPaymentId { get; set; }
     public string? ProviderSubscriptionId { get; set; }
+    public string? ProviderPaymentLinkId { get; set; }
+    public string? CheckoutUrl { get; set; }
     public PaymentIntentStatus Status { get; set; } = PaymentIntentStatus.Created;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

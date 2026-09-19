@@ -105,7 +105,8 @@ public sealed record EmployeeResult(
     EmployeeDetail? Employee = null,
     EmployeeListState? List = null,
     int? EmployeeLimit = null,
-    EmployeeUsage? Usage = null);
+    EmployeeUsage? Usage = null,
+    string? ErrorMessage = null);
 
 public sealed class EmployeeService(
     MiniPayrollDbContext db,
@@ -245,6 +246,110 @@ public sealed class EmployeeService(
         AddAudit(AuditActions.EmployeeCreate, employee.EmployeeCode);
         await db.SaveChangesAsync(cancellationToken);
         return new EmployeeResult(EmployeeStatusCode.Success, ToDetail(employee));
+    }
+
+    public async Task<EmployeeResult> BulkCreateAsync(
+        List<EmployeeInput>? inputs,
+        CancellationToken cancellationToken = default)
+    {
+        if (inputs is null || inputs.Count == 0)
+        {
+            return new EmployeeResult(EmployeeStatusCode.InvalidInput);
+        }
+
+        var context = await GetWriteContextAsync(requireMutation: true, cancellationToken);
+        if (context.Status != EmployeeStatusCode.Success || context.Company is null)
+        {
+            return new EmployeeResult(context.Status, EmployeeLimit: context.EmployeeLimit);
+        }
+
+        var usage = await Entitlements.GetActiveEmployeeUsage(context.Company.Id, cancellationToken);
+        if (!usage.CanAdd || usage.Remaining < inputs.Count)
+        {
+            return new EmployeeResult(
+                EmployeeStatusCode.EmployeeLimitReached,
+                EmployeeLimit: usage.MaximumAllowed,
+                Usage: usage);
+        }
+
+        var employees = new List<Employee>();
+        var codes = new HashSet<string>();
+
+        foreach (var input in inputs)
+        {
+            var employee = Apply(new Employee
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = context.Company.Id,
+                EmploymentType = EmploymentType.FullTimeMonthly,
+                CreatedAt = DateTimeOffset.UtcNow
+            }, input);
+            employee.EmploymentType = EmploymentType.FullTimeMonthly;
+
+            if (input?.PfCovered is null)
+            {
+                employee.PfCovered = context.Company.PfApplicable;
+            }
+            if (input?.EsiCovered is null)
+            {
+                employee.EsiCovered = context.Company.EsiApplicable;
+            }
+
+            if (input?.Status == EmployeeStatus.Draft || input?.SaveAsDraft == true)
+            {
+                employee.Status = EmployeeStatus.Draft;
+                employee.DraftStep = EmployeeRules.ClampDraftStep(input?.DraftStep);
+                if (!EmployeeRules.IsValidDraft(employee))
+                {
+                    return new EmployeeResult(EmployeeStatusCode.InvalidInput, ErrorMessage: $"Row for '{employee.FullName}' has invalid draft details.");
+                }
+            }
+            else
+            {
+                employee.Status = EmployeeStatus.Active;
+                employee.DraftStep = null;
+
+                if (!EmployeeRules.IsValid(employee)
+                    || !await LocationCatalogLookups.HasActivePairAsync(
+                        db,
+                        employee.State,
+                        employee.City,
+                        cancellationToken))
+                {
+                    return new EmployeeResult(EmployeeStatusCode.InvalidInput, ErrorMessage: $"Row for '{employee.FullName}' has invalid details or unmatched state/city.");
+                }
+            }
+            
+            if (string.IsNullOrWhiteSpace(employee.EmployeeCode) || !codes.Add(employee.EmployeeCode))
+            {
+                return new EmployeeResult(EmployeeStatusCode.DuplicateEmployeeCode, ErrorMessage: $"Row for '{employee.FullName}' has a duplicate Employee Code '{employee.EmployeeCode}' in the file.");
+            }
+
+            if (await CodeTakenAsync(context.Company.Id, employee.EmployeeCode, null, cancellationToken))
+            {
+                return new EmployeeResult(EmployeeStatusCode.DuplicateEmployeeCode, ErrorMessage: $"Employee Code '{employee.EmployeeCode}' is already taken in the system.");
+            }
+
+            if (employee.Status != EmployeeStatus.Draft)
+            {
+                if (!await SalaryStructures.AddInitialStructureAsync(
+                    employee, input?.SalaryStructure, cancellationToken))
+                {
+                    return new EmployeeResult(EmployeeStatusCode.InvalidInput, ErrorMessage: $"Row for '{employee.FullName}' has an invalid salary structure.");
+                }
+            }
+
+            employees.Add(employee);
+        }
+
+        db.Employees.AddRange(employees);
+        foreach (var employee in employees)
+        {
+            AddAudit(AuditActions.EmployeeCreate, employee.EmployeeCode);
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        
+        return new EmployeeResult(EmployeeStatusCode.Success);
     }
 
     public async Task<EmployeeResult> UpdateAsync(

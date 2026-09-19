@@ -40,6 +40,7 @@ public sealed class BillingEndpointMappingTests
         var patterns = endpoints.Select(endpoint => endpoint.RoutePattern.RawText).ToHashSet();
 
         Assert.Contains("/api/companies/{id:guid}/billing", patterns);
+        Assert.Contains("/api/companies/{id:guid}/billing/payment-links", patterns);
         Assert.Contains("/api/companies/{id:guid}/payments", patterns);
         Assert.All(
             endpoints,

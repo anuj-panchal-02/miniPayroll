@@ -22,6 +22,75 @@ public sealed class RazorpayPaymentProviderTests
     }
 
     [Fact]
+    public async Task Payment_link_returns_short_url_and_link_id()
+    {
+        var companyId = Guid.NewGuid();
+        var invoiceId = Guid.NewGuid();
+        var client = new ScriptedRazorpayClient();
+        var provider = Provider(client);
+
+        var result = await provider.CreatePaymentLinkAsync(new PaymentLinkRequest(
+            companyId,
+            98m,
+            "INR",
+            "plink:test",
+            invoiceId,
+            "2026-08"));
+
+        Assert.Equal(PaymentProviderStatus.Succeeded, result.Status);
+        Assert.Equal("https://rzp.io/i/test", result.CheckoutUrl);
+        Assert.Equal("plink_1", result.ProviderPaymentLinkId);
+        Assert.Equal(1, client.PaymentLinksCreated);
+    }
+
+    [Fact]
+    public async Task Payment_link_replays_for_a_duplicate_key()
+    {
+        var provider = Provider(new ScriptedRazorpayClient());
+        var request = new PaymentLinkRequest(
+            Guid.NewGuid(),
+            98m,
+            "INR",
+            "plink:same",
+            Guid.NewGuid(),
+            "2026-08");
+        var first = await provider.CreatePaymentLinkAsync(request);
+        var replay = await provider.CreatePaymentLinkAsync(request);
+
+        Assert.Equal(PaymentProviderStatus.Succeeded, first.Status);
+        Assert.Equal(PaymentProviderStatus.Duplicate, replay.Status);
+        Assert.Equal(first.CheckoutUrl, replay.CheckoutUrl);
+        Assert.Equal(first.ProviderPaymentLinkId, replay.ProviderPaymentLinkId);
+    }
+
+    [Fact]
+    public async Task Webhook_payment_link_paid_succeeds_with_link_and_order_ids()
+    {
+        var companyId = Guid.NewGuid();
+        var client = new ScriptedRazorpayClient
+        {
+            Payment = new RazorpayPaymentRecord("pay_1", "order_1", "captured", 9800, "INR", Notes(companyId))
+        };
+        var body =
+            "{\"id\":\"evt_plink\",\"event\":\"payment_link.paid\",\"payload\":{"
+            + "\"payment_link\":{\"entity\":{\"id\":\"plink_1\",\"order_id\":\"order_1\",\"amount\":9800,"
+            + "\"currency\":\"INR\",\"notes\":{\"companyId\":\"" + companyId.ToString("D") + "\"}}},"
+            + "\"payment\":{\"entity\":{\"id\":\"pay_1\",\"order_id\":\"order_1\",\"amount\":9800,"
+            + "\"currency\":\"INR\",\"status\":\"captured\",\"notes\":{\"companyId\":\""
+            + companyId.ToString("D") + "\"}}}}}";
+        var webhook = await Provider(client).HandleWebhookAsync(
+            new PaymentWebhookRequest(body, "sig", Header()));
+
+        Assert.Equal(PaymentWebhookEventType.PaymentSucceeded, webhook.Type);
+        Assert.Equal(PaymentProviderStatus.Succeeded, webhook.Status);
+        Assert.Equal("plink_1", webhook.ProviderPaymentLinkId);
+        Assert.Equal("order_1", webhook.ProviderOrderId);
+        Assert.Equal("pay_1", webhook.ProviderPaymentId);
+        Assert.Equal(98m, webhook.Amount);
+        Assert.Equal(companyId, webhook.CompanyId);
+    }
+
+    [Fact]
     public async Task Checkout_replays_the_same_order_for_a_duplicate_key()
     {
         var provider = Provider(new ScriptedRazorpayClient());

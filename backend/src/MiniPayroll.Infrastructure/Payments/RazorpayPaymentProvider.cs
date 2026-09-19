@@ -13,12 +13,14 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
     private static readonly HashSet<string> CapturedEvents = new(StringComparer.OrdinalIgnoreCase)
     {
         "payment.captured",
+        "payment_link.paid",
         "subscription.charged"
     };
 
     private readonly RazorpayOptions options;
     private readonly IRazorpayClient? client;
     private readonly ConcurrentDictionary<string, PaymentCheckoutResult> checkouts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, PaymentLinkResult> paymentLinks = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, PaymentRecurringResult> recurring = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, PaymentCancelRecurringResult> cancellations = new(StringComparer.Ordinal);
 
@@ -73,6 +75,47 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
         catch (Exception exception)
         {
             return new PaymentCheckoutResult(StatusOf(exception), Error: exception.Message);
+        }
+    }
+
+    public async Task<PaymentLinkResult> CreatePaymentLinkAsync(
+        PaymentLinkRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Ready(out var unavailable))
+        {
+            return new PaymentLinkResult(PaymentProviderStatus.Unavailable, Error: unavailable);
+        }
+
+        if (paymentLinks.TryGetValue(request.IdempotencyKey, out var existing))
+        {
+            return existing with { Status = PaymentProviderStatus.Duplicate };
+        }
+
+        try
+        {
+            var notes = Notes(request.CompanyId, request.InvoiceId);
+            notes["billingPeriod"] = request.BillingPeriod;
+            var created = await client!.CreatePaymentLinkAsync(
+                new RazorpayPaymentLinkCreateRequest(
+                    RazorpayMoney.ToPaise(request.Amount),
+                    request.Currency,
+                    request.Description ?? $"miniPayroll {request.BillingPeriod}",
+                    request.IdempotencyKey.Length <= 40
+                        ? request.IdempotencyKey
+                        : request.IdempotencyKey[^40..],
+                    notes),
+                cancellationToken);
+            var result = new PaymentLinkResult(
+                PaymentProviderStatus.Succeeded,
+                created.ShortUrl,
+                created.Id);
+            paymentLinks[request.IdempotencyKey] = result;
+            return result;
+        }
+        catch (Exception exception)
+        {
+            return new PaymentLinkResult(StatusOf(exception), Error: exception.Message);
         }
     }
 
@@ -304,7 +347,8 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
             ProviderOrderId: parsed.OrderId,
             ProviderSubscriptionId: parsed.SubscriptionId,
             Currency: parsed.Currency,
-            CompanyId: parsed.CompanyId);
+            CompanyId: parsed.CompanyId,
+            ProviderPaymentLinkId: parsed.PaymentLinkId);
 
     private async Task<PaymentWebhookEvent> CapturedWebhookAsync(
         WebhookPayload parsed,
@@ -316,7 +360,24 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
                 PaymentWebhookEventType.Ignored,
                 PaymentProviderStatus.Succeeded,
                 parsed.PaymentId,
-                ProviderEventId: parsed.EventId);
+                ProviderEventId: parsed.EventId,
+                ProviderPaymentLinkId: parsed.PaymentLinkId);
+        }
+
+        if (string.IsNullOrWhiteSpace(parsed.PaymentId)
+            && !string.IsNullOrWhiteSpace(parsed.PaymentLinkId)
+            && parsed.Amount is { } linkAmount)
+        {
+            return new PaymentWebhookEvent(
+                PaymentWebhookEventType.PaymentSucceeded,
+                PaymentProviderStatus.Succeeded,
+                null,
+                linkAmount,
+                ProviderEventId: parsed.EventId,
+                ProviderOrderId: parsed.OrderId,
+                Currency: parsed.Currency,
+                CompanyId: parsed.CompanyId,
+                ProviderPaymentLinkId: parsed.PaymentLinkId);
         }
 
         if (string.IsNullOrWhiteSpace(parsed.PaymentId))
@@ -324,7 +385,8 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
             return new PaymentWebhookEvent(
                 PaymentWebhookEventType.Ignored,
                 PaymentProviderStatus.Succeeded,
-                ProviderEventId: parsed.EventId);
+                ProviderEventId: parsed.EventId,
+                ProviderPaymentLinkId: parsed.PaymentLinkId);
         }
 
         var payment = await client!.FetchPaymentAsync(parsed.PaymentId, cancellationToken);
@@ -339,7 +401,8 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
                 ProviderOrderId: payment.OrderId,
                 ProviderSubscriptionId: payment.SubscriptionId ?? parsed.SubscriptionId,
                 Currency: payment.Currency,
-                CompanyId: CompanyId(payment.Notes));
+                CompanyId: CompanyId(payment.Notes),
+                ProviderPaymentLinkId: parsed.PaymentLinkId);
         }
 
         return new PaymentWebhookEvent(
@@ -348,10 +411,11 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
             payment.Id,
             RazorpayMoney.FromPaise(payment.AmountPaise),
             ProviderEventId: parsed.EventId,
-            ProviderOrderId: payment.OrderId,
+            ProviderOrderId: payment.OrderId ?? parsed.OrderId,
             ProviderSubscriptionId: payment.SubscriptionId ?? parsed.SubscriptionId,
             Currency: payment.Currency,
-            CompanyId: CompanyId(payment.Notes));
+            CompanyId: CompanyId(payment.Notes) ?? parsed.CompanyId,
+            ProviderPaymentLinkId: parsed.PaymentLinkId);
     }
 
     private async Task<PaymentVerificationResult> FetchVerifiedPaymentAsync(
@@ -479,23 +543,29 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
             var payment = Entity(root, "payment");
             var subscription = Entity(root, "subscription");
             var refund = Entity(root, "refund");
+            var paymentLink = Entity(root, "payment_link");
             var paymentId = StringAt(payment, "id") ?? StringAt(refund, "payment_id");
-            var orderId = StringAt(payment, "order_id");
+            var orderId = StringAt(payment, "order_id") ?? StringAt(paymentLink, "order_id");
+            var paymentLinkId = StringAt(paymentLink, "id");
             var subscriptionId = StringAt(subscription, "id") ?? StringAt(payment, "subscription_id");
-            var amount = IntAt(payment, "amount") ?? IntAt(refund, "amount");
-            var currency = StringAt(payment, "currency") ?? StringAt(refund, "currency");
+            var amount = IntAt(payment, "amount") ?? IntAt(paymentLink, "amount") ?? IntAt(refund, "amount");
+            var currency = StringAt(payment, "currency")
+                ?? StringAt(paymentLink, "currency")
+                ?? StringAt(refund, "currency");
             var companyId = GuidAt(NotesAt(payment), "companyId")
+                ?? GuidAt(NotesAt(paymentLink), "companyId")
                 ?? GuidAt(NotesAt(subscription), "companyId")
                 ?? GuidAt(NotesAt(refund), "companyId");
             payload = new WebhookPayload(
                 eventName,
-                eventId ?? $"{eventName}:{paymentId ?? subscriptionId}",
+                eventId ?? $"{eventName}:{paymentId ?? paymentLinkId ?? subscriptionId}",
                 paymentId,
                 orderId,
                 subscriptionId,
                 amount is null ? null : RazorpayMoney.FromPaise(amount.Value),
                 currency,
-                companyId);
+                companyId,
+                paymentLinkId);
             return !string.IsNullOrWhiteSpace(eventName);
         }
         catch (JsonException)
@@ -554,5 +624,6 @@ public sealed class RazorpayPaymentProvider : IPaymentProvider
         string? SubscriptionId,
         decimal? Amount,
         string? Currency,
-        Guid? CompanyId);
+        Guid? CompanyId,
+        string? PaymentLinkId);
 }

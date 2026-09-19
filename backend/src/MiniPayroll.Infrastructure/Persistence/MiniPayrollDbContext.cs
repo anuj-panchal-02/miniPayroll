@@ -279,11 +279,16 @@ public class MiniPayrollDbContext : IdentityDbContext<ApplicationUser, Applicati
             entity.Property(intent => intent.ProviderOrderId).HasMaxLength(64);
             entity.Property(intent => intent.ProviderPaymentId).HasMaxLength(64);
             entity.Property(intent => intent.ProviderSubscriptionId).HasMaxLength(64);
+            entity.Property(intent => intent.ProviderPaymentLinkId).HasMaxLength(64);
+            entity.Property(intent => intent.CheckoutUrl).HasMaxLength(500);
             entity.Property(intent => intent.Amount).HasColumnType("decimal(18,2)");
             entity.HasIndex(intent => intent.IdempotencyKey).IsUnique();
             entity.HasIndex(intent => intent.ProviderOrderId)
                 .IsUnique()
                 .HasFilter("[ProviderOrderId] IS NOT NULL");
+            entity.HasIndex(intent => intent.ProviderPaymentLinkId)
+                .IsUnique()
+                .HasFilter("[ProviderPaymentLinkId] IS NOT NULL");
             entity.HasOne(intent => intent.Company)
                 .WithMany()
                 .HasForeignKey(intent => intent.CompanyId)

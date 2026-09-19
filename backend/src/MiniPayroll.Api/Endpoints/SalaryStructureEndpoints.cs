@@ -13,8 +13,13 @@ public static class SalaryStructureEndpoints
         group.MapGet("/{id:guid}/salary-structures", List);
         group.MapGet("/{id:guid}/salary-structure", GetEffective);
         group.MapPost("/{id:guid}/salary-structures", Create);
+        group.MapPost("/bulk-salary-structures", BulkCreate);
         return routes;
     }
+
+    private static async Task<IResult> BulkCreate(List<BulkSalaryStructureInput>? inputs,
+        SalaryStructureService salaries, CancellationToken cancellationToken) =>
+        ToHttpBulk(await salaries.BulkCreateAsync(inputs, cancellationToken));
 
     private static async Task<IResult> List(Guid id, SalaryStructureService salaries,
         CancellationToken cancellationToken) =>
@@ -34,6 +39,12 @@ public static class SalaryStructureEndpoints
                 ? Results.Ok(result.Structures)
                 : Results.Ok(result.Structure)
             : Results.Json(new { error = ErrorMessage(result.Status) },
+                statusCode: SalaryStructureHttpStatus.For(result.Status));
+
+    private static IResult ToHttpBulk(BulkSalaryStructureResult result) =>
+        result.Status == SalaryStructureStatusCode.Success
+            ? Results.Ok()
+            : Results.Json(new { error = result.ErrorMessage ?? ErrorMessage(result.Status) },
                 statusCode: SalaryStructureHttpStatus.For(result.Status));
 
     private static string ErrorMessage(SalaryStructureStatusCode status) => status switch

@@ -20,6 +20,7 @@ import {
   activateCompany,
   cancelCompany,
   createCompanyAdmin,
+  createCompanyPaymentLink,
   enterCompanyGrace,
   expireCompany,
   getCompany,
@@ -111,6 +112,8 @@ export default function CompanyDetailsPage() {
   const [paymentMode, setPaymentMode] = useState("UPI");
   const [invoiceGst, setInvoiceGst] = useState("");
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState("");
 
   const limitFieldError = employeeLimitError(employeeLimit, {
     min: limits.minEmployeeLimit,
@@ -131,10 +134,12 @@ export default function CompanyDetailsPage() {
     if (!preferred) {
       setPaymentPeriod("");
       setPaymentAmount("");
+      setPaymentLinkUrl("");
       return;
     }
     setPaymentPeriod(preferred.billingPeriod);
     setPaymentAmount(preferred.remaining > 0 ? String(preferred.remaining) : "");
+    setPaymentLinkUrl(preferred.paymentLinkUrl ?? "");
   }
 
   useEffect(() => {
@@ -319,6 +324,47 @@ export default function CompanyDetailsPage() {
     }
   }
 
+  async function onCreatePaymentLink(event: FormEvent) {
+    event.preventDefault();
+    if (!paymentPeriod) {
+      toast.showError("Choose a billing period.");
+      return;
+    }
+    setCreatingLink(true);
+    toast.dismiss();
+    try {
+      const created = await createCompanyPaymentLink(id, { billingPeriod: paymentPeriod });
+      setPaymentLinkUrl(created.paymentLinkUrl);
+      const refreshed = await getCompanyBilling(id).catch(() => null);
+      if (refreshed) {
+        applyBilling(refreshed);
+        setPaymentLinkUrl(
+          refreshed.periods.find((period) => period.billingPeriod === paymentPeriod)
+            ?.paymentLinkUrl
+            ?? created.paymentLinkUrl,
+        );
+        setPaymentPeriod(paymentPeriod);
+      }
+      toast.showSuccess("Payment link ready to copy.");
+    } catch (err) {
+      toast.showError(err instanceof Error ? err.message : "Could not create payment link.");
+    } finally {
+      setCreatingLink(false);
+    }
+  }
+
+  async function onCopyPaymentLink() {
+    if (!paymentLinkUrl) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(paymentLinkUrl);
+      toast.showSuccess("Payment link copied.");
+    } catch {
+      toast.showError("Could not copy the payment link.");
+    }
+  }
+
   async function onRecordPayment(event: FormEvent) {
     event.preventDefault();
     const amount = Number(paymentAmount);
@@ -416,31 +462,35 @@ export default function CompanyDetailsPage() {
         <Alert>{error}</Alert>
 
         {company ? (
-          <>
-            <dl className="sa-facts">
-              <div>
-                <dt>Contact</dt>
-                <dd>{company.contactEmail}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>
-                  <span className="sa-chip" data-status={company.status}>
-                    {company.status}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt>Plan</dt>
-                <dd>{company.planName}</dd>
-              </div>
-              <div>
-                <dt>Admin</dt>
-                <dd>{company.adminEmail ?? "Not created"}</dd>
-              </div>
-            </dl>
+          <div className="sa-stack">
+            <div className="sa-card">
+              <dl className="sa-facts">
+                <div>
+                  <dt>Contact</dt>
+                  <dd>{company.contactEmail}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>
+                    <span className="sa-chip" data-status={company.status}>
+                      {company.status}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Plan</dt>
+                  <dd>{company.planName}</dd>
+                </div>
+                <div>
+                  <dt>Admin</dt>
+                  <dd>{company.adminEmail ?? "Not created"}</dd>
+                </div>
+              </dl>
+            </div>
 
-            <form className="sa-compose sa-compose--single" noValidate autoComplete="off" onSubmit={onSaveLimit}>
+            <div className="sa-grid-2">
+              <div className="sa-card">
+                <form className="sa-compose sa-compose--single" noValidate autoComplete="off" onSubmit={onSaveLimit}>
               <Field
                 id="employee-limit"
                 label="Employee limit"
@@ -463,16 +513,77 @@ export default function CompanyDetailsPage() {
                   disabled={savingLimit}
                 />
               </Field>
-              <Button type="submit" loading={savingLimit} loadingLabel="Saving">
-                Save employee limit
-              </Button>
+              <div className="sa-compose__actions">
+                <Button type="submit" loading={savingLimit} loadingLabel="Saving">
+                  Save employee limit
+                </Button>
+              </div>
             </form>
+          </div>
 
-            {company.activatedAt && billing && billing.periods.length > 0 ? (
-              <FieldGroup
-                title="Billing"
-                hint="Collection is offline. Record UPI, NEFT, or cash against a calendar month. GST invoices stay outside the product."
-              >
+          {credentials ? (
+            <div className="sa-card">
+              <section className="sa-secret" aria-live="polite">
+                <h2>Company Admin created</h2>
+                <p>
+                  Company Admin created for {credentials.email}. Share the
+                  password you entered out of band. They must change it at first
+                  login.
+                </p>
+              </section>
+            </div>
+          ) : company.hasAdmin ? null : (
+            <div className="sa-card">
+              <form className="sa-compose sa-compose--single" noValidate autoComplete="off" onSubmit={onCreateAdmin}>
+                <FieldGroup title="Company Admin" className="sa-compose__span">
+                  <Field
+                    id="admin-email"
+                    label="Admin email"
+                    error={shownAdminEmailError}
+                    required
+                  >
+                    <input
+                      ref={adminEmailRef}
+                      className="mp-input"
+                      name="email"
+                      type="email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      onBlur={() => setAdminEmailTouched(true)}
+                      disabled={busy}
+                    />
+                  </Field>
+                  <PasswordField
+                    id="admin-password"
+                    label="Temporary password"
+                    name="temporaryPassword"
+                    inputRef={adminPasswordRef}
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    onBlur={() => setAdminPasswordTouched(true)}
+                    disabled={busy}
+                    autoComplete="new-password"
+                    required
+                    hint="Type a temporary password to share out of band. It is never shown again."
+                    error={shownAdminPasswordError}
+                  />
+                </FieldGroup>
+                <div className="sa-compose__actions">
+                  <Button type="submit" loading={busy} loadingLabel="Creating">
+                    Create admin
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+
+        {company.activatedAt && billing && billing.periods.length > 0 ? (
+          <div className="sa-card">
+            <FieldGroup
+              title="Billing"
+              hint="Create a Razorpay payment link for the unpaid month. Keep offline recording for cash or NEFT already received."
+            >
                 <div className="sa-master-wrap">
                   <table className="sa-master">
                     <thead>
@@ -516,8 +627,8 @@ export default function CompanyDetailsPage() {
                   </table>
                 </div>
 
-                <form className="sa-compose" noValidate autoComplete="off" onSubmit={onRecordPayment}>
-                  <Field id="billing-period" label="Period" required>
+                <form className="sa-compose" noValidate autoComplete="off" onSubmit={onCreatePaymentLink}>
+                  <Field id="link-period" label="Period" required>
                     <Select
                       value={paymentPeriod}
                       options={billing.periods.map((period) => ({
@@ -527,110 +638,126 @@ export default function CompanyDetailsPage() {
                       onChange={(next) => {
                         setPaymentPeriod(next);
                         const selected = billing.periods.find((period) => period.billingPeriod === next);
-                        if (selected && selected.remaining > 0) {
-                          setPaymentAmount(String(selected.remaining));
+                        if (selected) {
+                          setPaymentAmount(selected.remaining > 0 ? String(selected.remaining) : "");
+                          setPaymentLinkUrl(selected.paymentLinkUrl ?? "");
                         }
                       }}
                     />
                   </Field>
-                  <Field id="billing-amount" label="Amount" required>
-                    <input
-                      className="mp-input"
-                      name="amount"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={paymentAmount}
-                      onChange={(event) => setPaymentAmount(event.target.value)}
-                      disabled={recordingPayment}
-                    />
-                  </Field>
-                  <Field id="billing-date" label="Payment date" required>
-                    <DateField
-                      name="paidOn"
-                      value={paymentDate}
-                      onChange={setPaymentDate}
-                      disabled={recordingPayment}
-                    />
-                  </Field>
-                  <Field id="billing-mode" label="Mode" required>
-                    <Select
-                      value={paymentMode}
-                      options={PAYMENT_MODES}
-                      onChange={setPaymentMode}
-                    />
-                  </Field>
-                  <Field id="billing-gst" label="GST / invoice reference" optional>
-                    <input
-                      className="mp-input"
-                      name="invoiceGstReference"
-                      value={invoiceGst}
-                      onChange={(event) => setInvoiceGst(event.target.value)}
-                      disabled={recordingPayment}
-                    />
-                  </Field>
-                  <Button type="submit" loading={recordingPayment} loadingLabel="Recording">
-                    Record payment
-                  </Button>
+                  <p className="mp-group__hint">
+                    Remaining{" "}
+                    {formatRupees(
+                      billing.periods.find((period) => period.billingPeriod === paymentPeriod)
+                        ?.remaining ?? 0,
+                    )}
+                  </p>
+                  <div className="sa-compose__actions">
+                    <Button
+                      type="submit"
+                      loading={creatingLink}
+                      loadingLabel="Creating"
+                      disabled={
+                        (billing.periods.find((period) => period.billingPeriod === paymentPeriod)
+                          ?.remaining ?? 0) <= 0
+                      }
+                    >
+                      Create payment link
+                    </Button>
+                  </div>
+                </form>
+
+                {paymentLinkUrl ? (
+                  <div className="sa-compose">
+                    <Field id="payment-link-url" label="Payment link">
+                      <input
+                        className="mp-input"
+                        name="paymentLinkUrl"
+                        value={paymentLinkUrl}
+                        readOnly
+                      />
+                    </Field>
+                    <Button type="button" onClick={() => void onCopyPaymentLink()}>
+                      Copy link
+                    </Button>
+                  </div>
+                ) : null}
+
+                <form className="sa-compose" noValidate autoComplete="off" onSubmit={onRecordPayment}>
+                  <FieldGroup title="Record offline payment" className="sa-compose__span">
+                    <Field id="billing-period" label="Period" required>
+                      <Select
+                        value={paymentPeriod}
+                        options={billing.periods.map((period) => ({
+                          value: period.billingPeriod,
+                          label: periodLabel(period.year, period.month),
+                        }))}
+                        onChange={(next) => {
+                          setPaymentPeriod(next);
+                          const selected = billing.periods.find((period) => period.billingPeriod === next);
+                          if (selected && selected.remaining > 0) {
+                            setPaymentAmount(String(selected.remaining));
+                          }
+                          setPaymentLinkUrl(
+                            billing.periods.find((period) => period.billingPeriod === next)
+                              ?.paymentLinkUrl ?? "",
+                          );
+                        }}
+                      />
+                    </Field>
+                    <Field id="billing-amount" label="Amount" required>
+                      <input
+                        className="mp-input"
+                        name="amount"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={paymentAmount}
+                        onChange={(event) => setPaymentAmount(event.target.value)}
+                        disabled={recordingPayment}
+                      />
+                    </Field>
+                    <Field id="billing-date" label="Payment date" required>
+                      <DateField
+                        name="paidOn"
+                        value={paymentDate}
+                        onChange={setPaymentDate}
+                        disabled={recordingPayment}
+                      />
+                    </Field>
+                    <Field id="billing-mode" label="Mode" required>
+                      <Select
+                        value={paymentMode}
+                        options={PAYMENT_MODES}
+                        onChange={setPaymentMode}
+                      />
+                    </Field>
+                    <Field id="billing-gst" label="GST / invoice reference" optional>
+                      <input
+                        className="mp-input"
+                        name="invoiceGstReference"
+                        value={invoiceGst}
+                        onChange={(event) => setInvoiceGst(event.target.value)}
+                        disabled={recordingPayment}
+                      />
+                    </Field>
+                    <div className="sa-compose__actions">
+                      <Button type="submit" loading={recordingPayment} loadingLabel="Recording">
+                        Record payment
+                      </Button>
+                    </div>
+                  </FieldGroup>
                 </form>
               </FieldGroup>
+            </div>
             ) : null}
 
-            {credentials ? (
-              <section className="sa-secret" aria-live="polite">
-                <h2>Company Admin created</h2>
-                <p>
-                  Company Admin created for {credentials.email}. Share the
-                  password you entered out of band. They must change it at first
-                  login.
-                </p>
-              </section>
-            ) : company.hasAdmin ? null : (
-              <form className="sa-compose sa-compose--single" noValidate autoComplete="off" onSubmit={onCreateAdmin}>
-                <FieldGroup title="Company Admin" className="sa-compose__span">
-                  <Field
-                    id="admin-email"
-                    label="Admin email"
-                    error={shownAdminEmailError}
-                    required
-                  >
-                    <input
-                      ref={adminEmailRef}
-                      className="mp-input"
-                      name="email"
-                      type="email"
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                      onBlur={() => setAdminEmailTouched(true)}
-                      disabled={busy}
-                    />
-                  </Field>
-                  <PasswordField
-                    id="admin-password"
-                    label="Temporary password"
-                    name="temporaryPassword"
-                    inputRef={adminPasswordRef}
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    onBlur={() => setAdminPasswordTouched(true)}
-                    disabled={busy}
-                    autoComplete="new-password"
-                    required
-                    hint="Type a temporary password to share out of band. It is never shown again."
-                    error={shownAdminPasswordError}
-                  />
-                </FieldGroup>
-                <Button type="submit" loading={busy} loadingLabel="Creating">
-                  Create admin
-                </Button>
-              </form>
-            )}
-
             {canActivate || hasLifecycleActions ? (
-              <FieldGroup
-                title="Subscription"
-                hint="Named Superadmin actions. Status is never edited as a free-form field."
-              >
+              <div className="sa-card">
+                <FieldGroup
+                  title="Subscription"
+                  hint="Named Superadmin actions. Status is never edited as a free-form field."
+                >
                 <div className="sa-lifecycle-actions">
                   {canActivate ? (
                     <Button
@@ -828,12 +955,14 @@ export default function CompanyDetailsPage() {
                   onConfirm={() => void confirmLifecycle()}
                 />
               </FieldGroup>
+              </div>
             ) : null}
-          </>
+          </div>
         ) : null}
 
         {company && payrollRuns.length > 0 ? (
-          <FieldGroup title="Payroll runs">
+          <div className="sa-card" style={{ marginTop: "var(--space-xl)" }}>
+            <FieldGroup title="Payroll runs">
             <p className="mp-group__hint">
               Reversal is Superadmin-only and needs a reason. Amounts stay on the reversed run.
             </p>
@@ -906,6 +1035,7 @@ export default function CompanyDetailsPage() {
               onConfirm={() => void confirmReverse()}
             />
           </FieldGroup>
+          </div>
         ) : null}
     </main>
   );

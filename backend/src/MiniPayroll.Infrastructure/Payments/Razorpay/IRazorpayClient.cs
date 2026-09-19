@@ -6,6 +6,10 @@ public interface IRazorpayClient
         RazorpayOrderCreateRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<RazorpayPaymentLinkRecord> CreatePaymentLinkAsync(
+        RazorpayPaymentLinkCreateRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<RazorpayOrderRecord> FetchOrderAsync(
         string orderId,
         CancellationToken cancellationToken = default);

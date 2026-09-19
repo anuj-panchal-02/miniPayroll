@@ -11,8 +11,25 @@ internal sealed class ScriptedRazorpayClient : IRazorpayClient
     public RazorpayOrderRecord? Order { get; set; }
     public RazorpayPaymentRecord? Payment { get; set; }
     public RazorpaySubscriptionRecord? Subscription { get; set; }
+    public RazorpayPaymentLinkRecord? PaymentLink { get; set; }
     public int OrdersCreated { get; private set; }
+    public int PaymentLinksCreated { get; private set; }
     public int SubscriptionsCancelled { get; private set; }
+
+    public Task<RazorpayPaymentLinkRecord> CreatePaymentLinkAsync(
+        RazorpayPaymentLinkCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfNeeded();
+        PaymentLinksCreated++;
+        PaymentLink ??= new RazorpayPaymentLinkRecord(
+            "plink_1",
+            "https://rzp.io/i/test",
+            request.AmountPaise,
+            request.Currency,
+            request.Notes);
+        return Task.FromResult(PaymentLink);
+    }
 
     public Task<RazorpayOrderRecord> CreateOrderAsync(
         RazorpayOrderCreateRequest request,
